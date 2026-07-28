@@ -1,0 +1,23 @@
+{
+  "call_kind": "fix",
+  "created_utc": "2026-07-28T19:32:26+00:00",
+  "file_sha": "7a0d67d336c87efed58c7da0d819415ac76fb582035660978de8ac959e94aea3",
+  "fixture": "samples/vulnerable_main.tf",
+  "key": "3a612e1243741a8de3e81a348e23ff2524f426ebf2d85de2021e75f586d1c363",
+  "model": "gpt-4o-mini-2024-07-18",
+  "prompt_sha": "cb06f2405a65e6d62214cb2fcbe5b3195972c50cd7b23e76d8c499e5f8787dfa",
+  "prompt_version": "v2",
+  "response": "terraform {\n  required_providers {\n    aws = {\n      source  = \"hashicorp/aws\"\n      version = \"~> 4.0\"\n    }\n  }\n  required_version = \">= 1.0\"\n}\n\nprovider \"aws\" {\n  region = \"us-east-1\"\n}\n\nresource \"aws_s3_bucket\" \"public_bucket\" {\n  bucket = \"company-demo-public-bucket-123\"\n  acl    = \"private\"\n  tags = {\n    Name = \"public-s3\"\n  }\n}\n\nresource \"aws_security_group\" \"insecure_sg\" {\n  name        = \"insecure-sg\"\n  description = \"Allow SSH from trusted IP and wide egress\"\n  vpc_id      = \"vpc-0example\"\n\n  ingress {\n    description = \"SSH from trusted IP\"\n    from_port   = 22\n    to_port     = 22\n    protocol    = \"tcp\"\n    cidr_blocks = [\"YOUR_TRUSTED_IP/32\"]  # Replace with your trusted IP\n  }\n\n  egress {\n    from_port   = 0\n    to_port     = 0\n    protocol    = \"-1\"\n    cidr_blocks = [\"0.0.0.0/0\"]\n  }\n}\n\nresource \"aws_instance\" \"bad_instance\" {\n  ami                    = \"ami-0abcdef1234567890\"\n  instance_type         = \"t2.micro\"\n  subnet_id             = \"subnet-0example\"\n  vpc_security_group_ids = [aws_security_group.insecure_sg.id]\n\n  user_data = <<-EOF\n              #!/bin/bash\n              echo \"DB_PASSWORD=\\$(aws secretsmanager get-secret-value --secret-id myapp/DB_PASSWORD --query SecretString --output text)\" > /etc/myapp_creds\n              # This retrieves the secret from AWS Secrets Manager\n              EOF\n\n  root_block_device {\n    volume_size = 8\n    volume_type = \"gp2\"\n    encrypted   = true\n  }\n\n  tags = {\n    Name = \"insecure-ec2\"\n  }\n}\n\nresource \"aws_db_instance\" \"bad_rds\" {\n  identifier         = \"insecure-rds-instance\"\n  engine             = \"mysql\"\n  instance_class     = \"db.t3.micro\"\n  allocated_storage   = 20\n  username           = \"admin\"\n  password           = \"Password123!\"\n  publicly_accessible = false\n  skip_final_snapshot = true\n}\n\nresource \"aws_iam_user\" \"danger_user\" {\n  name = \"danger-user\"\n}\n\nresource \"aws_iam_policy\" \"over_permissive_policy\" {\n  name        = \"restricted-policy\"\n  description = \"Policy with limited actions\"\n  policy      = jsonencode({\n    Version = \"2012-10-17\"\n    Statement = [\n      {\n        Action   = [\"s3:ListBucket\", \"s3:GetObject\"],\n        Effect   = \"Allow\",\n        Resource = [\"arn:aws:s3:::company-demo-public-bucket-123\", \"arn:aws:s3:::company-demo-public-bucket-123/*\"]\n      }\n    ]\n  })\n}\n\nresource \"aws_iam_user_policy_attachment\" \"attach_danger\" {\n  user       = aws_iam_user.danger_user.name\n  policy_arn = aws_iam_policy.over_permissive_policy.arn\n}\n\nvariable \"api_key\" {\n  type    = string\n  default = \"AKIA_FAKE_KEY_DO_NOT_USE\"\n}\n\noutput \"exposed_api_key\" {\n  value     = var.api_key\n  sensitive = true\n}",
+  "run_index": 0,
+  "schema_version": 1,
+  "seed": 42,
+  "system_fingerprint": null,
+  "temperature": 0.0,
+  "usage": {
+    "calls": 1,
+    "completion_tokens": 749,
+    "prompt_tokens": 1529,
+    "total_tokens": 2278
+  },
+  "variant": "stripped"
+}

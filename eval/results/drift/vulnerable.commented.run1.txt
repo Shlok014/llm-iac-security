@@ -1,5 +1,5 @@
-fixture : samples/vulnerable_network.tf
-variant : stripped  run: 0
+fixture : samples/vulnerable.Dockerfile
+variant : commented  run: 1
 summary : no resource drift
 drifted : False
 deleted : -

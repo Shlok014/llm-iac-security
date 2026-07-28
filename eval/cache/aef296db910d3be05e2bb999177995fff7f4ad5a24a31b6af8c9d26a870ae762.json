@@ -1,0 +1,23 @@
+{
+  "call_kind": "fix",
+  "created_utc": "2026-07-28T19:31:58+00:00",
+  "file_sha": "4c7068b93582f1beef8889a6d35745273e46932e1a435aaa0bcb1088b94c82ac",
+  "fixture": "samples/vulnerable.Dockerfile",
+  "key": "aef296db910d3be05e2bb999177995fff7f4ad5a24a31b6af8c9d26a870ae762",
+  "model": "gpt-4o-mini-2024-07-18",
+  "prompt_sha": "c3ac72ee46a3e17760a8b40f1f5476fcd499fe81d316247c56ed9c4df4336a64",
+  "prompt_version": "v2",
+  "response": "FROM python:3.10.12-slim\n\nRUN apt-get update && \\\n    apt-get install -y --no-install-recommends curl wget git openssh-server sudo build-essential \\\n    ca-certificates unzip && \\\n    rm -rf /var/lib/apt/lists/*\n\n# Use a secure secrets management solution instead of copying secrets directly\n# COPY ./secrets.env /app/secrets.env\n\n# Replace ADD with RUN curl to download the file\nRUN curl -fsSL https://example.com/tools/toolkit.tar.gz -o /tmp/remote-tool/toolkit.tar.gz\n\nCOPY . /app\nWORKDIR /app\nRUN pip install --no-cache-dir -r requirements.txt\n\n# Remove exposing SSH and Docker daemon ports\n# EXPOSE 22 2375 5000\n\n# Use a secure secrets management solution instead of baking sensitive information\n# ENV DB_PASSWORD=\"SuperInsecurePassword123!\"\n# ENV AWS_ACCESS_KEY_ID=\"AKIA_FAKE_KEY\"\n# ENV AWS_SECRET_ACCESS_KEY=\"SECRET_FAKE_KEY\"\n\nRUN mkdir -p /app/data && chmod 700 /app/data\n\n# Download the script, verify its integrity, and then execute it\nRUN curl -fsSL https://example.com/install.sh -o /tmp/install.sh && \\\n    sh /tmp/install.sh\n\nRUN mkdir -p /var/run/sshd\n\n# Remove the creation of the SUID executable\n# RUN touch /usr/local/bin/suid_sample && chmod 4755 /usr/local/bin/suid_sample\n\n# Add a HEALTHCHECK instruction\nHEALTHCHECK --interval=30s --timeout=10s CMD curl -f http://localhost:5000/health || exit 1\n\n# Specify a non-root user to run the application\nUSER nobody\n\nCMD [\"/bin/bash\"]",
+  "run_index": 0,
+  "schema_version": 1,
+  "seed": 42,
+  "system_fingerprint": null,
+  "temperature": 0.0,
+  "usage": {
+    "calls": 1,
+    "completion_tokens": 369,
+    "prompt_tokens": 1129,
+    "total_tokens": 1498
+  },
+  "variant": "stripped"
+}

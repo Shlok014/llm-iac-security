@@ -1,0 +1,23 @@
+{
+  "call_kind": "fix",
+  "created_utc": "2026-07-28T19:31:35+00:00",
+  "file_sha": "363bfa561a781494df2ecc2ab11e1e464554be53eded1eeb2f37a9fe1002110e",
+  "fixture": "samples/s3_public.tf",
+  "key": "cb2d8fd10985be5466fbbf7da007a7f45bcd4e98df8d9a5709ff95a7e1fded3b",
+  "model": "gpt-4o-mini-2024-07-18",
+  "prompt_sha": "1a76e881439343c8d7a99b6d936720549595c68a431913748a549d2d2bddf6ad",
+  "prompt_version": "v2",
+  "response": "resource \"aws_s3_bucket\" \"example\" {\n  bucket = \"mybucket\"\n  acl    = \"private\"\n}",
+  "run_index": 0,
+  "schema_version": 1,
+  "seed": 42,
+  "system_fingerprint": null,
+  "temperature": 0.0,
+  "usage": {
+    "calls": 1,
+    "completion_tokens": 26,
+    "prompt_tokens": 437,
+    "total_tokens": 463
+  },
+  "variant": "stripped"
+}

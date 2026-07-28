@@ -1,4 +1,4 @@
-fixture : samples/vulnerable_network.tf
+fixture : samples/ec2_open.tf
 variant : stripped  run: 0
 summary : no resource drift
 drifted : False

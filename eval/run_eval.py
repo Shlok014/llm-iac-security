@@ -96,6 +96,7 @@ _CACHE_FIELDS = frozenset(
         "response",
         "usage",
         "system_fingerprint",
+        "completion_source",
     }
 )
 
@@ -150,6 +151,9 @@ def tool_version(binary: str) -> str:
     return first.split()[-1] if first.lower().startswith("version") else first
 
 
+LIVE_SOURCE = "openai"
+
+
 def cache_key(
     *,
     model: str,
@@ -161,8 +165,19 @@ def cache_key(
     variant: str,
     file_sha: str,
     prompt_sha: str,
+    completion_source: str = LIVE_SOURCE,
 ) -> str:
-    """SHA-256 over everything that determines the response. See the module docstring."""
+    """SHA-256 over everything that determines the response. See the module docstring.
+
+    `completion_source` is in the key for a reason worth spelling out. `eval/fake_model.py`
+    exists so the pipeline can be exercised offline, and it is invoked with the same
+    `ModelConfig` as a real run — so without this component a fake response and a real one
+    for the same fixture hash to the **same key**, and the cache cannot tell them apart. A
+    later real run would then be served a canned answer and publish it as the model's, which
+    is fabricated data wearing a reproducibility badge. Keying on the source puts injected
+    and live completions in disjoint key spaces, so a fake entry can never be replayed as a
+    real one and vice versa.
+    """
     payload = "|".join(
         [
             f"model={model}",
@@ -174,6 +189,7 @@ def cache_key(
             f"variant={variant}",
             f"file_sha={file_sha}",
             f"prompt_sha={prompt_sha}",
+            f"completion_source={completion_source}",
         ]
     )
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
@@ -292,6 +308,7 @@ class CachingCompleter:
         ctx: CallContext,
         inner: Any = None,
         allow_network: bool = False,
+        completion_source: str = LIVE_SOURCE,
     ) -> None:
         if call_kind not in CALL_KINDS:
             raise ValueError(f"unknown call kind {call_kind!r}")
@@ -302,6 +319,7 @@ class CachingCompleter:
         self.inner = inner
         self._inner_kwargs = _accepted_optional_kwargs(inner) if inner is not None else set()
         self.allow_network = allow_network
+        self.completion_source = completion_source
         self.calls: list[dict[str, Any]] = []
 
     def __call__(
@@ -322,6 +340,7 @@ class CachingCompleter:
             variant=self.ctx.variant,
             file_sha=self.ctx.file_sha,
             prompt_sha=prompt_sha,
+            completion_source=self.completion_source,
         )
 
         hit = self.cache.get(key)
@@ -387,6 +406,9 @@ class CachingCompleter:
                 "response": text,
                 "usage": usage.as_dict(),
                 "system_fingerprint": fingerprint,
+                # Recorded as well as keyed, so `ls eval/cache | xargs grep` answers
+                # "was this produced by the real model?" without recomputing a hash.
+                "completion_source": self.completion_source,
             }
         )
         self.calls.append(
@@ -485,6 +507,8 @@ class RunConfig:
     allow_network: bool
     complete_fn: Any = None
     artifact_dir: Path = ARTIFACT_DIR
+    drift_dir: Path = DRIFT_DIR
+    completion_source: str = LIVE_SOURCE
     usage: TokenUsage = field(default_factory=TokenUsage)
     live_calls: int = 0
     fingerprints: set[str] = field(default_factory=set)
@@ -534,10 +558,12 @@ def run_one(fixture: Path, variant: str, run_index: int, rc: RunConfig) -> dict[
     detect_completer = CachingCompleter(
         cache=rc.cache, cfg=rc.cfg, call_kind="detect", ctx=ctx,
         inner=rc.complete_fn, allow_network=rc.allow_network,
+        completion_source=rc.completion_source,
     )
     fix_completer = CachingCompleter(
         cache=rc.cache, cfg=rc.cfg, call_kind="fix", ctx=ctx,
         inner=rc.complete_fn, allow_network=rc.allow_network,
+        completion_source=rc.completion_source,
     )
 
     try:
@@ -822,6 +848,10 @@ def cmd_run(args: argparse.Namespace) -> int:
         allow_network=bool(args.fresh) and complete_fn is None,
         complete_fn=complete_fn,
         artifact_dir=args.artifact_dir,
+        drift_dir=args.drift_dir,
+        # Part of the cache key: an injected completion function and the live model must
+        # never share a cache entry. See `cache_key`.
+        completion_source=f"injected:{args.complete_fn}" if args.complete_fn else LIVE_SOURCE,
     )
     if rc.allow_network:
         print(
@@ -883,7 +913,7 @@ def cmd_run(args: argparse.Namespace) -> int:
     }
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(doc, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    write_drift_reports(records)
+    write_drift_reports(records, rc.drift_dir)
     print(
         f"\nwrote {args.out}  "
         f"(cache: {cache.hits} hits, {cache.misses} misses, {rc.live_calls} live calls)"
@@ -1021,6 +1051,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_run.add_argument("--cache-dir", type=Path, default=CACHE_DIR)
     p_run.add_argument("--artifact-dir", type=Path, default=ARTIFACT_DIR)
+    p_run.add_argument("--drift-dir", type=Path, default=DRIFT_DIR)
     p_run.add_argument("--out", type=Path, default=RESULTS_JSON)
     p_run.add_argument("--baseline-json", type=Path, default=BASELINE_JSON)
     p_run.add_argument("--results-md", type=Path, default=RESULTS_MD)

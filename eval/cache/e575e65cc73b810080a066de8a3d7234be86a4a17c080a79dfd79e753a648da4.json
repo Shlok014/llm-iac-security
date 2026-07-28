@@ -1,0 +1,23 @@
+{
+  "call_kind": "fix",
+  "created_utc": "2026-07-28T19:31:03+00:00",
+  "file_sha": "e9633ed613419d46703501f9fb29df38ae18d2c4429e701760874efc5bb96d4f",
+  "fixture": "samples/docker_insecure.Dockerfile",
+  "key": "e575e65cc73b810080a066de8a3d7234be86a4a17c080a79dfd79e753a648da4",
+  "model": "gpt-4o-mini-2024-07-18",
+  "prompt_sha": "0a38ea43c1c694b0b4b0f354dec3a945f72c12ce892ae52d6b35de9ecd2b4713",
+  "prompt_version": "v2",
+  "response": "FROM python:3.10.12-slim\n\nRUN apt-get update && apt-get install -y curl wget \\\n    && rm -rf /var/lib/apt/lists/*\n\nCOPY ./secrets.env /app/secrets.env\n\nRUN curl -fsSL https://example.com/some-remote-tool.tar.gz -o /tmp/remote-tool.tar.gz \\\n    && tar -xzf /tmp/remote-tool.tar.gz -C /tmp/ \\\n    && rm /tmp/remote-tool.tar.gz\n\nCOPY requirements.txt /app/requirements.txt\nRUN pip install --no-cache-dir -r /app/requirements.txt\n\nRUN mkdir -p /app/data && chmod 755 /app/data\n\nEXPOSE 22 2375 5000\n\n# Removed sensitive environment variables\n# Use a secrets management tool to handle sensitive information\n\nWORKDIR /app\n\nRUN curl -fsSL https://example.com/install.sh | sh\n\nRUN mkdir /var/run/sshd\n\nCOPY . /app\n\n# Removed creation of SUID executable\n\nRUN echo \"temporary\" > /tmp/temp && chmod 600 /tmp/temp\n\n# Added HEALTHCHECK instruction\nHEALTHCHECK --interval=30s --timeout=10s CMD curl -f http://localhost:5000/health || exit 1\n\n# Create a non-root user\nRUN useradd -ms /bin/bash appuser\nUSER appuser\n\nCMD [\"/bin/bash\"]",
+  "run_index": 0,
+  "schema_version": 1,
+  "seed": 42,
+  "system_fingerprint": null,
+  "temperature": 0.0,
+  "usage": {
+    "calls": 1,
+    "completion_tokens": 294,
+    "prompt_tokens": 1034,
+    "total_tokens": 1328
+  },
+  "variant": "stripped"
+}

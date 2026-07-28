@@ -746,9 +746,32 @@ _STOPWORDS = frozenset(
 )
 
 
+_SUFFIXES = ("ations", "ation", "ising", "izing", "ised", "ized", "ing", "ion", "ed", "es", "s")
+
+
+def _stem(word: str) -> str:
+    """Crudest possible suffix stripping, and that is the right amount here.
+
+    Without it the token overlap test compares `encryption` to `encrypted` and `bucket` to
+    `buckets` and finds nothing in common — measured: the LLM finding "Bucket has no
+    server-side encryption" shared only `kms` with Checkov's "Ensure that S3 buckets are
+    encrypted with KMS by default", so a correct observation about a real unlabelled flaw
+    was scored as a hallucination. A real stemmer would be a new dependency for a
+    heuristic that a hand-written adjudication file overrides anyway.
+    """
+    for suffix in _SUFFIXES:
+        if word.endswith(suffix) and len(word) - len(suffix) >= 4:
+            return word[: -len(suffix)]
+    return word
+
+
+_STOPWORD_STEMS = _STOPWORDS | {_stem(w) for w in _STOPWORDS}
+
+
 def _content_tokens(text: str) -> set[str]:
     words = re.findall(r"[a-z0-9_]+", normalise_text(text))
-    return {w for w in words if len(w) > 2 and w not in _STOPWORDS}
+    stems = {_stem(w) for w in words if len(w) > 2}
+    return {s for s in stems if s not in _STOPWORD_STEMS and len(s) > 2}
 
 
 @dataclass(frozen=True)
