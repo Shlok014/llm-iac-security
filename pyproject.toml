@@ -9,14 +9,15 @@
 #    silently change every published figure on the next release, so the pin is part of the
 #    evidence, not caution.
 #
-# 2. `requirements.txt` at HEAD lists `openai`, `python-dotenv`, `checkov`, `streamlit` —
-#    and omits `pandas`, which `app.py` imports on line 3. A fresh `pip install -r
-#    requirements.txt` therefore produced a UI that crashed on import. That is fixed here:
-#    `pandas` is declared, alongside `streamlit`, in the `ui` extra that `app.py` needs.
+# 2. The `requirements.txt` this replaces (see the import commit) listed `openai`,
+#    `python-dotenv`, `checkov` and `streamlit` — and omitted `pandas`, which `app.py`
+#    imports. A fresh `pip install -r requirements.txt` therefore produced a UI that
+#    crashed on import. Fixed here: `pandas` is declared alongside `streamlit` in the `ui`
+#    extra that `app.py` needs.
 #
-# The legacy Streamlit UI's dependencies are an extra rather than core because `iac-agent`
-# is a CLI: `pip install iac-agent` should not pull ~200 MB of streamlit + pandas + pyarrow
-# to run a scanner. `pip install -e ".[ui]"` is the documented way to run `app.py`.
+# The Streamlit UI's dependencies are an extra rather than core because `iac-agent` is a
+# CLI: `pip install iac-agent` should not pull ~200 MB of streamlit + pandas + pyarrow to
+# run a scanner. `pip install -e ".[ui]"` is the documented way to run `app.py`.
 #
 # Pytest configuration deliberately lives in `pytest.ini`, not here. A `[pytest]` section in
 # pyproject is spelled `[tool.pytest.ini_options]`, and having both files would let the two

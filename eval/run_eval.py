@@ -69,8 +69,8 @@ from . import (
     fixture_key,
     fixture_paths,
 )
+from . import labels_io, render, serialise, strip_comments
 from . import metrics as M
-from . import strip_comments
 
 RESULTS_SCHEMA_VERSION = 1
 CACHE_SCHEMA_VERSION = 1
@@ -488,7 +488,7 @@ def collect_baseline(
             per_scanner: dict[str, Any] = {}
             for name in scanners:
                 scan = get_scanner(name).scan(source, kind)
-                per_scanner[name] = M.scan_to_dict(scan)
+                per_scanner[name] = serialise.scan_to_dict(scan)
             per_fixture[fixture_key(fixture)] = per_scanner
         out[variant] = per_fixture
     return out
@@ -551,7 +551,7 @@ def run_one(fixture: Path, variant: str, run_index: int, rc: RunConfig) -> dict[
 
     before: dict[str, Any] = {}
     for name in rc.scanners:
-        before[name] = M.scan_to_dict(get_scanner(name).scan(source, kind))
+        before[name] = serialise.scan_to_dict(get_scanner(name).scan(source, kind))
     record["before"] = before
 
     ctx = CallContext(variant=variant, fixture=key, file_sha=file_sha, run_index=run_index)
@@ -628,7 +628,7 @@ def run_one(fixture: Path, variant: str, run_index: int, rc: RunConfig) -> dict[
 
     after: dict[str, Any] = {}
     for name in rc.scanners:
-        after[name] = M.scan_to_dict(get_scanner(name).scan(out_path, kind))
+        after[name] = serialise.scan_to_dict(get_scanner(name).scan(out_path, kind))
     record["after"] = after
 
     flagged = {
@@ -756,7 +756,7 @@ def cmd_baseline(args: argparse.Namespace) -> int:
         print(f"scanner failure: {exc}", file=sys.stderr)
         return 2
 
-    labelsets = M.load_all_labels(fixtures)
+    labelsets = labels_io.load_all_labels(fixtures)
     doc = {
         "schema_version": RESULTS_SCHEMA_VERSION,
         "metadata": _metadata(
@@ -777,7 +777,7 @@ def cmd_baseline(args: argparse.Namespace) -> int:
     exit_code = 0
     for variant in variants:
         scans = {
-            f: {s: M.scan_from_dict(d) for s, d in per.items()}
+            f: {s: serialise.scan_from_dict(d) for s, d in per.items()}
             for f, per in baseline[variant].items()
         }
         summary = M.scanner_baseline(scans, labelsets)
@@ -814,7 +814,7 @@ def cmd_baseline(args: argparse.Namespace) -> int:
                 )
             )
 
-        violations = M.verify_label_ids(labelsets, scans)
+        violations = labels_io.verify_label_ids(labelsets, scans)
         if violations:
             exit_code = 1
             print(f"\nLABEL ID VERIFICATION FAILED ({len(violations)}):", file=sys.stderr)
@@ -921,7 +921,7 @@ def cmd_run(args: argparse.Namespace) -> int:
 
     report = M.compute_report(doc, _read_json(args.baseline_json))
     args.results_md.parent.mkdir(parents=True, exist_ok=True)
-    args.results_md.write_text(M.render_results_md(report), encoding="utf-8")
+    args.results_md.write_text(render.render_results_md(report), encoding="utf-8")
     print(f"wrote {args.results_md}")
 
     # A run in which the model failed is not a successful run, even though its per-record
@@ -953,7 +953,7 @@ def cmd_report(args: argparse.Namespace) -> int:
 
     report = M.compute_report(results, baseline)
     args.out.parent.mkdir(parents=True, exist_ok=True)
-    args.out.write_text(M.render_results_md(report), encoding="utf-8")
+    args.out.write_text(render.render_results_md(report), encoding="utf-8")
 
     if args.json:
         args.json.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
