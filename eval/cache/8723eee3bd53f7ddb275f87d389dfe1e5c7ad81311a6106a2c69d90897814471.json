@@ -1,0 +1,24 @@
+{
+  "call_kind": "detect",
+  "completion_source": "openai",
+  "created_utc": "2026-07-28T20:14:36+00:00",
+  "file_sha": "e9633ed613419d46703501f9fb29df38ae18d2c4429e701760874efc5bb96d4f",
+  "fixture": "samples/docker_insecure.Dockerfile",
+  "key": "8723eee3bd53f7ddb275f87d389dfe1e5c7ad81311a6106a2c69d90897814471",
+  "model": "gpt-4o-mini-2024-07-18",
+  "prompt_sha": "58ceb99f72f9db6b9886fe475ecdd237d5ddc30afb82520ce4e597969c17a6b6",
+  "prompt_version": "v2",
+  "response": "{\"findings\":[{\"issue\":\"Using an unpinned base image which may lead to unexpected vulnerabilities in future builds.\",\"severity\":\"high\",\"resource\":\"FROM python:3.10-slim\",\"recommendation\":\"Pin the base image to a specific version, e.g., 'FROM python:3.10.12-slim'.\"},{\"issue\":\"Baking sensitive information such as DB_PASSWORD, AWS_ACCESS_KEY_ID, and AWS_SECRET_ACCESS_KEY into the image layers.\",\"severity\":\"critical\",\"resource\":\"ENV DB_PASSWORD=\\\"SuperInsecurePassword123!\\\"\",\"recommendation\":\"Remove sensitive environment variables from the Dockerfile and use a secrets management tool instead.\"},{\"issue\":\"Using ADD to fetch a remote file which can introduce security risks if the source is compromised.\",\"severity\":\"high\",\"resource\":\"ADD https://example.com/some-remote-tool.tar.gz /tmp/remote-tool/\",\"recommendation\":\"Replace ADD with RUN curl or wget to download the file, and verify the integrity of the downloaded file.\"},{\"issue\":\"Running the container as root, which increases the risk of privilege escalation attacks.\",\"severity\":\"high\",\"resource\":\"CMD [\\\"/bin/bash\\\"]\",\"recommendation\":\"Use a non-root user to run the application by adding a user and switching to that user with the USER instruction.\"},{\"issue\":\"The /app/data directory has overly permissive permissions (777), which can lead to unauthorized access.\",\"severity\":\"medium\",\"resource\":\"RUN mkdir -p /app/data && chmod 777 /app/data\",\"recommendation\":\"Change permissions to a more restrictive setting, such as 755 or 700, depending on the use case.\"},{\"issue\":\"Exposing SSH and Docker daemon ports (22 and 2375) without proper security measures.\",\"severity\":\"high\",\"resource\":\"EXPOSE 22 2375 5000\",\"recommendation\":\"Remove the EXPOSE instruction for ports 22 and 2375 or ensure they are secured with proper authentication and firewall rules.\"},{\"issue\":\"Missing HEALTHCHECK instruction to monitor the health of the running container.\",\"severity\":\"medium\",\"resource\":\"N/A\",\"recommendation\":\"Add a HEALTHCHECK instruction to periodically check the health of the application.\"},{\"issue\":\"Creating a SUID file (suid_sample) which can lead to privilege escalation if exploited.\",\"severity\":\"high\",\"resource\":\"RUN touch /usr/local/bin/suid_sample && chmod 4755 /usr/local/bin/suid_sample\",\"recommendation\":\"Avoid creating SUID files unless absolutely necessary, and ensure proper security measures are in place.\"},{\"issue\":\"The temporary file /tmp/temp has overly permissive permissions (777), which can lead to unauthorized access.\",\"severity\":\"medium\",\"resource\":\"RUN echo \\\"temporary\\\" > /tmp/temp && chmod 777 /tmp/temp\",\"recommendation\":\"Change permissions to a more restrictive setting, such as 600, to limit access.\"}]}",
+  "run_index": 0,
+  "schema_version": 1,
+  "seed": 42,
+  "system_fingerprint": null,
+  "temperature": 0.0,
+  "usage": {
+    "calls": 1,
+    "completion_tokens": 577,
+    "prompt_tokens": 610,
+    "total_tokens": 1187
+  },
+  "variant": "stripped"
+}

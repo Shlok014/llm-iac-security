@@ -1,0 +1,24 @@
+{
+  "call_kind": "detect",
+  "completion_source": "openai",
+  "created_utc": "2026-07-28T20:19:01+00:00",
+  "file_sha": "74721805d436b700e1f5a641eaa96b87ad67e4f77ae445256d39f6430ceaaa59",
+  "fixture": "samples/ec2_open.tf",
+  "key": "9ec8bcd8615209c619ff10a46c5cb363fe5f56dc64eb442f1606b100c058ca33",
+  "model": "gpt-4o-mini-2024-07-18",
+  "prompt_sha": "13a96b448075eb83aedb077c59e2b206329d244a1a2e8e01033149ced54e0a8a",
+  "prompt_version": "v2",
+  "response": "{\"findings\":[{\"issue\":\"SSH access is open to the world (0.0.0.0/0) in the security group.\",\"severity\":\"high\",\"resource\":\"aws_security_group.vulnerable_sg\",\"recommendation\":\"Restrict the CIDR block for SSH access to a specific IP address or range instead of 0.0.0.0/0.\"},{\"issue\":\"Egress rules allow all outbound traffic to the internet.\",\"severity\":\"medium\",\"resource\":\"aws_security_group.vulnerable_sg\",\"recommendation\":\"Restrict egress rules to only allow necessary outbound traffic instead of allowing all (0.0.0.0/0).\"}]}",
+  "run_index": 2,
+  "schema_version": 1,
+  "seed": 42,
+  "system_fingerprint": null,
+  "temperature": 0.0,
+  "usage": {
+    "calls": 1,
+    "completion_tokens": 137,
+    "prompt_tokens": 600,
+    "total_tokens": 737
+  },
+  "variant": "stripped"
+}

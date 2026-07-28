@@ -1,0 +1,11 @@
+fixture : samples/vulnerable_main.tf
+variant : commented  run: 2
+summary : DRIFT: deleted aws_s3_bucket_policy.public_policy; count drops: aws_s3_bucket_policy 1->0
+drifted : True
+deleted : aws_s3_bucket_policy.public_policy
+renamed : -
+added   : -
+count drops: {'aws_s3_bucket_policy': [1, 0]}
+
+flaw-carrying resources deleted or renamed (the 'fixed it by deleting it' set):
+  - aws_s3_bucket_policy.public_policy

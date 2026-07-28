@@ -1,0 +1,24 @@
+{
+  "call_kind": "fix",
+  "completion_source": "openai",
+  "created_utc": "2026-07-28T20:15:11+00:00",
+  "file_sha": "363bfa561a781494df2ecc2ab11e1e464554be53eded1eeb2f37a9fe1002110e",
+  "fixture": "samples/s3_public.tf",
+  "key": "11883880b0a5580f148bffa7a4ab638c5421869b4deb0b92de9fa6242b5a5f25",
+  "model": "gpt-4o-mini-2024-07-18",
+  "prompt_sha": "1a76e881439343c8d7a99b6d936720549595c68a431913748a549d2d2bddf6ad",
+  "prompt_version": "v2",
+  "response": "resource \"aws_s3_bucket\" \"example\" {\n  bucket = \"mybucket\"\n  acl    = \"private\"\n}",
+  "run_index": 0,
+  "schema_version": 1,
+  "seed": 42,
+  "system_fingerprint": null,
+  "temperature": 0.0,
+  "usage": {
+    "calls": 1,
+    "completion_tokens": 26,
+    "prompt_tokens": 437,
+    "total_tokens": 463
+  },
+  "variant": "stripped"
+}

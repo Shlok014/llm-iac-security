@@ -1,0 +1,24 @@
+{
+  "call_kind": "detect",
+  "completion_source": "openai",
+  "created_utc": "2026-07-28T20:11:09+00:00",
+  "file_sha": "b3faf9f3b3ad3e27598024379378398d2c9dbd0f7fe72e658a846ee45e0bf434",
+  "fixture": "samples/vulnerable.Dockerfile",
+  "key": "8cf4fd48852cc8cd4451a79c14ee7216f2541d7b15f7d4a7be44ac7b63d86349",
+  "model": "gpt-4o-mini-2024-07-18",
+  "prompt_sha": "afb93829213897a7784474f03d69a1a55b823ab7c46e59ec8ab0b22b4831d113",
+  "prompt_version": "v2",
+  "response": "{\"findings\":[{\"issue\":\"Floating base tag (non-reproducible, may include CVEs)\",\"severity\":\"high\",\"resource\":\"FROM python:3.10-slim\",\"recommendation\":\"Pin the base image to a specific version, e.g., 'FROM python:3.10.12-slim'.\"},{\"issue\":\"Running as root by default (no USER set later)\",\"severity\":\"high\",\"resource\":\"CMD [\\\"/bin/bash\\\"]\",\"recommendation\":\"Add a non-root user and switch to that user using the USER instruction.\"},{\"issue\":\"Install a bunch of packages (unneeded attack surface) and leave cache\",\"severity\":\"medium\",\"resource\":\"RUN apt-get update && \\n    apt-get install -y --no-install-recommends curl wget git openssh-server sudo build-essential \\\\\\n    ca-certificates unzip && \\\\\\n    rm -rf /var/lib/apt/lists/*\",\"recommendation\":\"Only install necessary packages and clean up after installation.\"},{\"issue\":\"Copy a secrets file from build context (simulates accidental secret bake-in)\",\"severity\":\"critical\",\"resource\":\"COPY ./secrets.env /app/secrets.env\",\"recommendation\":\"Remove the COPY instruction for secrets and use a secure method to manage secrets.\"},{\"issue\":\"ADD remote archive (unsafe: will download and unpack remote content)\",\"severity\":\"high\",\"resource\":\"ADD https://example.com/tools/toolkit.tar.gz /tmp/remote-tool/\",\"recommendation\":\"Use COPY for local files instead of ADD for remote URLs.\"},{\"issue\":\"Copy whole context (danger: may include host secrets) and install python deps without hashes\",\"severity\":\"high\",\"resource\":\"COPY . /app\\nRUN pip install --no-cache-dir -r requirements.txt\",\"recommendation\":\"Limit the context to only necessary files and use pip with hash-checking.\"},{\"issue\":\"Expose unnecessary/privileged ports (e.g. docker daemon or SSH)\",\"severity\":\"medium\",\"resource\":\"EXPOSE 22 2375 5000\",\"recommendation\":\"Remove unnecessary EXPOSE instructions for ports that are not needed.\"},{\"issue\":\"Embed credentials as ENV (visible via docker inspect)\",\"severity\":\"critical\",\"resource\":\"ENV DB_PASSWORD=\\\"SuperInsecurePassword123!\\\"\\nENV AWS_ACCESS_KEY_ID=\\\"AKIA_FAKE_KEY\\\"\\nENV AWS_SECRET_ACCESS_KEY=\\\"SECRET_FAKE_KEY\\\"\",\"recommendation\":\"Remove sensitive information from ENV variables and use a secure secrets management solution.\"},{\"issue\":\"Writable directory with world-write permissions\",\"severity\":\"medium\",\"resource\":\"RUN mkdir -p /app/data && chmod 777 /app/data\",\"recommendation\":\"Set appropriate permissions, e.g., 'chmod 755 /app/data'.\"},{\"issue\":\"Execute remote install script directly (curl | sh) \u2014 remote code execution risk\",\"severity\":\"high\",\"resource\":\"RUN curl -fsSL https://example.com/install.sh | sh\",\"recommendation\":\"Download the script, verify its integrity, and execute it in a controlled manner.\"},{\"issue\":\"Start sshd (unnecessary service inside container)\",\"severity\":\"medium\",\"resource\":\"RUN mkdir -p /var/run/sshd\",\"recommendation\":\"Remove the installation and configuration of unnecessary services like sshd.\"},{\"issue\":\"Create a SUID-like binary (simulated privileged file)\",\"severity\":\"high\",\"resource\":\"RUN touch /usr/local/bin/suid_sample && chmod 4755 /usr/local/bin/suid_sample\",\"recommendation\":\"Avoid creating SUID binaries unless absolutely necessary.\"},{\"issue\":\"No healthcheck, no non-root user, no minimal base image\",\"severity\":\"medium\",\"resource\":\"CMD [\\\"/bin/bash\\\"]\",\"recommendation\":\"Add a HEALTHCHECK instruction and use a minimal base image.\"}]}",
+  "run_index": 1,
+  "schema_version": 1,
+  "seed": 42,
+  "system_fingerprint": null,
+  "temperature": 0.0,
+  "usage": {
+    "calls": 1,
+    "completion_tokens": 757,
+    "prompt_tokens": 836,
+    "total_tokens": 1593
+  },
+  "variant": "commented"
+}

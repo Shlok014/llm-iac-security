@@ -1,0 +1,24 @@
+{
+  "call_kind": "fix",
+  "completion_source": "openai",
+  "created_utc": "2026-07-28T20:18:47+00:00",
+  "file_sha": "e9633ed613419d46703501f9fb29df38ae18d2c4429e701760874efc5bb96d4f",
+  "fixture": "samples/docker_insecure.Dockerfile",
+  "key": "8cb02901e8284de4213732821ac58eb17b573afa44992e3276e8dfb60ab783d5",
+  "model": "gpt-4o-mini-2024-07-18",
+  "prompt_sha": "75d30021ce94febf234995edc744e574f39f6e1adc957751f5119d5f9df7bc7a",
+  "prompt_version": "v2",
+  "response": "FROM python:3.10.12-slim\n\nRUN apt-get update && apt-get install -y curl wget git \\\n    && rm -rf /var/lib/apt/lists/*\n\nCOPY ./secrets.env /app/secrets.env\n\nRUN curl -fsSL https://example.com/some-remote-tool.tar.gz -o /tmp/remote-tool.tar.gz \\\n    && tar -xzf /tmp/remote-tool.tar.gz -C /tmp/ \\\n    && rm /tmp/remote-tool.tar.gz\n\nCOPY requirements.txt /app/requirements.txt\nRUN pip install --no-cache-dir -r /app/requirements.txt\n\nRUN mkdir -p /app/data && chmod 755 /app/data\n\nEXPOSE 22 2375 5000\n\nWORKDIR /app\n\nRUN curl -fsSL https://example.com/install.sh | sh\n\nRUN mkdir /var/run/sshd\n\nCOPY . /app\n\nHEALTHCHECK CMD curl --fail http://localhost:5000/ || exit 1\n\nUSER appuser\n\nCMD [\"/bin/bash\"]",
+  "run_index": 2,
+  "schema_version": 1,
+  "seed": 42,
+  "system_fingerprint": null,
+  "temperature": 0.0,
+  "usage": {
+    "calls": 1,
+    "completion_tokens": 218,
+    "prompt_tokens": 1031,
+    "total_tokens": 1249
+  },
+  "variant": "stripped"
+}

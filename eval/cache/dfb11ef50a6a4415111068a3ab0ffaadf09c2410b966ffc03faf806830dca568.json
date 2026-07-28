@@ -1,0 +1,24 @@
+{
+  "call_kind": "fix",
+  "completion_source": "openai",
+  "created_utc": "2026-07-28T20:16:46+00:00",
+  "file_sha": "e9633ed613419d46703501f9fb29df38ae18d2c4429e701760874efc5bb96d4f",
+  "fixture": "samples/docker_insecure.Dockerfile",
+  "key": "dfb11ef50a6a4415111068a3ab0ffaadf09c2410b966ffc03faf806830dca568",
+  "model": "gpt-4o-mini-2024-07-18",
+  "prompt_sha": "3245e84d62631bee39016f3d0011cc667be54eccab760a69cd7103017e0b6020",
+  "prompt_version": "v2",
+  "response": "FROM python:3.10.12-slim\n\nRUN apt-get update && apt-get install -y curl wget git \\\n    && rm -rf /var/lib/apt/lists/*\n\n# Secrets should not be baked into the image. Use environment variables or a secrets management tool instead.\n# COPY ./secrets.env /app/secrets.env\n\n# Using ADD to fetch remote files can introduce risks. Ensure the remote source is trusted.\n# ADD https://example.com/some-remote-tool.tar.gz /tmp/remote-tool/\n\nCOPY requirements.txt /app/requirements.txt\nRUN pip install --no-cache-dir -r /app/requirements.txt\n\nRUN mkdir -p /app/data && chmod 755 /app/data\n\n# Exposing ports without security measures can lead to unauthorized access. Consider removing unnecessary ports.\n# EXPOSE 22 2375 5000\n\n# Use a secure secrets management solution to handle sensitive information instead of hardcoding it.\n# ENV DB_PASSWORD=\"SuperInsecurePassword123!\"\n# ENV AWS_ACCESS_KEY_ID=\"AKIA_FAKE_KEY\"\n# ENV AWS_SECRET_ACCESS_KEY=\"SECRET_FAKE_KEY\"\n\nWORKDIR /app\n\nRUN curl -fsSL https://example.com/install.sh | sh\n\nRUN mkdir /var/run/sshd\n\nCOPY . /app\n\n# Avoid creating SUID executables unless absolutely necessary.\n# RUN touch /usr/local/bin/suid_sample && chmod 4755 /usr/local/bin/suid_sample\n\n# Set more restrictive permissions for temporary files.\nRUN echo \"temporary\" > /tmp/temp && chmod 600 /tmp/temp\n\n# Adding a HEALTHCHECK instruction to monitor the health of the application.\nHEALTHCHECK --interval=30s --timeout=10s CMD curl -f http://localhost:5000/ || exit 1\n\n# Create a non-root user and switch to that user.\nRUN useradd -m appuser\nUSER appuser\n\nCMD [\"/bin/bash\"]",
+  "run_index": 1,
+  "schema_version": 1,
+  "seed": 42,
+  "system_fingerprint": null,
+  "temperature": 0.0,
+  "usage": {
+    "calls": 1,
+    "completion_tokens": 396,
+    "prompt_tokens": 1191,
+    "total_tokens": 1587
+  },
+  "variant": "stripped"
+}

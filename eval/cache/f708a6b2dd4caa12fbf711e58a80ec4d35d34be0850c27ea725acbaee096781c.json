@@ -1,0 +1,24 @@
+{
+  "call_kind": "detect",
+  "completion_source": "openai",
+  "created_utc": "2026-07-28T20:13:18+00:00",
+  "file_sha": "b3faf9f3b3ad3e27598024379378398d2c9dbd0f7fe72e658a846ee45e0bf434",
+  "fixture": "samples/vulnerable.Dockerfile",
+  "key": "f708a6b2dd4caa12fbf711e58a80ec4d35d34be0850c27ea725acbaee096781c",
+  "model": "gpt-4o-mini-2024-07-18",
+  "prompt_sha": "afb93829213897a7784474f03d69a1a55b823ab7c46e59ec8ab0b22b4831d113",
+  "prompt_version": "v2",
+  "response": "{\"findings\":[{\"issue\":\"Floating base tag (non-reproducible, may include CVEs)\",\"severity\":\"high\",\"resource\":\"FROM python:3.10-slim\",\"recommendation\":\"Pin the base image to a specific version, e.g., 'FROM python:3.10.12-slim'.\"},{\"issue\":\"Running as root by default (no USER set later)\",\"severity\":\"high\",\"resource\":\"CMD [\\\"/bin/bash\\\"]\",\"recommendation\":\"Add a non-root user and switch to that user using the USER instruction.\"},{\"issue\":\"Install a bunch of packages (unneeded attack surface) and leave cache\",\"severity\":\"medium\",\"resource\":\"RUN apt-get update && \\\\\",\"recommendation\":\"Limit the installed packages to only those necessary for the application and clean up after installation.\"},{\"issue\":\"Copy a secrets file from build context (simulates accidental secret bake-in)\",\"severity\":\"critical\",\"resource\":\"COPY ./secrets.env /app/secrets.env\",\"recommendation\":\"Remove the COPY instruction for secrets and use environment variables or secret management tools instead.\"},{\"issue\":\"ADD remote archive (unsafe: will download and unpack remote content)\",\"severity\":\"high\",\"resource\":\"ADD https://example.com/tools/toolkit.tar.gz /tmp/remote-tool/\",\"recommendation\":\"Use a secure method to download and verify the integrity of remote files, or avoid using ADD for remote URLs.\"},{\"issue\":\"Copy whole context (danger: may include host secrets) and install python deps without hashes\",\"severity\":\"high\",\"resource\":\"COPY . /app\",\"recommendation\":\"Use a .dockerignore file to exclude sensitive files and install dependencies with hashes for security.\"},{\"issue\":\"Expose unnecessary/privileged ports (e.g. docker daemon or SSH)\",\"severity\":\"medium\",\"resource\":\"EXPOSE 22 2375 5000\",\"recommendation\":\"Remove unnecessary EXPOSE instructions and only expose ports that are required for the application.\"},{\"issue\":\"Embed credentials as ENV (visible via docker inspect)\",\"severity\":\"critical\",\"resource\":\"ENV DB_PASSWORD=\\\"SuperInsecurePassword123!\\\"\",\"recommendation\":\"Use Docker secrets or environment variables at runtime instead of hardcoding sensitive information in the Dockerfile.\"},{\"issue\":\"Writable directory with world-write permissions\",\"severity\":\"high\",\"resource\":\"RUN mkdir -p /app/data && chmod 777 /app/data\",\"recommendation\":\"Set appropriate permissions for the directory, e.g., 'chmod 755 /app/data'.\"},{\"issue\":\"Execute remote install script directly (curl | sh) \u2014 remote code execution risk\",\"severity\":\"critical\",\"resource\":\"RUN curl -fsSL https://example.com/install.sh | sh\",\"recommendation\":\"Download the script, verify its integrity, and execute it in a controlled manner.\"},{\"issue\":\"Start sshd (unnecessary service inside container)\",\"severity\":\"medium\",\"resource\":\"RUN mkdir -p /var/run/sshd\",\"recommendation\":\"Remove the SSH server installation and related commands unless absolutely necessary.\"},{\"issue\":\"Create a SUID-like binary (simulated privileged file)\",\"severity\":\"high\",\"resource\":\"RUN touch /usr/local/bin/suid_sample && chmod 4755 /usr/local/bin/suid_sample\",\"recommendation\":\"Avoid creating SUID binaries in containers as they can pose security risks.\"},{\"issue\":\"No healthcheck, no non-root user, no minimal base image\",\"severity\":\"medium\",\"resource\":\"CMD [\\\"/bin/bash\\\"]\",\"recommendation\":\"Add a HEALTHCHECK instruction and ensure a minimal base image is used.\"}]}",
+  "run_index": 2,
+  "schema_version": 1,
+  "seed": 42,
+  "system_fingerprint": null,
+  "temperature": 0.0,
+  "usage": {
+    "calls": 1,
+    "completion_tokens": 714,
+    "prompt_tokens": 836,
+    "total_tokens": 1550
+  },
+  "variant": "commented"
+}

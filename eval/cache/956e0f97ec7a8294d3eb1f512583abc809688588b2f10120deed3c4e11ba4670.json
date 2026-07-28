@@ -1,0 +1,24 @@
+{
+  "call_kind": "detect",
+  "completion_source": "openai",
+  "created_utc": "2026-07-28T20:19:37+00:00",
+  "file_sha": "4c7068b93582f1beef8889a6d35745273e46932e1a435aaa0bcb1088b94c82ac",
+  "fixture": "samples/vulnerable.Dockerfile",
+  "key": "956e0f97ec7a8294d3eb1f512583abc809688588b2f10120deed3c4e11ba4670",
+  "model": "gpt-4o-mini-2024-07-18",
+  "prompt_sha": "fdea997b11cae79b8ca776dc6ba893dc036be483a00b664c8c617ab5005e8cd4",
+  "prompt_version": "v2",
+  "response": "{\"findings\":[{\"issue\":\"Using an unpinned base image which may lead to unexpected vulnerabilities in future updates.\",\"severity\":\"high\",\"resource\":\"FROM python:3.10-slim\",\"recommendation\":\"Pin the base image to a specific version, e.g., 'FROM python:3.10.12-slim'.\"},{\"issue\":\"Baking sensitive information (DB_PASSWORD, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY) into the image layers.\",\"severity\":\"critical\",\"resource\":\"ENV DB_PASSWORD=\\\"SuperInsecurePassword123!\\\"\",\"recommendation\":\"Remove sensitive environment variables from the Dockerfile and use a secrets management tool instead.\"},{\"issue\":\"Copying secrets file directly into the image, which can expose sensitive information.\",\"severity\":\"critical\",\"resource\":\"COPY ./secrets.env /app/secrets.env\",\"recommendation\":\"Do not copy secrets into the image; use a secrets management solution or mount them at runtime.\"},{\"issue\":\"Using ADD to fetch a remote file, which can introduce security risks if the source is compromised.\",\"severity\":\"high\",\"resource\":\"ADD https://example.com/tools/toolkit.tar.gz /tmp/remote-tool/\",\"recommendation\":\"Replace ADD with RUN curl or wget to download files, and ensure the source is trusted.\"},{\"issue\":\"Exposing SSH and Docker daemon ports (22 and 2375) without proper security measures.\",\"severity\":\"high\",\"resource\":\"EXPOSE 22 2375 5000\",\"recommendation\":\"Remove the EXPOSE instruction for ports 22 and 2375 or ensure they are secured with proper authentication and firewall rules.\"},{\"issue\":\"Running the container as root, which increases the risk of privilege escalation.\",\"severity\":\"high\",\"resource\":\"CMD [\\\"/bin/bash\\\"]\",\"recommendation\":\"Specify a non-root user to run the application using the USER instruction.\"},{\"issue\":\"Setting permissions to 777 on /app/data, which allows any user to read, write, and execute files.\",\"severity\":\"medium\",\"resource\":\"RUN mkdir -p /app/data && chmod 777 /app/data\",\"recommendation\":\"Set more restrictive permissions, e.g., 755 or 700, based on the application's needs.\"},{\"issue\":\"Missing HEALTHCHECK instruction to monitor the health of the running container.\",\"severity\":\"medium\",\"resource\":\"N/A\",\"recommendation\":\"Add a HEALTHCHECK instruction to periodically check the health of the application.\"},{\"issue\":\"Using a script from an unverified source without validation, which can lead to executing malicious code.\",\"severity\":\"high\",\"resource\":\"RUN curl -fsSL https://example.com/install.sh | sh\",\"recommendation\":\"Download the script, verify its integrity (e.g., using checksums), and then execute it.\"},{\"issue\":\"Creating a SUID executable without justification, which can lead to security vulnerabilities.\",\"severity\":\"high\",\"resource\":\"RUN touch /usr/local/bin/suid_sample && chmod 4755 /usr/local/bin/suid_sample\",\"recommendation\":\"Remove the creation of SUID executables unless absolutely necessary and justified.\"}]}",
+  "run_index": 2,
+  "schema_version": 1,
+  "seed": 42,
+  "system_fingerprint": null,
+  "temperature": 0.0,
+  "usage": {
+    "calls": 1,
+    "completion_tokens": 610,
+    "prompt_tokens": 595,
+    "total_tokens": 1205
+  },
+  "variant": "stripped"
+}

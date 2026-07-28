@@ -19,15 +19,15 @@ Related: [THREAT_MODEL.md](THREAT_MODEL.md) for the security posture these decis
 | [003](#adr-003-pin-python-to-311314) | Pin Python to `>=3.11,<3.14` | Accepted — implemented |
 | [004](#adr-004-support-two-scanners-rather-than-one) | Support two scanners, not one | Accepted — implemented |
 | [005](#adr-005-filename-driven-output-for-remediated-files) | Filename-driven output for remediated files | Accepted — implemented |
-| [006](#adr-006-python-hcl2-for-the-validity-gate-not-terraform-validate) | `python-hcl2` for the validity gate | Accepted — in progress |
-| [007](#adr-007-hand-rolled-refinement-loop-not-an-agent-framework) | Hand-rolled refinement loop | Accepted — in progress |
-| [008](#adr-008-injectable-complete_fn-instead-of-mocking-the-openai-sdk) | Injectable `complete_fn` over SDK mocking | Accepted — in progress |
-| [009](#adr-009-commit-the-eval-response-cache) | Commit the eval response cache | Accepted — in progress |
-| [010](#adr-010-structured-outputs-against-a-pinned-model-snapshot) | Structured outputs, pinned model snapshot | Accepted — in progress |
+| [006](#adr-006-python-hcl2-for-the-validity-gate-not-terraform-validate) | `python-hcl2` for the validity gate | Accepted — implemented |
+| [007](#adr-007-hand-rolled-refinement-loop-not-an-agent-framework) | Hand-rolled refinement loop | Accepted — implemented |
+| [008](#adr-008-injectable-complete_fn-instead-of-mocking-the-openai-sdk) | Injectable `complete_fn` over SDK mocking | Accepted — implemented |
+| [009](#adr-009-commit-the-eval-response-cache) | Commit the eval response cache | Accepted — implemented |
+| [010](#adr-010-structured-outputs-against-a-pinned-model-snapshot) | Structured outputs, pinned model snapshot | Accepted — implemented |
 | [011](#adr-011-do-not-auto-commit-llm-generated-fixes-from-ci) | No auto-commit of generated fixes from CI | Accepted — policy |
 | [012](#adr-012-freeze-the-submitted-report-publish-errata-alongside-it) | Freeze the submitted report, publish errata | Accepted |
-| [013](#adr-013-the-loop-returns-best-so-far-not-last-attempt) | Loop returns best-so-far, not last-attempt | Accepted — in progress |
-| [014](#adr-014-report-per-scanner-metrics-not-a-merged-total) | Per-scanner metrics, not a merged total | Accepted — in progress |
+| [013](#adr-013-the-loop-returns-best-so-far-not-last-attempt) | Loop returns best-so-far, not last-attempt | Accepted — implemented |
+| [014](#adr-014-report-per-scanner-metrics-not-a-merged-total) | Per-scanner metrics, not a merged total | Accepted — implemented |
 
 ---
 
@@ -215,7 +215,7 @@ looks like a trivial helper and deleting it would silently disable half the tool
 
 ## ADR-006: `python-hcl2` for the validity gate, not `terraform validate`
 
-**Status:** Accepted. Implementation in `iac_agent/validity.py` — in progress.
+**Status:** Accepted. Implemented in `iac_agent/validity.py`.
 
 **Context.** A model can return text that is not valid Terraform: truncated blocks, a leaked
 markdown fence, invented syntax. Scoring such output as an improvement — or worse, writing it
@@ -257,7 +257,7 @@ drift measurement comes from the parser rather than from regex over the text.
 
 ## ADR-007: Hand-rolled refinement loop, not an agent framework
 
-**Status:** Accepted. Implementation in `iac_agent/loop.py` — in progress.
+**Status:** Accepted. Implemented in `iac_agent/loop.py`.
 
 **Context.** The loop is: scan baseline → detect → fix → validity gate → rescan → distil the
 remaining failures → re-fix, with bounded iterations. LangChain, LangGraph, and CrewAI all
@@ -305,7 +305,7 @@ measurement, which the loop's simplicity makes possible to reason about.
 
 ## ADR-008: Injectable `complete_fn` instead of mocking the OpenAI SDK
 
-**Status:** Accepted. Implementation in `iac_agent/llm.py` — in progress.
+**Status:** Accepted. Implemented in `iac_agent/llm.py`.
 
 **Context.** Every test and the entire evaluation harness need model responses. The usual
 approach is patching the SDK — `unittest.mock.patch("openai.OpenAI")` — which couples the test
@@ -347,7 +347,7 @@ text out) is one we control.
 
 ## ADR-009: Commit the eval response cache
 
-**Status:** Accepted. Implementation in `eval/cache/` — in progress.
+**Status:** Accepted. Implemented — the cache is committed under `eval/cache/`.
 
 **Context.** Evaluation results in an LLM project are usually unreproducible: the reader has no
 key, no budget, or gets different output because the model moved underneath them. A results
@@ -386,7 +386,7 @@ misses the cache instead of silently returning a response from a prompt that no 
 
 ## ADR-010: Structured outputs against a pinned model snapshot
 
-**Status:** Accepted. Implementation in `iac_agent/llm.py` (`ModelConfig`) — in progress.
+**Status:** Accepted. Implemented in `iac_agent/llm.py` (`ModelConfig`).
 
 **Context.** The original code asked for a JSON array in prose and parsed the reply with a bare
 `json.loads`, falling back to `{"raw_output": result}` on failure. Models fence their JSON, so the
@@ -429,7 +429,7 @@ drift, and the fallback is tested — but it is no longer the primary path.
 
 ## ADR-011: Do not auto-commit LLM-generated fixes from CI
 
-**Status:** Accepted. Binding project policy; CI workflows in progress.
+**Status:** Accepted. Binding project policy; implemented in `.github/workflows/iac-scan.yml`.
 
 **Context.** The natural next step for a tool like this is a bot: scan on push, generate a fix,
 open a pull request, auto-merge when the scanner goes green. It demos beautifully. It is also the
@@ -549,7 +549,7 @@ answer; it is one of several ways the loop can end while still returning its bes
 
 ## ADR-014: Report per-scanner metrics, not a merged total
 
-**Status:** Accepted. Implementation in `eval/metrics.py` — in progress.
+**Status:** Accepted. Implemented in `eval/metrics.py` and `eval/render.py`.
 
 **Context.** With two scanners ([ADR-004](#adr-004-support-two-scanners-rather-than-one)) there is
 an obvious temptation to report one headline number. The measured baseline across the six

@@ -1,0 +1,24 @@
+{
+  "call_kind": "fix",
+  "completion_source": "openai",
+  "created_utc": "2026-07-28T20:09:52+00:00",
+  "file_sha": "22f2efc55fa83ac8f9551b1f8d2bc81edea5ff317c934a0028dd6a120837413c",
+  "fixture": "samples/vulnerable_network.tf",
+  "key": "39b432b1d594d352fa6f106fbe6b776fa5a18fb28e69c1346d057284a14f7ba3",
+  "model": "gpt-4o-mini-2024-07-18",
+  "prompt_sha": "cd161f879402673401cf0a5bc474cee37650aebd130c6dc93ec1b86526b56d05",
+  "prompt_version": "v2",
+  "response": "########################################################\n# vulnerable_network.tf\n########################################################\n\nresource \"aws_vpc\" \"test_vpc\" {\n  cidr_block = \"10.0.0.0/16\"\n  tags = {\n    Name = \"test-vpc\"\n  }\n}\n\nresource \"aws_subnet\" \"test_subnet\" {\n  vpc_id            = aws_vpc.test_vpc.id\n  cidr_block        = \"10.0.1.0/24\"\n  availability_zone = \"us-east-1a\"\n  map_public_ip_on_launch = false  # changed to prevent automatic public IP assignment\n}\n\nresource \"aws_security_group\" \"open_http\" {\n  name        = \"allow-http\"\n  description = \"Allow HTTP from specific IP\"\n  vpc_id      = aws_vpc.test_vpc.id\n\n  ingress {\n    from_port   = 80\n    to_port     = 80\n    protocol    = \"tcp\"\n    cidr_blocks = [\"192.0.2.0/24\"]  # restricted to a specific IP range\n  }\n\n  egress {\n    from_port   = 0\n    to_port     = 0\n    protocol    = \"tcp\"\n    cidr_blocks = [\"0.0.0.0/0\"]  # consider restricting this further based on application needs\n  }\n}",
+  "run_index": 0,
+  "schema_version": 1,
+  "seed": 42,
+  "system_fingerprint": null,
+  "temperature": 0.0,
+  "usage": {
+    "calls": 1,
+    "completion_tokens": 280,
+    "prompt_tokens": 778,
+    "total_tokens": 1058
+  },
+  "variant": "commented"
+}

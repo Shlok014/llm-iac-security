@@ -1,0 +1,24 @@
+{
+  "call_kind": "detect",
+  "completion_source": "openai",
+  "created_utc": "2026-07-28T20:08:03+00:00",
+  "file_sha": "c54d05028820eba1218f139b4171c837ffdb0aebc9826a15e9eb9e6a0979875b",
+  "fixture": "samples/docker_insecure.Dockerfile",
+  "key": "f22c2600f2c57dcafa7b17a8e8b287a3c9fdfc0dc0bf57bd30040ec2c104388b",
+  "model": "gpt-4o-mini-2024-07-18",
+  "prompt_sha": "05b00a45446e63d22ec6bb826a2847a24ef33d8dece856a796bd72c8a038ae28",
+  "prompt_version": "v2",
+  "response": "{\"findings\":[{\"issue\":\"Using floating 'latest' tag (non-deterministic, may contain vulnerabilities)\",\"severity\":\"high\",\"resource\":\"FROM python:3.10-slim\",\"recommendation\":\"Pin the base image to a specific version, e.g., 'FROM python:3.10.12-slim'.\"},{\"issue\":\"Running as root (no USER instruction)\",\"severity\":\"high\",\"resource\":\"# 2) Running as root (no USER instruction)\",\"recommendation\":\"Add a non-root user and switch to that user using the USER instruction.\"},{\"issue\":\"Copying secrets from build context (simulates accidental leakage)\",\"severity\":\"high\",\"resource\":\"COPY ./secrets.env /app/secrets.env\",\"recommendation\":\"Avoid copying sensitive files into the image; use build secrets or environment variables instead.\"},{\"issue\":\"Using ADD instead of COPY (ADD can unpack remote tarballs)\",\"severity\":\"medium\",\"resource\":\"ADD https://example.com/some-remote-tool.tar.gz /tmp/remote-tool/\",\"recommendation\":\"Replace ADD with COPY for local files and avoid using it for remote URLs.\"},{\"issue\":\"Installing from pip without hashes - supply remote requirements that may be poisoned\",\"severity\":\"high\",\"resource\":\"RUN pip install --no-cache-dir -r /app/requirements.txt\",\"recommendation\":\"Use pip with the --require-hashes option to ensure package integrity.\"},{\"issue\":\"Permissions too broad\",\"severity\":\"medium\",\"resource\":\"RUN mkdir -p /app/data && chmod 777 /app/data\",\"recommendation\":\"Set more restrictive permissions, e.g., 'chmod 755 /app/data'.\"},{\"issue\":\"Expose unnecessary ports\",\"severity\":\"medium\",\"resource\":\"EXPOSE 22 2375 5000\",\"recommendation\":\"Only expose ports that are necessary for the application.\"},{\"issue\":\"Embedding plaintext credentials in ENV\",\"severity\":\"critical\",\"resource\":\"ENV DB_PASSWORD=\\\"SuperInsecurePassword123!\\\"\",\"recommendation\":\"Remove sensitive information from the Dockerfile and use environment variables at runtime instead.\"},{\"issue\":\"Fetching and executing remote install script (curl | sh)\",\"severity\":\"high\",\"resource\":\"RUN curl -fsSL https://example.com/install.sh | sh\",\"recommendation\":\"Avoid executing scripts directly from the internet; download and verify them first.\"},{\"issue\":\"Copy entire host directory (if build context contains host files, this is dangerous)\",\"severity\":\"high\",\"resource\":\"COPY . /app\",\"recommendation\":\"Limit the context to only necessary files to avoid unintentional exposure of sensitive files.\"},{\"issue\":\"Add SUID-like file (simulated)\",\"severity\":\"high\",\"resource\":\"RUN touch /usr/local/bin/suid_sample && chmod 4755 /usr/local/bin/suid_sample\",\"recommendation\":\"Avoid creating SUID files unless absolutely necessary.\"},{\"issue\":\"No-healthcheck, no non-root user, no minimal base\",\"severity\":\"medium\",\"resource\":\"# 14) No-healthcheck, no non-root user, no minimal base\",\"recommendation\":\"Add a HEALTHCHECK instruction and ensure a non-root user is used.\"},{\"issue\":\"Keep lots of build artifacts and caches\",\"severity\":\"medium\",\"resource\":\"RUN echo \\\"temporary\\\" > /tmp/temp && chmod 777 /tmp/temp\",\"recommendation\":\"Clean up temporary files and avoid leaving build artifacts in the final image.\"}]}",
+  "run_index": 0,
+  "schema_version": 1,
+  "seed": 42,
+  "system_fingerprint": null,
+  "temperature": 0.0,
+  "usage": {
+    "calls": 1,
+    "completion_tokens": 678,
+    "prompt_tokens": 868,
+    "total_tokens": 1546
+  },
+  "variant": "commented"
+}

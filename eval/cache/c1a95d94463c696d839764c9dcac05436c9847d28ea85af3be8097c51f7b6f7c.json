@@ -1,0 +1,24 @@
+{
+  "call_kind": "detect",
+  "completion_source": "openai",
+  "created_utc": "2026-07-28T20:17:38+00:00",
+  "file_sha": "4c7068b93582f1beef8889a6d35745273e46932e1a435aaa0bcb1088b94c82ac",
+  "fixture": "samples/vulnerable.Dockerfile",
+  "key": "c1a95d94463c696d839764c9dcac05436c9847d28ea85af3be8097c51f7b6f7c",
+  "model": "gpt-4o-mini-2024-07-18",
+  "prompt_sha": "fdea997b11cae79b8ca776dc6ba893dc036be483a00b664c8c617ab5005e8cd4",
+  "prompt_version": "v2",
+  "response": "{\"findings\":[{\"issue\":\"Using an unpinned base image which may lead to unexpected vulnerabilities in future updates.\",\"severity\":\"high\",\"resource\":\"FROM python:3.10-slim\",\"recommendation\":\"Pin the base image to a specific version, e.g., 'FROM python:3.10.12-slim'.\"},{\"issue\":\"Baking sensitive information such as DB_PASSWORD and AWS credentials into the image layers.\",\"severity\":\"critical\",\"resource\":\"ENV DB_PASSWORD=\\\"SuperInsecurePassword123!\\\"\",\"recommendation\":\"Remove sensitive environment variables from the Dockerfile and use a secrets management tool instead.\"},{\"issue\":\"Baking sensitive information such as DB_PASSWORD and AWS credentials into the image layers.\",\"severity\":\"critical\",\"resource\":\"ENV AWS_ACCESS_KEY_ID=\\\"AKIA_FAKE_KEY\\\"\",\"recommendation\":\"Remove sensitive environment variables from the Dockerfile and use a secrets management tool instead.\"},{\"issue\":\"Using ADD to fetch files from a remote URL, which can introduce security risks if the source is compromised.\",\"severity\":\"high\",\"resource\":\"ADD https://example.com/tools/toolkit.tar.gz /tmp/remote-tool/\",\"recommendation\":\"Replace ADD with RUN curl or wget to download files, and verify the integrity of the downloaded files.\"},{\"issue\":\"Running the container as root, which increases the risk of privilege escalation attacks.\",\"severity\":\"high\",\"resource\":\"CMD [\\\"/bin/bash\\\"]\",\"recommendation\":\"Specify a non-root user to run the application, e.g., 'USER appuser'.\"},{\"issue\":\"The Dockerfile does not include a HEALTHCHECK instruction, which is important for monitoring the health of the container.\",\"severity\":\"medium\",\"resource\":\"N/A\",\"recommendation\":\"Add a HEALTHCHECK instruction to periodically check the health of the application.\"},{\"issue\":\"Setting permissions to 777 on /app/data, which allows any user to read, write, and execute files, increasing the risk of unauthorized access.\",\"severity\":\"medium\",\"resource\":\"RUN mkdir -p /app/data && chmod 777 /app/data\",\"recommendation\":\"Set more restrictive permissions, e.g., 'chmod 755 /app/data'.\"},{\"issue\":\"Exposing SSH port (22) without proper security measures, which can lead to unauthorized access.\",\"severity\":\"high\",\"resource\":\"EXPOSE 22\",\"recommendation\":\"Remove the EXPOSE 22 instruction or ensure that SSH access is secured with strong authentication.\"},{\"issue\":\"Creating a SUID executable without justification, which can lead to privilege escalation vulnerabilities.\",\"severity\":\"high\",\"resource\":\"RUN touch /usr/local/bin/suid_sample && chmod 4755 /usr/local/bin/suid_sample\",\"recommendation\":\"Remove the creation of the SUID executable unless absolutely necessary.\"}]}",
+  "run_index": 1,
+  "schema_version": 1,
+  "seed": 42,
+  "system_fingerprint": null,
+  "temperature": 0.0,
+  "usage": {
+    "calls": 1,
+    "completion_tokens": 547,
+    "prompt_tokens": 595,
+    "total_tokens": 1142
+  },
+  "variant": "stripped"
+}

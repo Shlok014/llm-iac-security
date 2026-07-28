@@ -1,0 +1,24 @@
+{
+  "call_kind": "fix",
+  "completion_source": "openai",
+  "created_utc": "2026-07-28T20:10:19+00:00",
+  "file_sha": "c54d05028820eba1218f139b4171c837ffdb0aebc9826a15e9eb9e6a0979875b",
+  "fixture": "samples/docker_insecure.Dockerfile",
+  "key": "ef9624d021d1706775061753306212a0c4b4d337261741e97dd374142b72a973",
+  "model": "gpt-4o-mini-2024-07-18",
+  "prompt_sha": "789d676f45ae65a4d3b98d446a4ae428ab3a1de218a896f19dd1583a5b0d6900",
+  "prompt_version": "v2",
+  "response": "# vulnerable.Dockerfile -- For security testing only (do NOT use in production)\n\n# 1) Using floating \"latest\" tag (non-deterministic, may contain vulnerabilities)\nFROM python:3.10.12-slim\n\n# 2) Running as root (no USER instruction)\n# Create a non-root user\nRUN useradd -m appuser\n\n# 3) Installing many packages without checks and with recommended packages and caches\nRUN apt-get update && apt-get install -y --no-install-recommends curl wget git openssh-server sudo build-essential \\\n    && rm -rf /var/lib/apt/lists/*\n\n# 4) Copy secrets from build context (simulates accidental leakage)\n#    (in real world avoid copying secrets into image)\n# Avoid copying sensitive files into the image; use environment variables or secret management tools instead.\n\n# 5) Using ADD instead of COPY (ADD can unpack remote tarballs)\n# Replace ADD with COPY for local files and avoid using it for remote URLs.\n# Assuming the remote tool is downloaded and available locally\nCOPY ./some-remote-tool.tar.gz /tmp/remote-tool/\n\n# 6) Installing from pip without hashes - supply remote requirements that may be poisoned\nCOPY requirements.txt /app/requirements.txt\nRUN pip install --no-cache-dir --require-hashes -r /app/requirements.txt\n\n# 7) Permissions too broad\nRUN mkdir -p /app/data && chmod 755 /app/data\n\n# 8) Expose unnecessary ports\n# Only expose ports that are necessary for the application.\nEXPOSE 5000\n\n# 9) Embedding plaintext credentials in ENV\n# Remove sensitive information from the Dockerfile and use environment variables at runtime instead.\n# ENV DB_PASSWORD=\"SuperInsecurePassword123!\"\n# ENV AWS_ACCESS_KEY_ID=\"AKIA_FAKE_KEY\"\n# ENV AWS_SECRET_ACCESS_KEY=\"SECRET_FAKE_KEY\"\n\nWORKDIR /app\n\n# 10) Fetch and execute remote install script (curl | sh)\n# Avoid executing scripts directly from the internet; download and inspect them first.\n# RUN curl -fsSL https://example.com/install.sh | sh\n\n# 11) Start SSH server (unnecessary for most images)\nRUN mkdir /var/run/sshd\n\n# 12) Copy entire host directory (if build context contains host files, this is dangerous)\n# Limit the context to only necessary files to avoid unintentional exposure of sensitive files.\nCOPY ./app /app\n\n# 13) Add SUID-like file (simulated)\n# Avoid creating SUID files unless absolutely necessary; review the need for this file.\n# RUN touch /usr/local/bin/suid_sample && chmod 4755 /usr/local/bin/suid_sample\n\n# 14) No-healthcheck, no non-root user, no minimal base\n# Add a HEALTHCHECK instruction to monitor the container's health.\nHEALTHCHECK CMD curl --fail http://localhost:5000/ || exit 1\n\n# 15) Keep lots of build artifacts and caches\nRUN echo \"temporary\" > /tmp/temp && chmod 644 /tmp/temp && rm /tmp/temp\n\n# Switch to non-root user\nUSER appuser\n\nCMD [\"/bin/bash\"]",
+  "run_index": 1,
+  "schema_version": 1,
+  "seed": 42,
+  "system_fingerprint": null,
+  "temperature": 0.0,
+  "usage": {
+    "calls": 1,
+    "completion_tokens": 662,
+    "prompt_tokens": 1447,
+    "total_tokens": 2109
+  },
+  "variant": "commented"
+}

@@ -1,0 +1,24 @@
+{
+  "call_kind": "detect",
+  "completion_source": "openai",
+  "created_utc": "2026-07-28T20:16:42+00:00",
+  "file_sha": "e9633ed613419d46703501f9fb29df38ae18d2c4429e701760874efc5bb96d4f",
+  "fixture": "samples/docker_insecure.Dockerfile",
+  "key": "96cb4b8bd99d801ba153505bb502b1e526dc81b9c4ee94109a02e250429e9977",
+  "model": "gpt-4o-mini-2024-07-18",
+  "prompt_sha": "58ceb99f72f9db6b9886fe475ecdd237d5ddc30afb82520ce4e597969c17a6b6",
+  "prompt_version": "v2",
+  "response": "{\"findings\":[{\"issue\":\"Using an unpinned base image can lead to unexpected vulnerabilities when the base image is updated.\",\"severity\":\"high\",\"resource\":\"FROM python:3.10-slim\",\"recommendation\":\"Pin the base image to a specific version, e.g., 'FROM python:3.10.12-slim'.\"},{\"issue\":\"Secrets are baked into the image layers, which can be extracted from the image.\",\"severity\":\"critical\",\"resource\":\"COPY ./secrets.env /app/secrets.env\",\"recommendation\":\"Remove the secrets from the image and use environment variables or a secrets management tool instead.\"},{\"issue\":\"Using ADD to fetch remote files can introduce risks if the source is compromised or untrusted.\",\"severity\":\"high\",\"resource\":\"ADD https://example.com/some-remote-tool.tar.gz /tmp/remote-tool/\",\"recommendation\":\"Use COPY for local files or ensure the remote source is trusted and consider verifying the integrity of the downloaded file.\"},{\"issue\":\"The image exposes SSH and other ports without any security measures, which can lead to unauthorized access.\",\"severity\":\"high\",\"resource\":\"EXPOSE 22 2375 5000\",\"recommendation\":\"Remove unnecessary port exposures or implement proper security controls and access restrictions.\"},{\"issue\":\"Hardcoding sensitive information in environment variables can lead to exposure in logs or process listings.\",\"severity\":\"critical\",\"resource\":\"ENV DB_PASSWORD=\\\"SuperInsecurePassword123!\\\"\",\"recommendation\":\"Use a secure secrets management solution to handle sensitive information instead of hardcoding it.\"},{\"issue\":\"Running as root can lead to privilege escalation vulnerabilities.\",\"severity\":\"high\",\"resource\":\"CMD [\\\"/bin/bash\\\"]\",\"recommendation\":\"Use a non-root user to run the application by adding a user and switching to that user in the Dockerfile.\"},{\"issue\":\"The /app/data directory has overly permissive permissions, which can lead to unauthorized access.\",\"severity\":\"medium\",\"resource\":\"RUN mkdir -p /app/data && chmod 777 /app/data\",\"recommendation\":\"Set more restrictive permissions, e.g., 'chmod 755 /app/data'.\"},{\"issue\":\"The image does not include a HEALTHCHECK instruction, which is important for monitoring the health of the running container.\",\"severity\":\"medium\",\"resource\":\"N/A\",\"recommendation\":\"Add a HEALTHCHECK instruction to periodically check the health of the application.\"},{\"issue\":\"The installation of unnecessary packages increases the attack surface of the image.\",\"severity\":\"medium\",\"resource\":\"RUN apt-get update && apt-get install -y curl wget git openssh-server sudo build-essential\",\"recommendation\":\"Only install necessary packages for the application to reduce the attack surface.\"},{\"issue\":\"Creating a SUID executable can lead to privilege escalation vulnerabilities if not properly managed.\",\"severity\":\"high\",\"resource\":\"RUN touch /usr/local/bin/suid_sample && chmod 4755 /usr/local/bin/suid_sample\",\"recommendation\":\"Avoid creating SUID executables unless absolutely necessary and ensure they are secure.\"},{\"issue\":\"The temporary file /tmp/temp has overly permissive permissions, which can lead to unauthorized access.\",\"severity\":\"medium\",\"resource\":\"RUN echo \\\"temporary\\\" > /tmp/temp && chmod 777 /tmp/temp\",\"recommendation\":\"Set more restrictive permissions, e.g., 'chmod 600 /tmp/temp'.\"}]}",
+  "run_index": 1,
+  "schema_version": 1,
+  "seed": 42,
+  "system_fingerprint": null,
+  "temperature": 0.0,
+  "usage": {
+    "calls": 1,
+    "completion_tokens": 664,
+    "prompt_tokens": 610,
+    "total_tokens": 1274
+  },
+  "variant": "stripped"
+}

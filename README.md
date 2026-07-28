@@ -11,22 +11,24 @@ infrastructure safer is not the same thing, and almost nothing measures the diff
 
 ## The headline result
 
-On the first live run, asked to secure `samples/vulnerable_main.tf`, the model made a
-public-bucket-policy finding disappear by **deleting `aws_s3_bucket_policy.public_policy`
-outright**.
+Asked to secure `samples/vulnerable_main.tf`, the model made a public-bucket-policy finding
+disappear by **deleting `aws_s3_bucket_policy.public_policy` outright** — in **5 of 6 runs**,
+across both corpus variants and all three seeds. Always the same resource.
 
 That scores a perfect finding delta. It passes the syntax gate. Precision and recall are
 untouched. And the next `terraform apply` silently strips the bucket policy off live
 infrastructure. Nothing was secured.
 
-The drift metric is the only signal in the pipeline that can tell that apart from a real fix.
+This is not a fluke of one sample — it is a reproducible behaviour, and the drift metric is the
+only signal in the pipeline that can tell it apart from a real fix.
 
 ---
 
 ## Measured results
 
-12 model calls, 6 fixtures, 52 hand-labelled planted flaws, `gpt-4o-mini-2024-07-18`,
-`temperature=0`, `seed=42`. Every number regenerates offline from the committed response cache:
+72 model calls — 6 fixtures × 2 corpus variants × 3 seeds. 52 hand-labelled planted flaws,
+`gpt-4o-mini-2024-07-18`, `temperature=0`. Figures are `mean [min, max]` over the three repeats.
+Every number regenerates offline from the committed response cache:
 
 ```bash
 .venv/bin/python -m eval.run_eval report   # no API key, no network, no cost
@@ -36,10 +38,11 @@ The drift metric is the only signal in the pipeline that can tell that apart fro
 
 | Scanner | Before | After | Resolved | Introduced |
 |---|---:|---:|---:|---:|
-| Checkov | 70 | 43 | **38.6%** | **0** |
-| Trivy | 57 | 38 | **33.3%** | **0** |
+| Checkov | 70 | 42.3 [42, 43] | **39.5%** [38.6, 40.0] | **0** |
+| Trivy | 57 | 30.3 [18, 37] | **46.8%** [35.1, 68.4] | **0** |
 
-Output validity: 6/6 parsed.
+Output validity: **36/36 parsed**. Zero findings introduced in any run — the model never wrote a
+new misconfiguration while fixing an old one.
 
 **Detection — where it loses to a free tool**
 
@@ -48,21 +51,40 @@ Output validity: 6/6 parsed.
 | Checkov alone | **46.2%** |
 | Trivy alone | 40.4% |
 | Both scanners combined | 53.8% |
-| **The LLM** | **36.5%** |
+| **The LLM** | **39.1%** [36.5, 40.4] |
 
-The LLM finds *fewer* real flaws than Checkov does for free, with 56.2% strict precision and
-8 unsupported findings. The original project claimed contextual understanding as the LLM's
-advantage; measured on this corpus, it is behind the free tool at detection. Its real value is
-remediation — scanners cannot rewrite anything at all.
+The LLM finds *fewer* real flaws than Checkov does for free, at 59.3% strict precision. The
+original project claimed contextual understanding as the LLM's advantage; measured, it is behind
+the free tool at detection. Its value is remediation — scanners cannot rewrite anything at all.
+
+**Label leakage — how much of that was reading the answer key**
+
+The fixtures annotate their own planted flaws in comments (`# <- public-read is insecure`). Run
+detection on the commented and comment-stripped corpora and subtract:
+
+| | Recall |
+|---|---:|
+| Commented (contaminated) | 52.6% [48.1, 57.7] |
+| Stripped (headline) | 39.1% [36.5, 40.4] |
+| **Leakage** | **13.5 points** |
+
+**About a quarter of the model's apparent detection ability was comprehension of the comments,
+not of the code.** Any evaluation on self-annotated fixtures that skips this control is
+overstating its result — including, necessarily, the original version of this project.
 
 **Semantic drift — the number that audits the headline**
 
-| Valid Terraform outputs | Drifted | Touched a flaw-carrying resource |
-|---:|---:|---:|
-| 4 | 1 (25%) | **1** |
+| Variant | Terraform outputs | Drifted | Touched a flaw-carrying resource |
+|---|---:|---:|---:|
+| Commented | 12 | 3 (25.0%) | **3** |
+| Stripped | 12 | 2 (16.7%) | **2** |
 
-⚠️ These are descriptive statistics from a **single seed on 6 synthetic fixtures**. They show
-the pipeline works and is measurable. They do not generalise. See [Limitations](#limitations).
+Every one of those five events is the same thing: `aws_s3_bucket_policy.public_policy` deleted
+rather than restricted.
+
+⚠️ Descriptive statistics over 3 seeds on **6 synthetic fixtures**. n is far too small for
+confidence intervals or significance claims. They show the pipeline works and is measurable;
+they do not generalise. See [Limitations](#limitations).
 
 ---
 
@@ -147,9 +169,10 @@ headroom for an LLM, and the only defensible basis for claiming one adds value.
 
 The fixtures annotate their own planted flaws in comments (`# <- public-read is insecure`), so
 scoring detection on them as-written is contaminated — the model can read the answer key.
-Headline detection numbers are therefore measured on a comment-stripped corpus. Both variants
-produce identical scanner totals (checkov 70 / trivy 57), which is how we know stripping
-preserved semantics.
+Headline detection numbers are therefore measured on a comment-stripped corpus, and the gap
+between the two variants is published as the leakage figure above. Both variants produce
+identical scanner totals (checkov 70 / trivy 57), which is how we know stripping removed prose
+and nothing else.
 
 Method, formulas and threats to validity: [`docs/EVALUATION.md`](docs/EVALUATION.md).
 
@@ -159,7 +182,11 @@ Method, formulas and threats to validity: [`docs/EVALUATION.md`](docs/EVALUATION
 
 - **6 synthetic fixtures, hand-written to be vulnerable.** These results show the pipeline works
   and is measurable. They say nothing about organically-written IaC.
-- **n = 1 seed.** Descriptive statistics only. No confidence intervals, no significance claims.
+- **n = 3 seeds.** Descriptive statistics only — `mean [min, max]`. No confidence intervals, no
+  significance tests, no claim that one configuration beats another. Trivy's delta in particular
+  ranges 35.1%–68.4% across seeds, so treat the mean as indicative rather than as a result.
+- **The stripped corpus is less contaminated, not clean.** Resource names like `insecure_sg` and
+  string literals still hint at the planted flaw, so 13.5 points is a *lower bound* on leakage.
 - **Syntax, not semantics.** `hcl2` proves the output parses; it does not run `terraform
   validate`, resolve references, or check provider schemas. A file can pass and still not apply.
 - **Drift is measured at resource-address level**, which is weaker than a real `terraform plan`

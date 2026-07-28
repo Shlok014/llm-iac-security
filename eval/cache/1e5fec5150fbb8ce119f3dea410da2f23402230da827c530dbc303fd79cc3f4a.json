@@ -1,0 +1,24 @@
+{
+  "call_kind": "fix",
+  "completion_source": "openai",
+  "created_utc": "2026-07-28T20:09:34+00:00",
+  "file_sha": "f46c47211d173f0d9604118c90d4eb4e44236d0dd5feaa887ae78df8e5c01eb8",
+  "fixture": "samples/vulnerable_main.tf",
+  "key": "1e5fec5150fbb8ce119f3dea410da2f23402230da827c530dbc303fd79cc3f4a",
+  "model": "gpt-4o-mini-2024-07-18",
+  "prompt_sha": "2195053401590ecf77422ae8d4aba39161c7dd8ecbaa6a3a549a64ba84ec978c",
+  "prompt_version": "v2",
+  "response": "############################################################\n# vulnerable_main.tf\n# Purpose: intentionally insecure Terraform for testing\n############################################################\n\nterraform {\n  required_providers {\n    aws = {\n      source  = \"hashicorp/aws\"\n      version = \"~> 4.0\"\n    }\n  }\n  required_version = \">= 1.0\"\n}\n\nprovider \"aws\" {\n  region = \"us-east-1\"\n}\n\n####################\n# 1) Public S3 bucket (public-read ACL + public policy)\n####################\nresource \"aws_s3_bucket\" \"public_bucket\" {\n  bucket = \"company-demo-public-bucket-123\"\n  acl    = \"private\"        # Changed to private for security\n  tags = {\n    Name = \"public-s3\"\n  }\n}\n\n####################\n# 2) Security group open to the world (SSH + wide egress)\n####################\nresource \"aws_security_group\" \"insecure_sg\" {\n  name        = \"insecure-sg\"\n  description = \"Allow SSH from specific IP and wide egress\"\n  vpc_id      = \"vpc-0example\"  # placeholder\n\n  ingress {\n    description = \"SSH from specific IP\"\n    from_port   = 22\n    to_port     = 22\n    protocol    = \"tcp\"\n    cidr_blocks = [\"203.0.113.0/24\"]   # Changed to specific IP range for security\n  }\n\n  egress {\n    from_port   = 0\n    to_port     = 0\n    protocol    = \"-1\"\n    cidr_blocks = [\"0.0.0.0/0\"]   # wide egress allowed (noticeable risk)\n  }\n}\n\n####################\n# 3) EC2 Instance with user_data that includes a hardcoded secret\n#    and unencrypted root block device\n####################\nresource \"aws_instance\" \"bad_instance\" {\n  ami           = \"ami-0abcdef1234567890\"  # placeholder AMI (maybe outdated)\n  instance_type = \"t2.micro\"\n  subnet_id     = \"subnet-0example\"\n  vpc_security_group_ids = [aws_security_group.insecure_sg.id]\n\n  user_data = <<-EOF\n              #!/bin/bash\n              echo \"DB_PASSWORD=\\$(aws secretsmanager get-secret-value --secret-id my_secret --query SecretString --output text)\" > /etc/myapp_creds\n              # This retrieves the secret from AWS Secrets Manager\n              EOF\n\n  root_block_device {\n    volume_size = 8\n    volume_type = \"gp2\"\n    encrypted   = true    # Changed to encrypted for security\n  }\n\n  tags = {\n    Name = \"insecure-ec2\"\n  }\n}\n\n####################\n# 4) RDS instance publicly accessible with hardcoded credentials\n####################\nresource \"aws_db_instance\" \"bad_rds\" {\n  identifier = \"insecure-rds-instance\"\n  engine     = \"mysql\"\n  instance_class = \"db.t3.micro\"\n  allocated_storage = 20\n  username = \"admin\"\n  password = \"\\${aws_secretsmanager_secret.my_rds_secret.secret_string}\"   # Changed to use Secrets Manager\n  publicly_accessible = false  # Changed to restrict access\n  skip_final_snapshot = true\n}\n\n####################\n# 5) Overly-permissive IAM policy attached to a user (wildcard *)\n####################\nresource \"aws_iam_user\" \"danger_user\" {\n  name = \"danger-user\"\n}\n\nresource \"aws_iam_policy\" \"over_permissive_policy\" {\n  name        = \"admin-limited-policy\"  # Changed name for clarity\n  description = \"Policy with limited actions\"\n  policy      = jsonencode({\n    Version = \"2012-10-17\"\n    Statement = [\n      {\n        Action   = [\"s3:ListBucket\", \"s3:GetObject\"],  # Restricted actions\n        Effect   = \"Allow\",\n        Resource = [\"arn:aws:s3:::company-demo-public-bucket-123\", \"arn:aws:s3:::company-demo-public-bucket-123/*\"]\n      }\n    ]\n  })\n}\n\nresource \"aws_iam_user_policy_attachment\" \"attach_danger\" {\n  user       = aws_iam_user.danger_user.name\n  policy_arn = aws_iam_policy.over_permissive_policy.arn\n}\n\n####################\n# 6) Hardcoded sensitive data via Terraform variables (bad example)\n####################\nvariable \"api_key\" {\n  type    = string\n  default = \"\"   # Removed hardcoded API key\n}\n\n# Output the API key (shows secret exposure)\noutput \"exposed_api_key\" {\n  value = var.api_key\n  sensitive = true   # Changed to true to prevent accidental exposure\n}",
+  "run_index": 0,
+  "schema_version": 1,
+  "seed": 42,
+  "system_fingerprint": null,
+  "temperature": 0.0,
+  "usage": {
+    "calls": 1,
+    "completion_tokens": 989,
+    "prompt_tokens": 1808,
+    "total_tokens": 2797
+  },
+  "variant": "commented"
+}

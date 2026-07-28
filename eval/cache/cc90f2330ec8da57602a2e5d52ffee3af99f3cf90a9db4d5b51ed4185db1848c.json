@@ -1,0 +1,24 @@
+{
+  "call_kind": "detect",
+  "completion_source": "openai",
+  "created_utc": "2026-07-28T20:09:22+00:00",
+  "file_sha": "f46c47211d173f0d9604118c90d4eb4e44236d0dd5feaa887ae78df8e5c01eb8",
+  "fixture": "samples/vulnerable_main.tf",
+  "key": "cc90f2330ec8da57602a2e5d52ffee3af99f3cf90a9db4d5b51ed4185db1848c",
+  "model": "gpt-4o-mini-2024-07-18",
+  "prompt_sha": "ee8dec35b8cf60707c2a868d09f783d170201576cb33e5938407a6b48392ea62",
+  "prompt_version": "v2",
+  "response": "{\"findings\":[{\"issue\":\"S3 bucket is publicly accessible with public-read ACL and public policy allowing all users to read objects.\",\"severity\":\"critical\",\"resource\":\"aws_s3_bucket.public_bucket\",\"recommendation\":\"Change the ACL to 'private' and remove the public policy to restrict access.\"},{\"issue\":\"Security group allows SSH access from anywhere (0.0.0.0/0), which is insecure.\",\"severity\":\"high\",\"resource\":\"aws_security_group.insecure_sg\",\"recommendation\":\"Restrict the SSH ingress rule to specific IP addresses or ranges instead of allowing access from 0.0.0.0/0.\"},{\"issue\":\"EC2 instance has a hardcoded secret in user_data, which is insecure.\",\"severity\":\"high\",\"resource\":\"aws_instance.bad_instance\",\"recommendation\":\"Remove hardcoded secrets from user_data and use a secure method to manage secrets, such as AWS Secrets Manager.\"},{\"issue\":\"EC2 instance has an unencrypted root block device, which poses a security risk.\",\"severity\":\"high\",\"resource\":\"aws_instance.bad_instance\",\"recommendation\":\"Set 'encrypted' to true in the root_block_device configuration to ensure the root volume is encrypted.\"},{\"issue\":\"RDS instance is publicly accessible, which is dangerous and increases the attack surface.\",\"severity\":\"critical\",\"resource\":\"aws_db_instance.bad_rds\",\"recommendation\":\"Set 'publicly_accessible' to false to restrict access to the RDS instance.\"},{\"issue\":\"IAM policy attached to a user allows all actions on all resources (wildcard *), which is overly permissive.\",\"severity\":\"critical\",\"resource\":\"aws_iam_policy.over_permissive_policy\",\"recommendation\":\"Restrict the IAM policy to only the necessary actions and resources instead of using wildcard *.\"},{\"issue\":\"Hardcoded sensitive data (API key) in Terraform variables, which is insecure.\",\"severity\":\"high\",\"resource\":\"variable.api_key\",\"recommendation\":\"Remove the hardcoded API key and use a secure method to manage sensitive data, such as environment variables or AWS Secrets Manager.\"},{\"issue\":\"API key is exposed in output without being marked as sensitive, which can lead to accidental exposure.\",\"severity\":\"high\",\"resource\":\"output.exposed_api_key\",\"recommendation\":\"Set 'sensitive' to true in the output configuration to prevent accidental exposure of the API key.\"}]}",
+  "run_index": 0,
+  "schema_version": 1,
+  "seed": 42,
+  "system_fingerprint": null,
+  "temperature": 0.0,
+  "usage": {
+    "calls": 1,
+    "completion_tokens": 470,
+    "prompt_tokens": 1395,
+    "total_tokens": 1865
+  },
+  "variant": "commented"
+}

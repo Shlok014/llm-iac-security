@@ -1,0 +1,24 @@
+{
+  "call_kind": "detect",
+  "completion_source": "openai",
+  "created_utc": "2026-07-28T20:08:40+00:00",
+  "file_sha": "363bfa561a781494df2ecc2ab11e1e464554be53eded1eeb2f37a9fe1002110e",
+  "fixture": "samples/s3_public.tf",
+  "key": "ab07443e4a842e090f575c7b982a93dcb2f01231e1f378f24d55d517db8ab8cc",
+  "model": "gpt-4o-mini-2024-07-18",
+  "prompt_sha": "bb2f84124bc79fab4df2085117d2b66b8c46853c5c6bb86b1c9bff9c880218ac",
+  "prompt_version": "v2",
+  "response": "{\"findings\":[{\"issue\":\"The S3 bucket is configured with a public-read ACL, exposing its contents to the public.\",\"severity\":\"critical\",\"resource\":\"aws_s3_bucket.example\",\"recommendation\":\"Change the ACL from 'public-read' to 'private' to restrict public access.\"}]}",
+  "run_index": 0,
+  "schema_version": 1,
+  "seed": 42,
+  "system_fingerprint": null,
+  "temperature": 0.0,
+  "usage": {
+    "calls": 1,
+    "completion_tokens": 60,
+    "prompt_tokens": 392,
+    "total_tokens": 452
+  },
+  "variant": "commented"
+}

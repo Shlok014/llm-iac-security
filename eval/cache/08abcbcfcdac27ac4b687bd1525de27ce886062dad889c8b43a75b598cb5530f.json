@@ -1,0 +1,24 @@
+{
+  "call_kind": "fix",
+  "completion_source": "openai",
+  "created_utc": "2026-07-28T20:17:41+00:00",
+  "file_sha": "4c7068b93582f1beef8889a6d35745273e46932e1a435aaa0bcb1088b94c82ac",
+  "fixture": "samples/vulnerable.Dockerfile",
+  "key": "08abcbcfcdac27ac4b687bd1525de27ce886062dad889c8b43a75b598cb5530f",
+  "model": "gpt-4o-mini-2024-07-18",
+  "prompt_sha": "726df47a0e7f33ba1657f394270046ad22ee8550703759a9a04ebb5fb2fab47a",
+  "prompt_version": "v2",
+  "response": "FROM python:3.10.12-slim\n\nRUN apt-get update && \\\n    apt-get install -y --no-install-recommends curl wget git openssh-server sudo build-essential \\\n    ca-certificates unzip && \\\n    rm -rf /var/lib/apt/lists/*\n\nCOPY ./secrets.env /app/secrets.env\n\nRUN curl -fsSL https://example.com/tools/toolkit.tar.gz -o /tmp/remote-tool/toolkit.tar.gz && \\\n    tar -xzf /tmp/remote-tool/toolkit.tar.gz -C /tmp/remote-tool/ && \\\n    rm /tmp/remote-tool/toolkit.tar.gz\n\nCOPY . /app\nWORKDIR /app\nRUN pip install --no-cache-dir -r requirements.txt\n\nEXPOSE 2375 5000\n\nRUN mkdir -p /app/data && chmod 755 /app/data\n\nRUN mkdir -p /var/run/sshd\n\nHEALTHCHECK CMD curl --fail http://localhost:5000/health || exit 1\n\nRUN useradd -m appuser\nUSER appuser\n\nCMD [\"/bin/bash\"]",
+  "run_index": 1,
+  "schema_version": 1,
+  "seed": 42,
+  "system_fingerprint": null,
+  "temperature": 0.0,
+  "usage": {
+    "calls": 1,
+    "completion_tokens": 228,
+    "prompt_tokens": 1068,
+    "total_tokens": 1296
+  },
+  "variant": "stripped"
+}

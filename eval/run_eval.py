@@ -531,7 +531,9 @@ def run_one(fixture: Path, variant: str, run_index: int, rc: RunConfig) -> dict[
 
     record: dict[str, Any] = {
         "fixture": key,
-        "source": str(source),
+        # Repo-relative: committed results are read on machines that are not this one, and an
+        # absolute path bakes in a home directory and a username for no benefit.
+        "source": serialise.rel_path(source),
         "variant": variant,
         "run_index": run_index,
         "iac_type": kind.value,
@@ -616,7 +618,7 @@ def run_one(fixture: Path, variant: str, run_index: int, rc: RunConfig) -> dict[
         }
     ]
     record["remediation_valid"] = bool(validity)
-    record["output_path"] = str(out_path)
+    record["output_path"] = serialise.rel_path(out_path)
 
     if not validity:
         # An unusable output resolved nothing. Scoring it any other way — dropping it from

@@ -1,0 +1,24 @@
+{
+  "call_kind": "fix",
+  "completion_source": "openai",
+  "created_utc": "2026-07-28T20:14:58+00:00",
+  "file_sha": "74721805d436b700e1f5a641eaa96b87ad67e4f77ae445256d39f6430ceaaa59",
+  "fixture": "samples/ec2_open.tf",
+  "key": "d0411746e7c95323bdb3e0b82bcffe01efca4dce53aa041a96bcd28f7b5713ec",
+  "model": "gpt-4o-mini-2024-07-18",
+  "prompt_sha": "3c71883881af076349a6f91d728a57fa13d2cd120e1c391edb50c8845a4563cb",
+  "prompt_version": "v2",
+  "response": "provider \"aws\" {\n  region = \"us-east-1\"\n}\n\nresource \"aws_security_group\" \"vulnerable_sg\" {\n  name        = \"vulnerable-web-server-sg\"\n  description = \"A security group with SSH open to the world\"\n\n  ingress {\n    from_port   = 22\n    to_port     = 22\n    protocol    = \"tcp\"\n    cidr_blocks = [\"YOUR_IP_ADDRESS/32\"]  # Replace YOUR_IP_ADDRESS with your actual IP address\n  }\n\n  egress {\n    from_port   = 0\n    to_port     = 0\n    protocol    = \"tcp\"\n    cidr_blocks = [\"0.0.0.0/0\"]  # Modify this line to restrict egress as necessary\n  }\n\n  tags = {\n    Name = \"vulnerable-sg\"\n  }\n}\n\nresource \"aws_instance\" \"web_server\" {\n  ami           = \"ami-0c55b159cbfafe1f0\"\n  instance_type = \"t2.micro\"\n\n  vpc_security_group_ids = [aws_security_group.vulnerable_sg.id]\n\n  tags = {\n    Name = \"Vulnerable-Server\"\n  }\n}",
+  "run_index": 0,
+  "schema_version": 1,
+  "seed": 42,
+  "system_fingerprint": null,
+  "temperature": 0.0,
+  "usage": {
+    "calls": 1,
+    "completion_tokens": 255,
+    "prompt_tokens": 706,
+    "total_tokens": 961
+  },
+  "variant": "stripped"
+}

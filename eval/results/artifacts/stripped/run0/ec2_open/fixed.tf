@@ -16,8 +16,8 @@ resource "aws_security_group" "vulnerable_sg" {
   egress {
     from_port   = 0
     to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["10.0.0.0/8"]  # Example: Allow egress to private IP range, adjust as necessary
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]  # Modify this line to restrict egress as necessary
   }
 
   tags = {

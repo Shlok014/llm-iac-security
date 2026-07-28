@@ -1,0 +1,11 @@
+fixture : samples/s3_public.tf
+variant : stripped  run: 2
+summary : no resource drift
+drifted : False
+deleted : -
+renamed : -
+added   : -
+count drops: -
+
+flaw-carrying resources deleted or renamed (the 'fixed it by deleting it' set):
+  (none)

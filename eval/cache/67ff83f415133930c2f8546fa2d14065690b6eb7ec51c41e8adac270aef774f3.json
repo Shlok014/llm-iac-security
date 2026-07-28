@@ -1,0 +1,24 @@
+{
+  "call_kind": "detect",
+  "completion_source": "openai",
+  "created_utc": "2026-07-28T20:17:59+00:00",
+  "file_sha": "7a0d67d336c87efed58c7da0d819415ac76fb582035660978de8ac959e94aea3",
+  "fixture": "samples/vulnerable_main.tf",
+  "key": "67ff83f415133930c2f8546fa2d14065690b6eb7ec51c41e8adac270aef774f3",
+  "model": "gpt-4o-mini-2024-07-18",
+  "prompt_sha": "988b75e50e5e410591719ca9ca6dccd5c823ec54939b2f59b30588ce38e0e57b",
+  "prompt_version": "v2",
+  "response": "{\"findings\":[{\"issue\":\"S3 bucket is publicly accessible with public-read ACL and policy allowing public read access.\",\"severity\":\"critical\",\"resource\":\"aws_s3_bucket.public_bucket\",\"recommendation\":\"Remove the public-read ACL and the public bucket policy to restrict access.\"},{\"issue\":\"Security group allows SSH access from anywhere (0.0.0.0/0), which is a significant security risk.\",\"severity\":\"high\",\"resource\":\"aws_security_group.insecure_sg\",\"recommendation\":\"Restrict SSH access to specific IP addresses instead of allowing from anywhere.\"},{\"issue\":\"EC2 instance stores plaintext credentials in a file, which is insecure.\",\"severity\":\"high\",\"resource\":\"aws_instance.bad_instance\",\"recommendation\":\"Use AWS Secrets Manager or Parameter Store to manage sensitive information instead of writing it to a file.\"},{\"issue\":\"RDS instance is publicly accessible, increasing the risk of unauthorized access.\",\"severity\":\"high\",\"resource\":\"aws_db_instance.bad_rds\",\"recommendation\":\"Set publicly_accessible to false to restrict access to the RDS instance.\"},{\"issue\":\"IAM policy grants full access to all resources, which is overly permissive and a security risk.\",\"severity\":\"high\",\"resource\":\"aws_iam_policy.over_permissive_policy\",\"recommendation\":\"Limit the IAM policy to only the necessary actions and resources required for the user.\"},{\"issue\":\"IAM user is created without any restrictions or policies limiting its permissions, which can lead to misuse.\",\"severity\":\"medium\",\"resource\":\"aws_iam_user.danger_user\",\"recommendation\":\"Implement least privilege by attaching a more restrictive policy to the IAM user.\"},{\"issue\":\"API key is hardcoded in the variable, which can lead to exposure if the code is shared or stored in version control.\",\"severity\":\"medium\",\"resource\":\"variable.api_key\",\"recommendation\":\"Remove the hardcoded API key and use environment variables or a secure secrets management solution.\"},{\"issue\":\"Output variable for API key is marked as not sensitive, exposing it in Terraform outputs.\",\"severity\":\"medium\",\"resource\":\"output.exposed_api_key\",\"recommendation\":\"Set the sensitive attribute to true for the output variable to prevent exposure.\"},{\"issue\":\"EC2 instance root block device is not encrypted, which can lead to data exposure if the instance is compromised.\",\"severity\":\"medium\",\"resource\":\"aws_instance.bad_instance.root_block_device\",\"recommendation\":\"Set encrypted to true for the root block device to ensure data at rest is encrypted.\"}]}",
+  "run_index": 1,
+  "schema_version": 1,
+  "seed": 42,
+  "system_fingerprint": null,
+  "temperature": 0.0,
+  "usage": {
+    "calls": 1,
+    "completion_tokens": 489,
+    "prompt_tokens": 1153,
+    "total_tokens": 1642
+  },
+  "variant": "stripped"
+}

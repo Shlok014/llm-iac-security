@@ -1,0 +1,24 @@
+{
+  "call_kind": "fix",
+  "completion_source": "openai",
+  "created_utc": "2026-07-28T20:08:28+00:00",
+  "file_sha": "612aa483a0d9bd03955a2799b371c773c9c4eaf342318e785372ad26adfcfa22",
+  "fixture": "samples/ec2_open.tf",
+  "key": "0efa5666941ef1a3bc270768f0c7b5935962ea636978e9e83b7a9f2b54f277d5",
+  "model": "gpt-4o-mini-2024-07-18",
+  "prompt_sha": "53a3f81510ef5ac9e48ae35ee72f665670598658a217c46308151c85bb39acc8",
+  "prompt_version": "v2",
+  "response": "provider \"aws\" {\n  region = \"us-east-1\"\n}\n\nresource \"aws_security_group\" \"vulnerable_sg\" {\n  name        = \"vulnerable-web-server-sg\"\n  description = \"A security group with SSH open to the world\"\n\n  ingress {\n    from_port   = 22             # Port 22 is for SSH (Secure Shell)\n    to_port     = 22\n    protocol    = \"tcp\"\n    cidr_blocks = [\"203.0.113.0/24\"]  # Replace with a specific IP address or range\n  }\n\n  egress {\n    from_port   = 0\n    to_port     = 0\n    protocol    = \"-1\"\n    cidr_blocks = [\"0.0.0.0/0\"]  # This should be restricted based on application needs\n  }\n\n  tags = {\n    Name = \"vulnerable-sg\"\n  }\n}\n\nresource \"aws_instance\" \"web_server\" {\n  ami           = \"ami-0c55b159cbfafe1f0\" # Example: Amazon Linux 2 AMI\n  instance_type = \"t2.micro\"\n  \n  vpc_security_group_ids = [aws_security_group.vulnerable_sg.id]\n\n  tags = {\n    Name = \"Vulnerable-Server\"\n  }\n}",
+  "run_index": 0,
+  "schema_version": 1,
+  "seed": 42,
+  "system_fingerprint": null,
+  "temperature": 0.0,
+  "usage": {
+    "calls": 1,
+    "completion_tokens": 279,
+    "prompt_tokens": 754,
+    "total_tokens": 1033
+  },
+  "variant": "commented"
+}

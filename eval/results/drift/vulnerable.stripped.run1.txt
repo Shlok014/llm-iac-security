@@ -1,0 +1,11 @@
+fixture : samples/vulnerable.Dockerfile
+variant : stripped  run: 1
+summary : no resource drift
+drifted : False
+deleted : -
+renamed : -
+added   : -
+count drops: -
+
+flaw-carrying resources deleted or renamed (the 'fixed it by deleting it' set):
+  (none)

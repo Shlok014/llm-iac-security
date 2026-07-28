@@ -1,0 +1,24 @@
+{
+  "call_kind": "fix",
+  "completion_source": "openai",
+  "created_utc": "2026-07-28T20:13:24+00:00",
+  "file_sha": "b3faf9f3b3ad3e27598024379378398d2c9dbd0f7fe72e658a846ee45e0bf434",
+  "fixture": "samples/vulnerable.Dockerfile",
+  "key": "d4a453f5ec729c31e26d027efa4e9536c22c556aa91b49ecf92df347e037c7c1",
+  "model": "gpt-4o-mini-2024-07-18",
+  "prompt_sha": "1e089a8c34a72f7fddb8e83880abad2b4f67d3aac8eb1c98d7930168122ec8af",
+  "prompt_version": "v2",
+  "response": "# vulnerable.Dockerfile  -- FOR TESTING ONLY (do NOT use in production)\n\n# 1) Floating base tag (non-reproducible, may include CVEs)\nFROM python:3.10.12-slim\n\n# 2) Running as root by default (no USER set later)\n# 3) Install a bunch of packages (unneeded attack surface) and leave cache\nRUN apt-get update && \\\n    apt-get install -y --no-install-recommends curl wget git && \\\n    rm -rf /var/lib/apt/lists/*\n\n# 4) Copy a secrets file from build context (simulates accidental secret bake-in)\n# Removed COPY instruction for secrets\n\n# 5) ADD remote archive (unsafe: will download and unpack remote content)\n# Replaced ADD with a safer method\nRUN curl -fsSL https://example.com/tools/toolkit.tar.gz -o /tmp/toolkit.tar.gz && \\\n    tar -xzf /tmp/toolkit.tar.gz -C /tmp/remote-tool/ && \\\n    rm /tmp/toolkit.tar.gz\n\n# 6) Copy whole context (danger: may include host secrets) and install python deps without hashes\nCOPY . /app\nWORKDIR /app\nRUN pip install --no-cache-dir -r requirements.txt\n\n# 7) Expose unnecessary/privileged ports (e.g. docker daemon or SSH)\nEXPOSE 5000\n\n# 8) Embed credentials as ENV (visible via docker inspect)\n# Removed ENV instructions for sensitive information\n\n# 9) Writable directory with world-write permissions\nRUN mkdir -p /app/data && chmod 755 /app/data\n\n# 10) Execute remote install script directly (curl | sh) \u2014 remote code execution risk\n# Downloading and verifying the script before execution\nRUN curl -fsSL https://example.com/install.sh -o /tmp/install.sh && \\\n    sh /tmp/install.sh && \\\n    rm /tmp/install.sh\n\n# 11) Start sshd (unnecessary service inside container)\n# Removed SSH server installation and related commands\n\n# 12) Create a SUID-like binary (simulated privileged file)\n# Removed creation of SUID-like binary\n\n# 13) No healthcheck, no non-root user, no minimal base image\n# Added a non-root user and a HEALTHCHECK instruction\nRUN useradd -m appuser\nUSER appuser\n\nHEALTHCHECK CMD curl --fail http://localhost:5000/ || exit 1\n\nCMD [\"/bin/bash\"]",
+  "run_index": 2,
+  "schema_version": 1,
+  "seed": 42,
+  "system_fingerprint": null,
+  "temperature": 0.0,
+  "usage": {
+    "calls": 1,
+    "completion_tokens": 521,
+    "prompt_tokens": 1442,
+    "total_tokens": 1963
+  },
+  "variant": "commented"
+}

@@ -1,0 +1,24 @@
+{
+  "call_kind": "fix",
+  "completion_source": "openai",
+  "created_utc": "2026-07-28T20:16:20+00:00",
+  "file_sha": "054d10ed1e151425001e6bf68b45f7a9e54893d0b5d5c64c4beda026f983bd94",
+  "fixture": "samples/vulnerable_network.tf",
+  "key": "4a92bb2f2579d06efdec83e6783dc5bcab39759cf2de963eaf9928cfcc54245e",
+  "model": "gpt-4o-mini-2024-07-18",
+  "prompt_sha": "cadc8ff45196512972d0cd691c2d8e668c0fb37dc45e226a723a443b55d0e490",
+  "prompt_version": "v2",
+  "response": "resource \"aws_vpc\" \"test_vpc\" {\n  cidr_block = \"10.0.0.0/16\"\n  tags = {\n    Name = \"test-vpc\"\n  }\n}\n\nresource \"aws_subnet\" \"test_subnet\" {\n  vpc_id            = aws_vpc.test_vpc.id\n  cidr_block        = \"10.0.1.0/24\"\n  availability_zone = \"us-east-1a\"\n  map_public_ip_on_launch = false\n}\n\nresource \"aws_security_group\" \"open_http\" {\n  name        = \"allow-http\"\n  description = \"Allow HTTP from specific IP range\"\n  vpc_id      = aws_vpc.test_vpc.id\n\n  ingress {\n    from_port   = 80\n    to_port     = 80\n    protocol    = \"tcp\"\n    cidr_blocks = [\"192.168.1.0/24\"]  # Replace with a specific IP range\n  }\n\n  egress {\n    from_port   = 0\n    to_port     = 0\n    protocol    = \"tcp\"\n    cidr_blocks = [\"0.0.0.0/0\"]  # Adjust as necessary for your use case\n  }\n}",
+  "run_index": 0,
+  "schema_version": 1,
+  "seed": 42,
+  "system_fingerprint": null,
+  "temperature": 0.0,
+  "usage": {
+    "calls": 1,
+    "completion_tokens": 260,
+    "prompt_tokens": 741,
+    "total_tokens": 1001
+  },
+  "variant": "stripped"
+}

@@ -22,15 +22,15 @@ resource "aws_s3_bucket" "public_bucket" {
 
 resource "aws_security_group" "insecure_sg" {
   name        = "insecure-sg"
-  description = "Allow SSH from trusted IP and wide egress"
+  description = "Allow SSH from specific IP and wide egress"
   vpc_id      = "vpc-0example"
 
   ingress {
-    description = "SSH from trusted IP"
+    description = "SSH from specific IP"
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
-    cidr_blocks = ["YOUR_TRUSTED_IP/32"]  # Replace with your trusted IP
+    cidr_blocks = ["YOUR_IP_ADDRESS/32"]  # Replace with your specific IP address
   }
 
   egress {
@@ -42,9 +42,9 @@ resource "aws_security_group" "insecure_sg" {
 }
 
 resource "aws_instance" "bad_instance" {
-  ami                    = "ami-0abcdef1234567890"
-  instance_type         = "t2.micro"
-  subnet_id             = "subnet-0example"
+  ami           = "ami-0abcdef1234567890"
+  instance_type = "t2.micro"
+  subnet_id     = "subnet-0example"
   vpc_security_group_ids = [aws_security_group.insecure_sg.id]
 
   user_data = <<-EOF
@@ -80,13 +80,13 @@ resource "aws_iam_user" "danger_user" {
 }
 
 resource "aws_iam_policy" "over_permissive_policy" {
-  name        = "restricted-policy"
+  name        = "admin-limited-policy"
   description = "Policy with limited actions"
   policy      = jsonencode({
     Version = "2012-10-17"
     Statement = [
       {
-        Action   = ["s3:ListBucket", "s3:GetObject"],
+        Action   = ["s3:ListBucket", "s3:GetObject"],  # Limit actions as necessary
         Effect   = "Allow",
         Resource = ["arn:aws:s3:::company-demo-public-bucket-123", "arn:aws:s3:::company-demo-public-bucket-123/*"]
       }
@@ -100,8 +100,7 @@ resource "aws_iam_user_policy_attachment" "attach_danger" {
 }
 
 variable "api_key" {
-  type    = string
-  default = "AKIA_FAKE_KEY_DO_NOT_USE"
+  type = string
 }
 
 output "exposed_api_key" {

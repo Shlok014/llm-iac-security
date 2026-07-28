@@ -1,0 +1,24 @@
+{
+  "call_kind": "fix",
+  "completion_source": "openai",
+  "created_utc": "2026-07-28T20:11:16+00:00",
+  "file_sha": "b3faf9f3b3ad3e27598024379378398d2c9dbd0f7fe72e658a846ee45e0bf434",
+  "fixture": "samples/vulnerable.Dockerfile",
+  "key": "f12799fc3938ad39b1e945309a3ecb63b27b8991f3c72c5e0ac1fcb7b1607eda",
+  "model": "gpt-4o-mini-2024-07-18",
+  "prompt_sha": "acedf37f984efc16ba2793815cb21c98961ed1dcef883281fac870a2eb60be20",
+  "prompt_version": "v2",
+  "response": "# vulnerable.Dockerfile  -- FOR TESTING ONLY (do NOT use in production)\n\n# 1) Floating base tag (non-reproducible, may include CVEs)\nFROM python:3.10.12-slim\n\n# 2) Running as root by default (no USER set later)\n# 3) Install a bunch of packages (unneeded attack surface) and leave cache\nRUN apt-get update && \\\n    apt-get install -y --no-install-recommends curl wget && \\\n    rm -rf /var/lib/apt/lists/*\n\n# 4) Copy a secrets file from build context (simulates accidental secret bake-in)\n# Removed COPY instruction for secrets\n\n# 5) ADD remote archive (unsafe: will download and unpack remote content)\n# Changed ADD to COPY for local files instead of remote URLs\n# Assuming toolkit.tar.gz is available locally\nCOPY toolkit.tar.gz /tmp/remote-tool/\n\n# 6) Copy whole context (danger: may include host secrets) and install python deps without hashes\n# Limited context to only necessary files and used pip with hash-checking\nCOPY requirements.txt /app/\nWORKDIR /app\nRUN pip install --no-cache-dir --require-hashes -r requirements.txt\n\n# 7) Expose unnecessary/privileged ports (e.g. docker daemon or SSH)\n# Removed unnecessary EXPOSE instructions\nEXPOSE 5000\n\n# 8) Embed credentials as ENV (visible via docker inspect)\n# Removed sensitive information from ENV variables\n# ENV DB_PASSWORD=\"SuperInsecurePassword123!\"\n# ENV AWS_ACCESS_KEY_ID=\"AKIA_FAKE_KEY\"\n# ENV AWS_SECRET_ACCESS_KEY=\"SECRET_FAKE_KEY\"\n\n# 9) Writable directory with world-write permissions\nRUN mkdir -p /app/data && chmod 755 /app/data\n\n# 10) Execute remote install script directly (curl | sh) \u2014 remote code execution risk\n# Download the script, verify its integrity, and execute it in a controlled manner\n# Assuming install.sh is available locally\nCOPY install.sh /tmp/\nRUN chmod +x /tmp/install.sh && /tmp/install.sh\n\n# 11) Start sshd (unnecessary service inside container)\n# Removed installation and configuration of unnecessary services like sshd\n\n# 12) Create a SUID-like binary (simulated privileged file)\n# Removed creation of SUID-like binary\n# RUN touch /usr/local/bin/suid_sample && chmod 4755 /usr/local/bin/suid_sample\n\n# 13) No healthcheck, no non-root user, no minimal base image\n# Added a non-root user and a HEALTHCHECK instruction\nRUN useradd -m appuser\nUSER appuser\nHEALTHCHECK CMD curl --fail http://localhost:5000/ || exit 1\n\nCMD [\"/bin/bash\"]",
+  "run_index": 1,
+  "schema_version": 1,
+  "seed": 42,
+  "system_fingerprint": null,
+  "temperature": 0.0,
+  "usage": {
+    "calls": 1,
+    "completion_tokens": 579,
+    "prompt_tokens": 1478,
+    "total_tokens": 2057
+  },
+  "variant": "commented"
+}

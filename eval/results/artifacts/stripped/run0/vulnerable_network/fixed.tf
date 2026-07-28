@@ -14,20 +14,20 @@ resource "aws_subnet" "test_subnet" {
 
 resource "aws_security_group" "open_http" {
   name        = "allow-http"
-  description = "Allow HTTP from specific IP"
+  description = "Allow HTTP from specific IP range"
   vpc_id      = aws_vpc.test_vpc.id
 
   ingress {
     from_port   = 80
     to_port     = 80
     protocol    = "tcp"
-    cidr_blocks = ["192.0.2.0/24"]  # Replace with a specific trusted IP range
+    cidr_blocks = ["192.168.1.0/24"]  # Replace with a specific IP range
   }
 
   egress {
     from_port   = 0
     to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]  # Consider restricting this to necessary outbound traffic
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]  # Adjust as necessary for your use case
   }
 }

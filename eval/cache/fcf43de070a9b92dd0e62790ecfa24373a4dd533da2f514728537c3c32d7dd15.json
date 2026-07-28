@@ -1,0 +1,24 @@
+{
+  "call_kind": "detect",
+  "completion_source": "openai",
+  "created_utc": "2026-07-28T20:14:14+00:00",
+  "file_sha": "22f2efc55fa83ac8f9551b1f8d2bc81edea5ff317c934a0028dd6a120837413c",
+  "fixture": "samples/vulnerable_network.tf",
+  "key": "fcf43de070a9b92dd0e62790ecfa24373a4dd533da2f514728537c3c32d7dd15",
+  "model": "gpt-4o-mini-2024-07-18",
+  "prompt_sha": "a1f1f240451403f892183e7a7b0e91f2d088438796ba2ab9efac61f03d604315",
+  "prompt_version": "v2",
+  "response": "{\"findings\":[{\"issue\":\"The subnet is configured to map public IPs on launch, which can lead to unintended public exposure.\",\"severity\":\"high\",\"resource\":\"aws_subnet.test_subnet\",\"recommendation\":\"Set 'map_public_ip_on_launch' to false to prevent automatic public IP assignment.\"},{\"issue\":\"The security group allows HTTP traffic from anywhere, exposing the application to potential attacks.\",\"severity\":\"high\",\"resource\":\"aws_security_group.open_http\",\"recommendation\":\"Restrict 'cidr_blocks' in the ingress rule to a specific IP range or remove the rule if not necessary.\"},{\"issue\":\"The security group allows all outbound traffic, which can lead to data exfiltration or unwanted connections.\",\"severity\":\"medium\",\"resource\":\"aws_security_group.open_http\",\"recommendation\":\"Restrict the egress rule to only allow necessary outbound traffic.\"}]}",
+  "run_index": 2,
+  "schema_version": 1,
+  "seed": 42,
+  "system_fingerprint": null,
+  "temperature": 0.0,
+  "usage": {
+    "calls": 1,
+    "completion_tokens": 171,
+    "prompt_tokens": 632,
+    "total_tokens": 803
+  },
+  "variant": "commented"
+}
