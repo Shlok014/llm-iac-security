@@ -1,0 +1,21 @@
+# Secrets — never commit
+.env
+*.pem
+*.key
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+
+# Generated output
+outputs/
+temp_*
+.cache/
+
+# macOS
+.DS_Store
