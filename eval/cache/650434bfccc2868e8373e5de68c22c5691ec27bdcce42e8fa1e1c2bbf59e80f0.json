@@ -1,0 +1,24 @@
+{
+  "call_kind": "detect",
+  "completion_source": "openai",
+  "created_utc": "2026-07-28T21:45:15+00:00",
+  "file_sha": "220236a5dbc2d1065234956641753ab09bb5616c190cb4c148365168ca296f5f",
+  "fixture": "samples/vulnerable_lambda.tf",
+  "key": "650434bfccc2868e8373e5de68c22c5691ec27bdcce42e8fa1e1c2bbf59e80f0",
+  "model": "gpt-4o-mini-2024-07-18",
+  "prompt_sha": "eef277a3bd9ff1c1cec7f9388765c80c1ad9069ce2aa7b7cae9cf64eff7485ad",
+  "prompt_version": "v2",
+  "response": "{\"findings\":[{\"issue\":\"IAM role policy grants overly broad permissions to all resources.\",\"severity\":\"critical\",\"resource\":\"aws_iam_role_policy.order_worker_runtime\",\"recommendation\":\"Restrict the policy to specific resources instead of using '*', e.g., specify the ARNs of the S3 buckets, DynamoDB tables, and Secrets Manager secrets that the Lambda function needs access to.\"},{\"issue\":\"Lambda function URL allows public access without authorization.\",\"severity\":\"high\",\"resource\":\"aws_lambda_function_url.checkout_callback\",\"recommendation\":\"Change the authorization_type from 'NONE' to 'AWS_IAM' to restrict access to authenticated users.\"},{\"issue\":\"Lambda function permission allows invocation from any principal.\",\"severity\":\"high\",\"resource\":\"aws_lambda_permission.storefront_invoke\",\"recommendation\":\"Restrict the principal to specific AWS services or accounts instead of using '*', to limit who can invoke the Lambda function.\"},{\"issue\":\"Sensitive environment variables are hardcoded in the Lambda function.\",\"severity\":\"high\",\"resource\":\"aws_lambda_function.order_processor\",\"recommendation\":\"Use AWS Secrets Manager or Parameter Store to securely manage sensitive information like STRIPE_SECRET_KEY and DB_PASSWORD instead of hardcoding them.\"},{\"issue\":\"DynamoDB table point-in-time recovery is not enabled.\",\"severity\":\"medium\",\"resource\":\"aws_dynamodb_table.orders\",\"recommendation\":\"Enable point-in-time recovery by setting 'enabled = true' in the point_in_time_recovery block to protect against accidental data loss.\"}]}",
+  "run_index": 0,
+  "schema_version": 1,
+  "seed": 42,
+  "system_fingerprint": null,
+  "temperature": 0.0,
+  "usage": {
+    "calls": 1,
+    "completion_tokens": 293,
+    "prompt_tokens": 876,
+    "total_tokens": 1169
+  },
+  "variant": "stripped"
+}

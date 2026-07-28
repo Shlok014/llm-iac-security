@@ -1,0 +1,24 @@
+{
+  "call_kind": "fix",
+  "completion_source": "openai",
+  "created_utc": "2026-07-28T21:48:29+00:00",
+  "file_sha": "f803bc9c0b2c603f5de9d166178b881f5fae33ef7276c3697312c7df1412a905",
+  "fixture": "samples/vulnerable_eks.tf",
+  "key": "564e29b9cbf4899ebc2c977b74ac13571059e22c474a3b024379fc9007f15dbc",
+  "model": "gpt-4o-mini-2024-07-18",
+  "prompt_sha": "9ebed965c7e3f7dd6a6f377727ab672c04d02dc22eeb93ce4797637610688489",
+  "prompt_version": "v2",
+  "response": "resource \"aws_iam_role\" \"eks_control_plane\" {\n  name = \"platform-eks-control-plane\"\n\n  assume_role_policy = jsonencode({\n    Version = \"2012-10-17\"\n    Statement = [{\n      Effect    = \"Allow\"\n      Action    = \"sts:AssumeRole\"\n      Principal = { Service = \"eks.amazonaws.com\" }\n    }]\n  })\n}\n\nresource \"aws_eks_cluster\" \"platform\" {\n  name     = \"platform-prod\"\n  role_arn = aws_iam_role.eks_control_plane.arn\n  version  = \"1.27\"\n\n  vpc_config {\n    subnet_ids              = [\"subnet-0a1b2c3d\", \"subnet-0e4f5a6b\"]\n    endpoint_public_access  = true\n    endpoint_private_access = false\n    public_access_cidrs     = [\"192.168.0.0/16\"] # Updated to a more restrictive CIDR range\n  }\n\n  tags = {\n    Environment = \"prod\"\n    Team        = \"platform\"\n  }\n}\n\nresource \"aws_ecr_repository\" \"report_renderer\" {\n  name                 = \"report-renderer\"\n  image_tag_mutability = \"MUTABLE\"\n\n  image_scanning_configuration {\n    scan_on_push = true # Enabled image scanning on push\n  }\n}\n\nresource \"aws_ecs_cluster\" \"batch\" {\n  name = \"batch-prod\"\n\n  setting {\n    name  = \"containerInsights\"\n    value = \"enabled\" # Enabled container insights\n  }\n}\n\nresource \"aws_ecs_task_definition\" \"report_renderer\" {\n  family                   = \"report-renderer\"\n  network_mode             = \"awsvpc\"\n  requires_compatibilities = [\"FARGATE\"]\n  cpu                      = \"512\"\n  memory                   = \"1024\"\n\n  container_definitions = jsonencode([\n    {\n      name       = \"renderer\"\n      image      = \"report-renderer:latest\"\n      essential  = true\n      privileged = false # Removed privileged mode\n      user       = \"1001\" # Specified a non-root user\n      environment = [\n        { name = \"SMTP_PASSWORD\", value = \"arn:aws:secretsmanager:region:account-id:secret:your-secret-name\" }, # Updated to use Secrets Manager\n        { name = \"REPORT_BUCKET\", value = \"acme-reports-prod\" }\n      ]\n      portMappings = [\n        { containerPort = 8080, hostPort = 8080, protocol = \"tcp\" }\n      ]\n    }\n  ])\n}\n\nresource \"aws_ecs_service\" \"report_renderer\" {\n  name            = \"report-renderer\"\n  cluster         = aws_ecs_cluster.batch.id\n  task_definition = aws_ecs_task_definition.report_renderer.arn\n  desired_count   = 2\n  launch_type     = \"FARGATE\"\n\n  network_configuration {\n    subnets          = [\"subnet-0a1b2c3d\"]\n    assign_public_ip = true\n  }\n}",
+  "run_index": 1,
+  "schema_version": 1,
+  "seed": 42,
+  "system_fingerprint": null,
+  "temperature": 0.0,
+  "usage": {
+    "calls": 1,
+    "completion_tokens": 632,
+    "prompt_tokens": 1176,
+    "total_tokens": 1808
+  },
+  "variant": "stripped"
+}

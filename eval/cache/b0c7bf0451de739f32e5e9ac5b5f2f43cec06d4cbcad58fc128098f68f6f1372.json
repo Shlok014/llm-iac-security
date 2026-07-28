@@ -1,0 +1,24 @@
+{
+  "call_kind": "detect",
+  "completion_source": "openai",
+  "created_utc": "2026-07-28T21:48:15+00:00",
+  "file_sha": "f803bc9c0b2c603f5de9d166178b881f5fae33ef7276c3697312c7df1412a905",
+  "fixture": "samples/vulnerable_eks.tf",
+  "key": "b0c7bf0451de739f32e5e9ac5b5f2f43cec06d4cbcad58fc128098f68f6f1372",
+  "model": "gpt-4o-mini-2024-07-18",
+  "prompt_sha": "b9b5ce5382952d28ed8f3ba254e57c7629e636d2b664af98c26846fd81821da0",
+  "prompt_version": "v2",
+  "response": "{\"findings\":[{\"issue\":\"Public access is allowed to the EKS cluster endpoint from all IP addresses.\",\"severity\":\"high\",\"resource\":\"aws_eks_cluster.platform\",\"recommendation\":\"Set 'public_access_cidrs' to a more restrictive CIDR range or remove it to disable public access.\"},{\"issue\":\"Image scanning is disabled for the ECR repository, which can lead to vulnerabilities in deployed images.\",\"severity\":\"high\",\"resource\":\"aws_ecr_repository.report_renderer\",\"recommendation\":\"Set 'scan_on_push' to true to enable image scanning on push.\"},{\"issue\":\"Container insights are disabled for the ECS cluster, which limits observability and monitoring capabilities.\",\"severity\":\"medium\",\"resource\":\"aws_ecs_cluster.batch\",\"recommendation\":\"Enable container insights by setting 'value' to 'enabled' in the ECS cluster settings.\"},{\"issue\":\"The ECS task definition runs as root and has privileged mode enabled, which increases the attack surface.\",\"severity\":\"high\",\"resource\":\"aws_ecs_task_definition.report_renderer\",\"recommendation\":\"Remove 'privileged = true' and specify a non-root user for the container.\"},{\"issue\":\"SMTP password is hardcoded in the ECS task definition, exposing sensitive information.\",\"severity\":\"critical\",\"resource\":\"aws_ecs_task_definition.report_renderer\",\"recommendation\":\"Use AWS Secrets Manager or Parameter Store to manage sensitive information like SMTP_PASSWORD.\"}]}",
+  "run_index": 1,
+  "schema_version": 1,
+  "seed": 42,
+  "system_fingerprint": null,
+  "temperature": 0.0,
+  "usage": {
+    "calls": 1,
+    "completion_tokens": 274,
+    "prompt_tokens": 941,
+    "total_tokens": 1215
+  },
+  "variant": "stripped"
+}

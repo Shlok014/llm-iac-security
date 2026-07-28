@@ -1,0 +1,24 @@
+{
+  "call_kind": "fix",
+  "completion_source": "openai",
+  "created_utc": "2026-07-28T21:43:55+00:00",
+  "file_sha": "9d0b744e3ace4df0f13eb5cbc1e177df3deb35c0df26d082dfe0ffe280808b1a",
+  "fixture": "samples/vulnerable_apigw_sns.tf",
+  "key": "0f42c89146e4946449586f9b495c2b43b13da3026401a7e092584be7a6240eb3",
+  "model": "gpt-4o-mini-2024-07-18",
+  "prompt_sha": "16425d7adff20276aa181fba4951adb8bbf139a28c82196d271f83733d579184",
+  "prompt_version": "v2",
+  "response": "resource \"aws_api_gateway_rest_api\" \"notifications\" {\n  name = \"notifications-api\"\n}\n\nresource \"aws_api_gateway_resource\" \"events\" {\n  rest_api_id = aws_api_gateway_rest_api.notifications.id\n  parent_id   = aws_api_gateway_rest_api.notifications.root_resource_id\n  path_part   = \"events\"\n}\n\nresource \"aws_api_gateway_method\" \"post_event\" {\n  rest_api_id      = aws_api_gateway_rest_api.notifications.id\n  resource_id      = aws_api_gateway_resource.events.id\n  http_method      = \"POST\"\n  authorization    = \"AWS_IAM\"  # Updated to restrict access\n  api_key_required = false\n}\n\nresource \"aws_api_gateway_deployment\" \"notifications\" {\n  rest_api_id = aws_api_gateway_rest_api.notifications.id\n  depends_on  = [aws_api_gateway_method.post_event]\n}\n\nresource \"aws_api_gateway_stage\" \"prod\" {\n  stage_name            = \"prod\"\n  rest_api_id           = aws_api_gateway_rest_api.notifications.id\n  deployment_id         = aws_api_gateway_deployment.notifications.id\n  xray_tracing_enabled  = false\n  cache_cluster_enabled = true\n  cache_cluster_size    = \"0.5\"\n\n  tags = {\n    Service = \"notifications\"\n  }\n}\n\nresource \"aws_api_gateway_method_settings\" \"prod_all\" {\n  rest_api_id = aws_api_gateway_rest_api.notifications.id\n  stage_name  = aws_api_gateway_stage.prod.stage_name\n  method_path = \"*/*\"\n\n  settings {\n    metrics_enabled      = true\n    logging_level        = \"ERROR\"\n    cache_data_encrypted = true  # Updated to ensure cached data is encrypted\n  }\n}\n\nresource \"aws_sns_topic\" \"delivery_events\" {\n  name = \"delivery-events\"\n}\n\nresource \"aws_sns_topic_policy\" \"delivery_events\" {\n  arn = aws_sns_topic.delivery_events.arn\n\n  policy = jsonencode({\n    Version = \"2012-10-17\"\n    Statement = [{\n      Sid       = \"AllowSubscribe\"\n      Effect    = \"Allow\"\n      Principal = {\n        \"AWS\": [\n          \"arn:aws:iam::123456789012:role/YourSpecificRole\"  # Restrict to specific role\n        ]\n      }\n      Action    = [\"SNS:Subscribe\", \"SNS:Receive\", \"SNS:Publish\"]\n      Resource  = aws_sns_topic.delivery_events.arn\n    }]\n  })\n}\n\nresource \"aws_sqs_queue\" \"delivery_retry\" {\n  name                       = \"delivery-retry\"\n  visibility_timeout_seconds = 60\n}\n\nresource \"aws_sqs_queue_policy\" \"delivery_retry\" {\n  queue_url = aws_sqs_queue.delivery_retry.id\n\n  policy = jsonencode({\n    Version = \"2012-10-17\"\n    Statement = [{\n      Effect    = \"Allow\"\n      Principal = {\n        \"AWS\": [\n          \"arn:aws:iam::123456789012:role/YourSpecificRole\"  # Restrict to specific role\n        ]\n      }\n      Action    = [\n        \"sqs:SendMessage\",  # Limit to necessary permissions\n        \"sqs:ReceiveMessage\",\n        \"sqs:DeleteMessage\"\n      ]\n      Resource  = aws_sqs_queue.delivery_retry.arn\n    }]\n  })\n}",
+  "run_index": 0,
+  "schema_version": 1,
+  "seed": 42,
+  "system_fingerprint": null,
+  "temperature": 0.0,
+  "usage": {
+    "calls": 1,
+    "completion_tokens": 685,
+    "prompt_tokens": 1157,
+    "total_tokens": 1842
+  },
+  "variant": "stripped"
+}

@@ -1,6 +1,8 @@
 # Evaluation Methodology
 
-**Status:** protocol frozen; results pending the first full run.
+**Status:** protocol frozen; first full run complete — results in
+[`eval/results/RESULTS.md`](../eval/results/RESULTS.md), measured on the original six fixtures
+over three seeds.
 **Scope:** how this project measures whether the LLM pipeline actually works, what each number
 means, what its denominator is, and what it cannot tell you.
 
@@ -66,8 +68,15 @@ it produces are small and heavily qualified, and saying so is the point.
 
 ## 2. The corpus
 
-Six hand-authored fixtures live in [`samples/`](../samples). Four are Terraform, two are
-Dockerfiles.
+The published results were measured on **six** hand-authored fixtures — four Terraform, two
+Dockerfiles — and this section describes those six, because they are the corpus every number in
+[`eval/results/RESULTS.md`](../eval/results/RESULTS.md) refers to.
+
+[`samples/`](../samples) now holds **twelve** vulnerable fixtures plus four secure negative
+controls; see [`samples/README.md`](../samples/README.md) for the full map. The six added later
+are not reflected in the results below, and are deliberately not spliced into these tables — a
+results section that silently mixes two corpora is worse than one that is out of date about its
+own scope.
 
 ### 2.1 Composition
 
@@ -220,7 +229,7 @@ favourable one was not assumed.
 This is a **lower bound**. Stripping removes comments, not hints: resource names like
 `insecure_sg` and string literals inside heredocs still signal the planted flaw. The fixtures
 added after this measurement avoid both, so they are uncontaminated by construction rather than
-by post-processing — see [§2.1](#21-the-corpus).
+by post-processing — see [§2.1](#21-composition).
 
 **All headline detection numbers in `eval/results/RESULTS.md` are reported on the stripped
 variants.** The commented variants are run only to produce the leakage figure.

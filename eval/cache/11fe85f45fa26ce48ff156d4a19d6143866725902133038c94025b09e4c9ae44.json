@@ -1,0 +1,24 @@
+{
+  "call_kind": "fix",
+  "completion_source": "openai",
+  "created_utc": "2026-07-28T21:49:00+00:00",
+  "file_sha": "08a09c044d77da11911837d2317e1b6ad2cac715b492d4b0cc1875bf9e44cc37",
+  "fixture": "samples/vulnerable_kms_logging.tf",
+  "key": "11fe85f45fa26ce48ff156d4a19d6143866725902133038c94025b09e4c9ae44",
+  "model": "gpt-4o-mini-2024-07-18",
+  "prompt_sha": "6a286de52a9ac8380a70cfe637642dd728da76f8d2b1857e27f5d7e20ccef07b",
+  "prompt_version": "v2",
+  "response": "resource \"aws_kms_key\" \"billing_exports\" {\n  description             = \"CMK for nightly billing exports\"\n  deletion_window_in_days = 7\n  enable_key_rotation     = true\n\n  policy = jsonencode({\n    Version = \"2012-10-17\"\n    Statement = [{\n      Sid       = \"AllowAccountUse\"\n      Effect    = \"Allow\"\n      Principal = {\n        \"AWS\": [\n          \"arn:aws:iam::123456789012:role/SpecificRole1\",\n          \"arn:aws:iam::123456789012:role/SpecificRole2\"\n        ]\n      }\n      Action    = [\"kms:Encrypt\", \"kms:Decrypt\", \"kms:GenerateDataKey*\"]\n      Resource  = \"*\"\n    }]\n  })\n\n  tags = {\n    Team = \"finance-platform\"\n  }\n}\n\nresource \"aws_kms_alias\" \"billing_exports\" {\n  name          = \"alias/billing-exports\"\n  target_key_id = aws_kms_key.billing_exports.key_id\n}\n\nresource \"aws_s3_bucket\" \"audit_trail\" {\n  bucket = \"acme-audit-trail-prod\"\n  versioning {\n    enabled = true\n  }\n\n  tags = {\n    Purpose = \"cloudtrail\"\n  }\n}\n\nresource \"aws_cloudtrail\" \"account_activity\" {\n  name                          = \"account-activity\"\n  s3_bucket_name                = aws_s3_bucket.audit_trail.id\n  s3_key_prefix                 = \"prod\"\n  include_global_service_events = true\n  is_multi_region_trail         = false\n  enable_log_file_validation    = true\n\n  tags = {\n    Team = \"security\"\n  }\n}\n\nresource \"aws_cloudwatch_log_group\" \"api_access\" {\n  name = \"/acme/api/access\"\n}\n\nresource \"aws_cloudwatch_log_group\" \"worker_events\" {\n  name              = \"/acme/worker/events\"\n  retention_in_days = 7\n\n  tags = {\n    Service = \"worker\"\n  }\n}\n\nresource \"aws_ebs_volume\" \"billing_scratch\" {\n  availability_zone = \"us-east-1a\"\n  size              = 100\n  type              = \"gp3\"\n  encrypted         = true\n\n  tags = {\n    Team = \"finance-platform\"\n  }\n}\n\nresource \"aws_config_configuration_recorder\" \"account\" {\n  name     = \"account-recorder\"\n  role_arn = \"arn:aws:iam::123456789012:role/config-recorder\"\n\n  recording_group {\n    all_supported                 = true\n    include_global_resource_types = false\n    resource_types                = [\"AWS::EC2::Instance\"]\n  }\n}",
+  "run_index": 1,
+  "schema_version": 1,
+  "seed": 42,
+  "system_fingerprint": null,
+  "temperature": 0.0,
+  "usage": {
+    "calls": 1,
+    "completion_tokens": 555,
+    "prompt_tokens": 1253,
+    "total_tokens": 1808
+  },
+  "variant": "stripped"
+}

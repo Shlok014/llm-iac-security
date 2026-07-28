@@ -1,0 +1,24 @@
+{
+  "call_kind": "detect",
+  "completion_source": "openai",
+  "created_utc": "2026-07-28T21:43:44+00:00",
+  "file_sha": "9d0b744e3ace4df0f13eb5cbc1e177df3deb35c0df26d082dfe0ffe280808b1a",
+  "fixture": "samples/vulnerable_apigw_sns.tf",
+  "key": "cb7fc79430e5bf10503e974571aef58bfaee06e946db32e906c7e28c356b7e63",
+  "model": "gpt-4o-mini-2024-07-18",
+  "prompt_sha": "93cc40f170e0f282f95965ac8352ceb65cf898e58e1794246d8613e384fb77f1",
+  "prompt_version": "v2",
+  "response": "{\"findings\":[{\"issue\":\"API Gateway method 'post_event' has no authorization, making it publicly accessible without any restrictions.\",\"severity\":\"critical\",\"resource\":\"aws_api_gateway_method.post_event\",\"recommendation\":\"Set 'authorization' to a valid method such as 'AWS_IAM' or 'CUSTOM' to restrict access.\"},{\"issue\":\"API Gateway method settings have 'cache_data_encrypted' set to false, which may expose sensitive data in cache.\",\"severity\":\"high\",\"resource\":\"aws_api_gateway_method_settings.prod_all\",\"recommendation\":\"Set 'cache_data_encrypted' to true to ensure that cached data is encrypted.\"},{\"issue\":\"SNS topic policy allows all principals to subscribe, receive, and publish messages, which can lead to unauthorized access.\",\"severity\":\"high\",\"resource\":\"aws_sns_topic_policy.delivery_events\",\"recommendation\":\"Restrict the 'Principal' to specific AWS accounts or IAM roles that require access.\"},{\"issue\":\"SQS queue policy allows all actions for all principals, which can lead to unauthorized access and actions on the queue.\",\"severity\":\"high\",\"resource\":\"aws_sqs_queue_policy.delivery_retry\",\"recommendation\":\"Restrict the 'Principal' to specific AWS accounts or IAM roles that require access and limit the 'Action' to only necessary permissions.\"}]}",
+  "run_index": 0,
+  "schema_version": 1,
+  "seed": 42,
+  "system_fingerprint": null,
+  "temperature": 0.0,
+  "usage": {
+    "calls": 1,
+    "completion_tokens": 256,
+    "prompt_tokens": 934,
+    "total_tokens": 1190
+  },
+  "variant": "stripped"
+}

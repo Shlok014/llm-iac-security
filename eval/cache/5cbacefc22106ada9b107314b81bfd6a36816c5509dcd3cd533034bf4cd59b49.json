@@ -1,0 +1,24 @@
+{
+  "call_kind": "fix",
+  "completion_source": "openai",
+  "created_utc": "2026-07-28T21:46:41+00:00",
+  "file_sha": "bc4815a3c19ae873457761ff1f6414015c38ec865342fe203a8a5908f4f1ed5e",
+  "fixture": "samples/java_insecure.Dockerfile",
+  "key": "5cbacefc22106ada9b107314b81bfd6a36816c5509dcd3cd533034bf4cd59b49",
+  "model": "gpt-4o-mini-2024-07-18",
+  "prompt_sha": "e21d0d17acabaae395dbee4879eaa67523dd6e954412f5f99864408385011c5c",
+  "prompt_version": "v2",
+  "response": "FROM maven:3.9.6-eclipse-temurin-17 AS build\n\nWORKDIR /build\nCOPY pom.xml .\nRUN mvn -B -q dependency:go-offline\nCOPY src/ ./src/\nRUN mvn -B -q -DskipTests package\n\nFROM eclipse-temurin:17.0.1\n\nLABEL org.opencontainers.image.title=\"billing-service\" \\\n      org.opencontainers.image.vendor=\"Northwind Retail Platform\"\n\nENV APP_HOME=/opt/app\n\n# Use a secrets management tool to manage sensitive information\n# ENV KEYSTORE_PASSWORD=\"changeit-northwind-2024\"\n# ENV SPRING_DATASOURCE_PASSWORD=\"B1ll1ng-Svc-Prod\"\n\nENV JAVA_TOOL_OPTIONS=\"-Dcom.sun.management.jmxremote \\\n-Dcom.sun.management.jmxremote.port=9010 \\\n-Dcom.sun.management.jmxremote.rmi.port=9010 \\\n-Dcom.sun.management.jmxremote.authenticate=false \\\n-Dcom.sun.management.jmxremote.ssl=false \\\n-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005\"\n\nWORKDIR /opt/app\n\nCOPY --from=build /build/target/billing-service.jar /opt/app/billing-service.jar\nCOPY --from=build /build/target/classes/application.yml /opt/app/config/application.yml\n\n# Use COPY instead of ADD for remote files and ensure the source is trusted\nCOPY https://artifacts.northwind.net/agents/apm-agent-4.2.1.jar /opt/app/agents/apm-agent.jar\n\nRUN mkdir -p /opt/app/work /opt/app/logs && \\\n    chmod -R 755 /opt/app/work /opt/app/logs\n\n# Create a non-root user and switch to it\nRUN useradd -m appuser\nUSER appuser\n\nEXPOSE 8080 9010 5005\n\n# Add a HEALTHCHECK instruction\nHEALTHCHECK CMD curl --fail http://localhost:8080/actuator/health || exit 1\n\nENTRYPOINT [\"java\", \"-XX:MaxRAMPercentage=75\", \"-jar\", \"/opt/app/billing-service.jar\"]",
+  "run_index": 1,
+  "schema_version": 1,
+  "seed": 42,
+  "system_fingerprint": null,
+  "temperature": 0.0,
+  "usage": {
+    "calls": 1,
+    "completion_tokens": 439,
+    "prompt_tokens": 1053,
+    "total_tokens": 1492
+  },
+  "variant": "stripped"
+}

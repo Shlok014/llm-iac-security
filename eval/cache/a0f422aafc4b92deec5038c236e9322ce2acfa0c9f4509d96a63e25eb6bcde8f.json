@@ -1,0 +1,24 @@
+{
+  "call_kind": "detect",
+  "completion_source": "openai",
+  "created_utc": "2026-07-28T21:42:15+00:00",
+  "file_sha": "bc4815a3c19ae873457761ff1f6414015c38ec865342fe203a8a5908f4f1ed5e",
+  "fixture": "samples/java_insecure.Dockerfile",
+  "key": "a0f422aafc4b92deec5038c236e9322ce2acfa0c9f4509d96a63e25eb6bcde8f",
+  "model": "gpt-4o-mini-2024-07-18",
+  "prompt_sha": "d37b0225558de692f6507d053f3ac103fc31810fde73f254d453fd6621717d06",
+  "prompt_version": "v2",
+  "response": "{\"findings\":[{\"issue\":\"Using an unpinned base image which may lead to unexpected vulnerabilities in the future.\",\"severity\":\"high\",\"resource\":\"FROM eclipse-temurin:latest\",\"recommendation\":\"Pin the base image to a specific version, e.g., 'FROM eclipse-temurin:17.0.1'.\"},{\"issue\":\"Baking sensitive information such as passwords into the image layers.\",\"severity\":\"critical\",\"resource\":\"ENV KEYSTORE_PASSWORD=\\\"changeit-northwind-2024\\\"\",\"recommendation\":\"Remove sensitive environment variables from the Dockerfile and pass them at runtime using secrets management tools.\"},{\"issue\":\"Baking sensitive information such as passwords into the image layers.\",\"severity\":\"critical\",\"resource\":\"ENV SPRING_DATASOURCE_PASSWORD=\\\"B1ll1ng-Svc-Prod\\\"\",\"recommendation\":\"Remove sensitive environment variables from the Dockerfile and pass them at runtime using secrets management tools.\"},{\"issue\":\"Using ADD to fetch a remote file which can introduce security risks if the source is compromised.\",\"severity\":\"high\",\"resource\":\"ADD https://artifacts.northwind.net/agents/apm-agent-4.2.1.jar /opt/app/agents/apm-agent.jar\",\"recommendation\":\"Use COPY for local files or ensure the remote file is from a trusted source and consider verifying its integrity.\"},{\"issue\":\"Running the application as root, which increases the risk of privilege escalation attacks.\",\"severity\":\"high\",\"resource\":\"ENTRYPOINT [\\\"java\\\", \\\"-XX:MaxRAMPercentage=75\\\", \\\"-jar\\\", \\\"/opt/app/billing-service.jar\\\"]\",\"recommendation\":\"Create and switch to a non-root user before running the application.\"},{\"issue\":\"Missing HEALTHCHECK instruction to monitor the health of the running container.\",\"severity\":\"medium\",\"resource\":\"N/A\",\"recommendation\":\"Add a HEALTHCHECK instruction to periodically check the health of the application.\"},{\"issue\":\"Setting permissions to 777 on application directories, which can lead to unauthorized access.\",\"severity\":\"medium\",\"resource\":\"RUN mkdir -p /opt/app/work /opt/app/logs && \\n    chmod -R 777 /opt/app/work /opt/app/logs\",\"recommendation\":\"Set more restrictive permissions, such as 755 or 700, depending on the required access.\"}]}",
+  "run_index": 0,
+  "schema_version": 1,
+  "seed": 42,
+  "system_fingerprint": null,
+  "temperature": 0.0,
+  "usage": {
+    "calls": 1,
+    "completion_tokens": 458,
+    "prompt_tokens": 729,
+    "total_tokens": 1187
+  },
+  "variant": "stripped"
+}

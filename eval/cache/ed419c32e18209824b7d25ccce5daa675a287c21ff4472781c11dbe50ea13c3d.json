@@ -1,0 +1,24 @@
+{
+  "call_kind": "detect",
+  "completion_source": "openai",
+  "created_utc": "2026-07-28T21:47:46+00:00",
+  "file_sha": "9d0b744e3ace4df0f13eb5cbc1e177df3deb35c0df26d082dfe0ffe280808b1a",
+  "fixture": "samples/vulnerable_apigw_sns.tf",
+  "key": "ed419c32e18209824b7d25ccce5daa675a287c21ff4472781c11dbe50ea13c3d",
+  "model": "gpt-4o-mini-2024-07-18",
+  "prompt_sha": "93cc40f170e0f282f95965ac8352ceb65cf898e58e1794246d8613e384fb77f1",
+  "prompt_version": "v2",
+  "response": "{\"findings\":[{\"issue\":\"The API Gateway method 'post_event' has authorization set to 'NONE', allowing unauthenticated access.\",\"severity\":\"high\",\"resource\":\"aws_api_gateway_method.post_event\",\"recommendation\":\"Set 'authorization' to a valid method such as 'AWS_IAM' or 'CUSTOM' to enforce authentication.\"},{\"issue\":\"The API Gateway method settings have 'cache_data_encrypted' set to 'false', which means cached data is not encrypted.\",\"severity\":\"medium\",\"resource\":\"aws_api_gateway_method_settings.prod_all\",\"recommendation\":\"Set 'cache_data_encrypted' to 'true' to ensure cached data is encrypted.\"},{\"issue\":\"The SNS topic policy allows all principals to subscribe, receive, and publish messages, which can lead to unauthorized access.\",\"severity\":\"high\",\"resource\":\"aws_sns_topic_policy.delivery_events\",\"recommendation\":\"Restrict the 'Principal' to specific AWS accounts or IAM roles that require access.\"},{\"issue\":\"The SQS queue policy allows all principals to perform any action on the queue, which can lead to unauthorized access.\",\"severity\":\"high\",\"resource\":\"aws_sqs_queue_policy.delivery_retry\",\"recommendation\":\"Restrict the 'Principal' to specific AWS accounts or IAM roles that require access.\"}]}",
+  "run_index": 1,
+  "schema_version": 1,
+  "seed": 42,
+  "system_fingerprint": null,
+  "temperature": 0.0,
+  "usage": {
+    "calls": 1,
+    "completion_tokens": 252,
+    "prompt_tokens": 934,
+    "total_tokens": 1186
+  },
+  "variant": "stripped"
+}

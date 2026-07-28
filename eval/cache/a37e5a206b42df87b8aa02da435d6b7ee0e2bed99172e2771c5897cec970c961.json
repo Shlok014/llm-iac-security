@@ -1,0 +1,24 @@
+{
+  "call_kind": "fix",
+  "completion_source": "openai",
+  "created_utc": "2026-07-28T21:42:21+00:00",
+  "file_sha": "bc4815a3c19ae873457761ff1f6414015c38ec865342fe203a8a5908f4f1ed5e",
+  "fixture": "samples/java_insecure.Dockerfile",
+  "key": "a37e5a206b42df87b8aa02da435d6b7ee0e2bed99172e2771c5897cec970c961",
+  "model": "gpt-4o-mini-2024-07-18",
+  "prompt_sha": "1b9f83154aee5d923aef529978a2f886cfd9ad63ce58d91359018ebf50b89f8a",
+  "prompt_version": "v2",
+  "response": "FROM maven:3.9.6-eclipse-temurin-17 AS build\n\nWORKDIR /build\nCOPY pom.xml .\nRUN mvn -B -q dependency:go-offline\nCOPY src/ ./src/\nRUN mvn -B -q -DskipTests package\n\nFROM eclipse-temurin:17.0.1\n\nLABEL org.opencontainers.image.title=\"billing-service\" \\\n      org.opencontainers.image.vendor=\"Northwind Retail Platform\"\n\nENV APP_HOME=/opt/app\n\n# Sensitive information should be passed at runtime using secrets management tools\n# ENV KEYSTORE_PASSWORD=\"changeit-northwind-2024\"\n# ENV SPRING_DATASOURCE_PASSWORD=\"B1ll1ng-Svc-Prod\"\n\nENV JAVA_TOOL_OPTIONS=\"-Dcom.sun.management.jmxremote \\\n-Dcom.sun.management.jmxremote.port=9010 \\\n-Dcom.sun.management.jmxremote.rmi.port=9010 \\\n-Dcom.sun.management.jmxremote.authenticate=false \\\n-Dcom.sun.management.jmxremote.ssl=false \\\n-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005\"\n\nWORKDIR /opt/app\n\nCOPY --from=build /build/target/billing-service.jar /opt/app/billing-service.jar\nCOPY --from=build /build/target/classes/application.yml /opt/app/config/application.yml\n\n# Using COPY instead of ADD for local files; consider verifying the integrity of the remote file if used\nCOPY /path/to/local/apm-agent-4.2.1.jar /opt/app/agents/apm-agent.jar\n\nRUN mkdir -p /opt/app/work /opt/app/logs && \\\n    chmod -R 755 /opt/app/work /opt/app/logs\n\n# Adding a HEALTHCHECK instruction to monitor the health of the running container\nHEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 CMD curl -f http://localhost:8080/actuator/health || exit 1\n\n# Create a non-root user and switch to it\nRUN useradd -m appuser\nUSER appuser\n\nEXPOSE 8080 9010 5005\n\nENTRYPOINT [\"java\", \"-XX:MaxRAMPercentage=75\", \"-jar\", \"/opt/app/billing-service.jar\"]",
+  "run_index": 0,
+  "schema_version": 1,
+  "seed": 42,
+  "system_fingerprint": null,
+  "temperature": 0.0,
+  "usage": {
+    "calls": 1,
+    "completion_tokens": 469,
+    "prompt_tokens": 1125,
+    "total_tokens": 1594
+  },
+  "variant": "stripped"
+}

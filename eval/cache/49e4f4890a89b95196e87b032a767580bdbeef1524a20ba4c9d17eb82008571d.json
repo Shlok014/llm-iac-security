@@ -1,0 +1,24 @@
+{
+  "call_kind": "fix",
+  "completion_source": "openai",
+  "created_utc": "2026-07-28T21:47:07+00:00",
+  "file_sha": "70a8558e7cc11859901330f09e027bfbbf870f3ef6b73d52765321a1fe8c35f4",
+  "fixture": "samples/node_insecure.Dockerfile",
+  "key": "49e4f4890a89b95196e87b032a767580bdbeef1524a20ba4c9d17eb82008571d",
+  "model": "gpt-4o-mini-2024-07-18",
+  "prompt_sha": "048eb563ec01cc4ea48d96ec1ba17c17efdad810c8f96269b2ba3a21aaa6d9a4",
+  "prompt_version": "v2",
+  "response": "FROM node:14.17.0\n\nLABEL org.opencontainers.image.title=\"orders-api\" \\\n      org.opencontainers.image.description=\"Order intake service\" \\\n      org.opencontainers.image.vendor=\"Northwind Retail Platform\"\n\nRUN apt-get update && \\\n    apt-get install -y --no-install-recommends curl ca-certificates && \\\n    rm -rf /var/lib/apt/lists/*\n\nENV NODE_ENV=production\nENV PORT=3000\n\n# Use build arguments for sensitive information\nARG NPM_TOKEN\nARG JWT_SIGNING_KEY\nARG DATABASE_URL\n\nWORKDIR /srv/app\n\nCOPY package.json package-lock.json ./\n\nRUN npm config set strict-ssl false && \\\n    npm config set registry http://registry.internal.northwind.net/ && \\\n    npm install --production --unsafe-perm\n\n# Download and verify the script before executing\nRUN curl -fsSL https://get.northwind.net/telemetry/install.sh -o install.sh && \\\n    echo \"expected_checksum_value  install.sh\" | sha256sum -c - && \\\n    bash install.sh && \\\n    rm install.sh\n\nCOPY src/ ./src/\nCOPY public/ ./public/\n\nEXPOSE 3000 9229 22\n\n# Create a non-root user and switch to it\nRUN useradd -m appuser\nUSER appuser\n\n# Add a HEALTHCHECK instruction\nHEALTHCHECK CMD curl --fail http://localhost:3000/health || exit 1\n\nCMD [\"node\", \"--inspect=0.0.0.0:9229\", \"src/server.js\"]",
+  "run_index": 1,
+  "schema_version": 1,
+  "seed": 42,
+  "system_fingerprint": null,
+  "temperature": 0.0,
+  "usage": {
+    "calls": 1,
+    "completion_tokens": 324,
+    "prompt_tokens": 1093,
+    "total_tokens": 1417
+  },
+  "variant": "stripped"
+}

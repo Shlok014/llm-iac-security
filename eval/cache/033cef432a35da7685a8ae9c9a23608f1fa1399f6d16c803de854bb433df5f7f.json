@@ -1,0 +1,24 @@
+{
+  "call_kind": "detect",
+  "completion_source": "openai",
+  "created_utc": "2026-07-28T21:42:41+00:00",
+  "file_sha": "70a8558e7cc11859901330f09e027bfbbf870f3ef6b73d52765321a1fe8c35f4",
+  "fixture": "samples/node_insecure.Dockerfile",
+  "key": "033cef432a35da7685a8ae9c9a23608f1fa1399f6d16c803de854bb433df5f7f",
+  "model": "gpt-4o-mini-2024-07-18",
+  "prompt_sha": "b9efe0309542bb8a00bfe44b7d828683be4a330e7e78f38fe7675e54b49d2ddd",
+  "prompt_version": "v2",
+  "response": "{\"findings\":[{\"issue\":\"Using 'latest' tag for base image which is unpinned and can lead to unpredictable builds.\",\"severity\":\"high\",\"resource\":\"FROM node:latest\",\"recommendation\":\"Pin the base image to a specific version, e.g., 'FROM node:14.17.0'.\"},{\"issue\":\"Baking sensitive information (NPM token, JWT signing key, database URL) into image layers.\",\"severity\":\"critical\",\"resource\":\"ENV NPM_TOKEN=\\\"npm_7Fq2ZmK1vTx9Lp0RsUw3Yb7Nd5Hc4Ge6Jf2A\\\"\",\"recommendation\":\"Use build-time secrets or environment variables at runtime instead of hardcoding sensitive information in the Dockerfile.\"},{\"issue\":\"Running the application as root user, which increases the risk of privilege escalation.\",\"severity\":\"high\",\"resource\":\"CMD [\\\"node\\\", \\\"--inspect=0.0.0.0:9229\\\", \\\"src/server.js\\\"]\",\"recommendation\":\"Create a non-root user and switch to that user before running the application.\"},{\"issue\":\"Missing HEALTHCHECK instruction to monitor the health of the running container.\",\"severity\":\"medium\",\"resource\":\"CMD [\\\"node\\\", \\\"--inspect=0.0.0.0:9229\\\", \\\"src/server.js\\\"]\",\"recommendation\":\"Add a HEALTHCHECK instruction to periodically check the health of the application.\"},{\"issue\":\"Using 'ADD' from a remote URL without verification, which can lead to security risks if the source is compromised.\",\"severity\":\"high\",\"resource\":\"RUN curl -fsSL https://get.northwind.net/telemetry/install.sh | bash\",\"recommendation\":\"Download the script in a separate step, verify its integrity, and then execute it.\"}]}",
+  "run_index": 0,
+  "schema_version": 1,
+  "seed": 42,
+  "system_fingerprint": null,
+  "temperature": 0.0,
+  "usage": {
+    "calls": 1,
+    "completion_tokens": 361,
+    "prompt_tokens": 659,
+    "total_tokens": 1020
+  },
+  "variant": "stripped"
+}
