@@ -1,11 +1,27 @@
 # llm-iac-security
 
+[![ci](https://github.com/Shlok014/llm-iac-security/actions/workflows/ci.yml/badge.svg)](https://github.com/Shlok014/llm-iac-security/actions/workflows/ci.yml)
+[![python](https://img.shields.io/badge/python-3.11--3.13-blue)](pyproject.toml)
+[![licence](https://img.shields.io/badge/licence-MIT-green)](LICENSE)
+[![results](https://img.shields.io/badge/results-reproducible%20offline-brightgreen)](eval/results/RESULTS.md)
+
 An LLM + static-analysis pipeline that finds misconfigurations in Terraform and Dockerfiles,
 rewrites them, and then **checks whether the rewrite actually fixed anything** — including
 whether the model "fixed" a problem by quietly deleting the resource it was about.
 
 That last check is the point of the project. Making findings go down is easy. Making
 infrastructure safer is not the same thing, and almost nothing measures the difference.
+
+### Try it in 30 seconds — no API key, no cost
+
+```bash
+make setup                 # venv on python3.11-3.13 + editable install
+make baseline              # scan the whole corpus with Checkov + Trivy
+make report                # regenerate every published number from the committed cache
+```
+
+`make report` reproduces this repo's results **offline**, from cached model responses. If the
+numbers below don't match what you get, that's a bug worth an issue.
 
 ---
 
