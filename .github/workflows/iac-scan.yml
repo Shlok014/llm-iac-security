@@ -1,0 +1,265 @@
+# Scan the Infrastructure-as-Code files a pull request touches.
+#
+# This job is deterministic, costs nothing, and needs no secret: it runs the static
+# scanners only, through `iac-agent scan`, which never imports the model layer. That is a
+# deliberate division. A security gate that depends on a paid, non-deterministic, remotely
+# hosted model is a security gate that can be made to pass by an outage, a rate limit, or a
+# prompt injection in the file under review. The blocking check is the one that cannot.
+#
+# The optional `suggest-fix` job at the bottom is the model half. It is advisory, opt-in per
+# pull request, gated on a secret so it silently disappears in forks, and it does not commit
+# anything. See the comment above it for why that last part is not laziness.
+
+name: iac-scan
+
+on:
+  pull_request:
+
+# Read-only by default; the advisory job widens this for itself only.
+permissions:
+  contents: read
+
+concurrency:
+  group: iac-scan-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  scan:
+    name: scan changed IaC
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      any: ${{ steps.changed.outputs.any }}
+      count: ${{ steps.changed.outputs.count }}
+      first: ${{ steps.changed.outputs.first }}
+      has_key: ${{ steps.probe.outputs.has_key }}
+    steps:
+      # No `paths:` filter on the trigger, on purpose: a workflow skipped by a path filter
+      # reports no status at all, which blocks merges when the check is marked required.
+      # Running always and doing nothing is the version that stays green.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # need the base commit to diff against
+
+      # Probed early, and before anything can fail, because a later job reads it. `secrets`
+      # is not available in a job-level `if:`, so the presence of the key has to become an
+      # output. Fork pull requests receive no secrets, so this is `false` there — which is
+      # exactly the behaviour we want: the advisory job vanishes instead of erroring.
+      - name: Probe for an API key (never prints it)
+        id: probe
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          if [ -n "${OPENAI_API_KEY:-}" ]; then
+            echo "has_key=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_key=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Which IaC files does this PR touch?
+        id: changed
+        run: |
+          set -u
+          BASE='${{ github.event.pull_request.base.sha }}'
+          # ACMR: added, copied, modified, renamed. Deleted files are excluded — there is
+          # nothing left to scan, and a deletion must not be reported as a clean result.
+          git diff --name-only --diff-filter=ACMR "$BASE" HEAD > "$RUNNER_TEMP/all.txt" || true
+          # Mirrors iac_agent.types.detect_iac_type: *.tf, and any filename ending in
+          # "dockerfile" (Dockerfile, api.Dockerfile). Unusual spellings such as
+          # `Dockerfile.prod` are supported by the tool but not matched here.
+          grep -iE '(\.tf|dockerfile)$' "$RUNNER_TEMP/all.txt" > "$RUNNER_TEMP/iac.txt" || true
+          count=$(wc -l < "$RUNNER_TEMP/iac.txt" | tr -d ' ')
+          echo "count=$count" >> "$GITHUB_OUTPUT"
+          if [ "$count" -gt 0 ]; then
+            echo "any=true" >> "$GITHUB_OUTPUT"
+            echo "first=$(head -n 1 "$RUNNER_TEMP/iac.txt")" >> "$GITHUB_OUTPUT"
+            echo "Scanning:"; cat "$RUNNER_TEMP/iac.txt"
+          else
+            echo "any=false" >> "$GITHUB_OUTPUT"
+            echo "No Terraform or Dockerfile changes in this pull request." | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - uses: actions/setup-python@v5
+        if: steps.changed.outputs.any == 'true'
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      # Installs the package only — not the dev extra, and nothing from the model side is
+      # exercised. checkov arrives pinned as a dependency.
+      - name: Install iac-agent
+        if: steps.changed.outputs.any == 'true'
+        run: |
+          python -m pip install --upgrade pip
+          pip install .
+
+      # Trivy is a Go binary and cannot come from pip. It is installed because it is the
+      # only one of the two scanners that reports severities: checkov's community edition
+      # returns `severity: null` on every check (severities are a feature of the commercial
+      # platform), so a HIGH/CRITICAL gate built on checkov alone would never fire once and
+      # would look like a passing gate forever. Version-pinned to the build every number in
+      # docs/ was measured against; `latest` would let an upstream ruleset change turn a
+      # green pull request red with no diff to explain it.
+      - name: Install trivy 0.68.1
+        if: steps.changed.outputs.any == 'true'
+        run: |
+          set -eu
+          curl -fsSL -o "$RUNNER_TEMP/trivy.deb" \
+            https://github.com/aquasecurity/trivy/releases/download/v0.68.1/trivy_0.68.1_Linux-64bit.deb
+          sudo dpkg -i "$RUNNER_TEMP/trivy.deb"
+          trivy --version
+
+      - name: Scan, and gate on HIGH/CRITICAL
+        if: steps.changed.outputs.any == 'true'
+        run: |
+          set -u
+          mapfile -t FILES < "$RUNNER_TEMP/iac.txt"
+
+          # `--fail-on high` decides the exit code only; the table below still lists every
+          # finding at every severity, including the unknown-severity checkov policy checks.
+          # stderr is folded in so a scanner failure is visible in the summary too.
+          iac-agent scan "${FILES[@]}" --scanner both --fail-on high \
+            > "$RUNNER_TEMP/findings.txt" 2>&1 && code=0 || code=$?
+
+          {
+            echo "## IaC scan — ${#FILES[@]} changed file(s)"
+            echo
+            echo '```'
+            cat "$RUNNER_TEMP/findings.txt"
+            echo '```'
+            echo
+            echo "Scanners: checkov 3.2.489 (pinned) + trivy 0.68.1. No model was called."
+            echo
+            echo "The gate fails on HIGH or CRITICAL findings **in the files this pull"
+            echo "request changed**. That is new-to-this-diff, not new-to-the-repository:"
+            echo "a pre-existing HIGH in a file you touched for an unrelated reason will"
+            echo "fail this check. Checkov's community edition reports no severities, so"
+            echo "its findings are listed for review but never trip the gate."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          case "$code" in
+            0)
+              echo "No HIGH/CRITICAL findings in the changed files."
+              ;;
+            1)
+              echo "::error::HIGH or CRITICAL misconfigurations in the changed IaC files. See the job summary."
+              exit 1
+              ;;
+            2)
+              # The distinction this whole project is about. Exit 2 means a scanner could
+              # not run, so the result is unknown — which is not the same as clean, and must
+              # not be allowed to pass just because no findings were printed.
+              echo "::error::A scanner could not run. Failing closed: an unknown result is not a clean result."
+              exit 1
+              ;;
+            *)
+              echo "::error::iac-agent exited $code, which is not part of its documented contract."
+              exit 1
+              ;;
+          esac
+
+  # ------------------------------------------------------------------------------------
+  # OPTIONAL, ADVISORY, OPT-IN. Everything above this line is the actual gate.
+  #
+  # This job asks the model for a remediation and posts it as a pull request comment. It is
+  # deliberately three-way gated: it needs the `llm-suggest` label (so the cost is a
+  # decision someone made on this specific PR), it needs `OPENAI_API_KEY` to be present (so
+  # it evaporates in forks, where secrets are not provided, rather than failing), and it
+  # needs the scan job to have found something worth fixing.
+  #
+  # It does NOT commit, push, or open a pull request with the model's output, and that is a
+  # position rather than an omission. An auto-merged model-authored infrastructure change is
+  # a config change that no human read, produced by a component whose input — the IaC file
+  # under review — is attacker-controlled on any pull request from a fork. The remediation
+  # prompt is designed to resist that, `validity.py` and the drift gate check the result,
+  # and none of those are strong enough to justify letting the output reach `main` unread.
+  # The scanner half of this workflow blocks merges because it is deterministic and its
+  # failure modes are known. The model half suggests, in a comment, where a human can read
+  # the diff and decide. Keeping that asymmetry is the point.
+  # ------------------------------------------------------------------------------------
+  suggest-fix:
+    name: advisory LLM suggestion (opt-in)
+    needs: scan
+    if: >-
+      always()
+      && needs.scan.outputs.any == 'true'
+      && needs.scan.outputs.has_key == 'true'
+      && contains(github.event.pull_request.labels.*.name, 'llm-suggest')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pull-requests: write # to post the comment, and for nothing else
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install iac-agent
+        run: |
+          python -m pip install --upgrade pip
+          pip install .
+
+      # One file, two iterations, a hard token budget: the loop is bounded so a pull request
+      # cannot turn into an unbounded bill. `--out` writes to a scratch directory that is
+      # never committed; the repository checkout is not modified.
+      - name: Suggest a fix for the first changed file
+        id: fix
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          TARGET: ${{ needs.scan.outputs.first }}
+        run: |
+          set -u
+          mkdir -p "$RUNNER_TEMP/fix"
+          iac-agent fix "$TARGET" \
+            --max-iters 2 \
+            --token-budget 20000 \
+            --out "$RUNNER_TEMP/fix" \
+            > "$RUNNER_TEMP/fix.log" 2>&1 && code=0 || code=$?
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          cat "$RUNNER_TEMP/fix.log"
+          # Exit 3 is a model-layer failure and is not a reason to fail the pull request:
+          # this job is advisory. The blocking verdict was already delivered by `scan`.
+          exit 0
+
+      - name: Post the suggestion as a comment
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TARGET: ${{ needs.scan.outputs.first }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          set -u
+          FIXED=$(find "$RUNNER_TEMP/fix" -maxdepth 1 -type f | head -n 1)
+          {
+            echo "### Advisory: model-suggested remediation for \`$TARGET\`"
+            echo
+            echo "Generated by \`iac-agent fix\`. **Not applied, not committed.** The"
+            echo "blocking check on this pull request is the scanner run, which does not"
+            echo "involve a model. Read the diff before trusting any of it."
+            echo
+            echo "<details><summary>loop output</summary>"
+            echo
+            echo '```'
+            sed -e 's/`/'"'"'/g' "$RUNNER_TEMP/fix.log"
+            echo '```'
+            echo
+            echo "</details>"
+            echo
+            if [ -n "$FIXED" ]; then
+              echo "<details><summary>suggested diff</summary>"
+              echo
+              echo '```diff'
+              diff -u "$TARGET" "$FIXED" || true
+              echo '```'
+              echo
+              echo "</details>"
+            else
+              echo "_No candidate passed the validity and drift gates, so there is nothing to show._"
+            fi
+          } > "$RUNNER_TEMP/comment.md"
+          gh pr comment "$PR" --body-file "$RUNNER_TEMP/comment.md"

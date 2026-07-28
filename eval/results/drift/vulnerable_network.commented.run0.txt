@@ -1,0 +1,11 @@
+fixture : samples/vulnerable_network.tf
+variant : commented  run: 0
+summary : DRIFT: deleted aws_security_group.open_http; count drops: aws_security_group 1->0
+drifted : True
+deleted : aws_security_group.open_http
+renamed : -
+added   : -
+count drops: {'aws_security_group': [1, 0]}
+
+flaw-carrying resources deleted or renamed (the 'fixed it by deleting it' set):
+  - aws_security_group.open_http

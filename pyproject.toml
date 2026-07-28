@@ -1,0 +1,100 @@
+# Packaging metadata for `iac-agent`.
+#
+# Two decisions here are deliberate and are the reason this file exists rather than a
+# `requirements.txt` alone.
+#
+# 1. Everything that has been *measured* on this machine is pinned exactly. The numbers in
+#    docs/ (70 Checkov failures and 57 Trivy findings across `samples/`) are properties of
+#    a specific ruleset version, not of the fixtures. A floating `checkov` dependency would
+#    silently change every published figure on the next release, so the pin is part of the
+#    evidence, not caution.
+#
+# 2. `requirements.txt` at HEAD lists `openai`, `python-dotenv`, `checkov`, `streamlit` —
+#    and omits `pandas`, which `app.py` imports on line 3. A fresh `pip install -r
+#    requirements.txt` therefore produced a UI that crashed on import. That is fixed here:
+#    `pandas` is declared, alongside `streamlit`, in the `ui` extra that `app.py` needs.
+#
+# The legacy Streamlit UI's dependencies are an extra rather than core because `iac-agent`
+# is a CLI: `pip install iac-agent` should not pull ~200 MB of streamlit + pandas + pyarrow
+# to run a scanner. `pip install -e ".[ui]"` is the documented way to run `app.py`.
+#
+# Pytest configuration deliberately lives in `pytest.ini`, not here. A `[pytest]` section in
+# pyproject is spelled `[tool.pytest.ini_options]`, and having both files would let the two
+# disagree while only one takes effect.
+
+[build-system]
+requires = ["setuptools>=77"]  # >=77 for the PEP 639 `license` / `license-files` spelling
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "iac-agent"
+description = "LLM + static-analysis pipeline that detects and remediates IaC misconfigurations, and refuses to call an unverified fix a fix."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Shlok Dahale" }]
+keywords = ["terraform", "dockerfile", "iac", "security", "checkov", "trivy", "llm"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Security",
+    "Topic :: Software Development :: Quality Assurance",
+]
+
+# Upper bound is load-bearing, not defensive: checkov 3.2.489 crashes on Python 3.14
+# (networkx 3.6 + dataclass slots), and checkov is the default oracle. Installing on 3.14
+# would produce a package whose `scan` command cannot run.
+requires-python = ">=3.11,<3.14"
+
+# Read from `iac_agent.__version__` so the package and its metadata cannot drift apart.
+dynamic = ["version"]
+
+dependencies = [
+    "checkov==3.2.489",     # default scanner; console script only — `python -m checkov` has no __main__
+    "openai==2.6.1",        # `fix` only; `scan` never imports it
+    "python-dotenv>=1.0",   # loads OPENAI_API_KEY at first live call, never at import
+    "pyyaml>=6.0",          # evaluation ground-truth labels under eval/labels/
+]
+
+[project.optional-dependencies]
+# The historical Streamlit submission, kept for provenance. `pandas` is the install bug
+# this file fixes.
+ui = [
+    "streamlit==1.51.0",
+    "pandas==2.3.3",
+]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.6",
+]
+
+[project.scripts]
+iac-agent = "iac_agent.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/shlok-sylox/llm-iac-security"
+Documentation = "https://github.com/shlok-sylox/llm-iac-security/tree/main/docs"
+
+[tool.setuptools]
+# Explicit, not auto-discovered: `eval/`, `tests/`, `samples/` and `docs/` are part of the
+# repository's argument but are not part of the installed package, and auto-discovery would
+# otherwise refuse to build at all because of the multiple top-level directories.
+packages = ["iac_agent"]
+
+[tool.setuptools.dynamic]
+version = { attr = "iac_agent.__version__" }
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = ["main.py", "app.py"]  # the original submission, kept verbatim as provenance
+
+[tool.ruff.lint]
+# Ruff's default rules (pyflakes + the pycodestyle error subset). Deliberately not extended:
+# CI must fail on real defects — an unused import, an undefined name, a bare `except` that
+# swallows a ScannerError — and not on formatting opinions.
+select = ["E4", "E7", "E9", "F"]

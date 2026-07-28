@@ -1,0 +1,45 @@
+# Hand-authored ground truth. Every checkov_id / trivy_id below was copied from a real
+# scan of this fixture (checkov 3.2.489, trivy 0.68.1) -- none were written from memory.
+# See README.md in this directory for the schema and the planted-vs-incidental rule.
+#
+# The instance's unencrypted root device (CKV_AWS_8 / AVD-AWS-0131), missing IMDSv2,
+# missing IAM role, detailed monitoring and EBS optimisation are all *omissions* the
+# fixture never wrote down, so they are incidental and excluded. Only the two deliberate
+# 0.0.0.0/0 rules are planted.
+schema_version: 1
+fixture: samples/ec2_open.tf
+framework: terraform
+labels:
+  - id: SG-SSH-OPEN-TO-WORLD
+    resource: aws_security_group.vulnerable_sg
+    lines: [14]
+    description: "Security group allows inbound TCP/22 (SSH) from any IP address"
+    category: network-open
+    severity_expected: high
+    checkov_ids: [CKV_AWS_24]
+    trivy_ids: [AVD-AWS-0107]
+    detectable_by_scanner: true
+    aliases:
+      - "ssh open to the world"
+      - "port 22 open to 0.0.0.0/0"
+      - "unrestricted ingress"
+      - "ssh from anywhere"
+      - "cidr_blocks = [\"0.0.0.0/0\"]"
+
+  - id: SG-UNRESTRICTED-EGRESS
+    resource: aws_security_group.vulnerable_sg
+    lines: [21]
+    description: "Security group allows all outbound traffic on all protocols to 0.0.0.0/0"
+    category: network-open
+    severity_expected: medium
+    # Not annotated with an inline comment, but written as an insecure literal on purpose
+    # (identical construct to the annotated one in vulnerable_main.tf), so it is planted.
+    checkov_ids: [CKV_AWS_382]
+    trivy_ids: [aws-vpc-no-public-egress-sgr, AVD-AWS-0104]
+    detectable_by_scanner: true
+    aliases:
+      - "unrestricted egress"
+      - "wide egress"
+      - "all outbound traffic allowed"
+      - "egress to 0.0.0.0/0"
+      - "protocol = \"-1\""

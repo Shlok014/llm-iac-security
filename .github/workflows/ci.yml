@@ -1,0 +1,80 @@
+# Build and test. Runs on every push and pull request, including from forks.
+#
+# This workflow requires no secrets, and that is a property worth protecting: the whole
+# package is designed so the parts that can be verified deterministically (scanners, gates,
+# parsing, exit codes) are separable from the part that costs money and cannot be replayed
+# (the model call). If a change ever makes this workflow need `OPENAI_API_KEY`, that
+# separation has been broken, and the fix is in the code rather than here.
+
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: lint + tests (python 3.13)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      # 3.13 is the version every measured number in docs/ was produced on. `requires-python`
+      # allows 3.11–3.13; the upper bound is real — checkov 3.2.489 crashes on 3.14.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install the package and its dev extra
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: ruff
+        run: ruff check .
+
+      # pytest.ini already carries `-m "not slow"` in addopts, so the default run is the
+      # fast hermetic suite: no subprocesses, no network, no API key. The marker is repeated
+      # here so the intent survives someone editing addopts.
+      - name: pytest (fast, hermetic suite)
+        env:
+          OPENAI_API_KEY: "" # deliberately empty — the default suite must never need one
+        run: pytest -m "not slow"
+
+      - name: Console script is installed
+        run: iac-agent version
+
+      # The exit-code contract is the thesis of the project, so CI asserts it directly
+      # rather than trusting that a unit test covers it. All three cases use the real
+      # checkov binary that `pip install` just placed on PATH; none of them needs a key.
+      - name: Exit-code contract (1 = findings, 0 = clean, 2 = could not look)
+        run: |
+          set -u
+          fail() { echo "::error::$1"; exit 1; }
+
+          iac-agent scan samples/s3_public.tf > /dev/null && code=0 || code=$?
+          [ "$code" -eq 1 ] || fail "expected exit 1 (findings) from samples/s3_public.tf, got $code"
+
+          printf 'variable "region" {\n  type = string\n}\n' > "$RUNNER_TEMP/clean.tf"
+          iac-agent scan "$RUNNER_TEMP/clean.tf" > /dev/null && code=0 || code=$?
+          [ "$code" -eq 0 ] || fail "expected exit 0 (clean) from a finding-free file, got $code"
+
+          # trivy is a Go binary and is deliberately not installed in this job, so this is a
+          # genuine "the scanner could not run" case. It must be distinguishable from clean:
+          # exit 2, never 0, even though the run reports zero findings.
+          iac-agent scan samples/s3_public.tf --scanner trivy > /dev/null 2>&1 && code=0 || code=$?
+          [ "$code" -eq 2 ] || fail "expected exit 2 (scanner unavailable), got $code — a scanner that could not run must never look like a clean result"
+
+          echo "exit-code contract holds: 1 / 0 / 2"

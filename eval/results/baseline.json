@@ -1,0 +1,2843 @@
+{
+  "baseline": {
+    "commented": {
+      "samples/docker_insecure.Dockerfile": {
+        "checkov": {
+          "failed": [
+            {
+              "file": "samples/docker_insecure.Dockerfile",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/docker-policies/docker-policy-index/ensure-docker-dont-use-sudo",
+              "line": 8,
+              "message": "Ensure that sudo isn't used",
+              "resource": "samples/docker_insecure.Dockerfile.RUN",
+              "rule_id": "CKV2_DOCKER_1",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "samples/docker_insecure.Dockerfile",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/docker-policies/docker-policy-index/ensure-port-22-is-not-exposed",
+              "line": 26,
+              "message": "Ensure port 22 is not exposed",
+              "resource": "samples/docker_insecure.Dockerfile.EXPOSE",
+              "rule_id": "CKV_DOCKER_1",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "samples/docker_insecure.Dockerfile",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/docker-policies/docker-policy-index/ensure-that-healthcheck-instructions-have-been-added-to-container-images",
+              "line": 1,
+              "message": "Ensure that HEALTHCHECK instructions have been added to container images",
+              "resource": "samples/docker_insecure.Dockerfile.",
+              "rule_id": "CKV_DOCKER_2",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "samples/docker_insecure.Dockerfile",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/docker-policies/docker-policy-index/ensure-that-a-user-for-the-container-has-been-created",
+              "line": 1,
+              "message": "Ensure that a user for the container has been created",
+              "resource": "samples/docker_insecure.Dockerfile.",
+              "rule_id": "CKV_DOCKER_3",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "samples/docker_insecure.Dockerfile",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/docker-policies/docker-policy-index/ensure-that-copy-is-used-instead-of-add-in-dockerfiles",
+              "line": 16,
+              "message": "Ensure that COPY is used instead of ADD in Dockerfiles",
+              "resource": "samples/docker_insecure.Dockerfile.ADD",
+              "rule_id": "CKV_DOCKER_4",
+              "scanner": "checkov",
+              "severity": "unknown"
+            }
+          ],
+          "failed_count": 5,
+          "iac_type": "dockerfile",
+          "parse_errors": 0,
+          "passed_count": 138,
+          "scanner": "checkov",
+          "target": "samples/docker_insecure.Dockerfile"
+        },
+        "trivy": {
+          "failed": [
+            {
+              "file": "samples/docker_insecure.Dockerfile",
+              "guideline": "https://avd.aquasec.com/misconfig/ds002",
+              "line": null,
+              "message": "Image user should not be 'root'",
+              "resource": "",
+              "rule_id": "DS002",
+              "scanner": "trivy",
+              "severity": "high"
+            },
+            {
+              "file": "samples/docker_insecure.Dockerfile",
+              "guideline": "https://avd.aquasec.com/misconfig/ds004",
+              "line": 26,
+              "message": "Port 22 exposed",
+              "resource": "",
+              "rule_id": "DS004",
+              "scanner": "trivy",
+              "severity": "medium"
+            },
+            {
+              "file": "samples/docker_insecure.Dockerfile",
+              "guideline": "https://avd.aquasec.com/misconfig/ds026",
+              "line": null,
+              "message": "No HEALTHCHECK defined",
+              "resource": "",
+              "rule_id": "DS026",
+              "scanner": "trivy",
+              "severity": "low"
+            },
+            {
+              "file": "samples/docker_insecure.Dockerfile",
+              "guideline": "https://avd.aquasec.com/misconfig/ds029",
+              "line": 8,
+              "message": "'apt-get' missing '--no-install-recommends'",
+              "resource": "",
+              "rule_id": "DS029",
+              "scanner": "trivy",
+              "severity": "high"
+            },
+            {
+              "file": "samples/docker_insecure.Dockerfile",
+              "guideline": "https://avd.aquasec.com/misconfig/ds031",
+              "line": 29,
+              "message": "Secrets passed via `build-args` or envs or copied secret files",
+              "resource": "",
+              "rule_id": "DS031",
+              "scanner": "trivy",
+              "severity": "critical"
+            },
+            {
+              "file": "samples/docker_insecure.Dockerfile",
+              "guideline": "https://avd.aquasec.com/misconfig/ds031",
+              "line": 30,
+              "message": "Secrets passed via `build-args` or envs or copied secret files",
+              "resource": "",
+              "rule_id": "DS031",
+              "scanner": "trivy",
+              "severity": "critical"
+            },
+            {
+              "file": "samples/docker_insecure.Dockerfile",
+              "guideline": "https://avd.aquasec.com/misconfig/ds031",
+              "line": 31,
+              "message": "Secrets passed via `build-args` or envs or copied secret files",
+              "resource": "",
+              "rule_id": "DS031",
+              "scanner": "trivy",
+              "severity": "critical"
+            }
+          ],
+          "failed_count": 7,
+          "iac_type": "dockerfile",
+          "parse_errors": 0,
+          "passed_count": 0,
+          "scanner": "trivy",
+          "target": "samples/docker_insecure.Dockerfile"
+        }
+      },
+      "samples/ec2_open.tf": {
+        "checkov": {
+          "failed": [
+            {
+              "file": "samples/ec2_open.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-iam-policies/ensure-an-iam-role-is-attached-to-ec2-instance",
+              "line": 29,
+              "message": "Ensure an IAM role is attached to EC2 instance",
+              "resource": "aws_instance.web_server",
+              "rule_id": "CKV2_AWS_41",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "samples/ec2_open.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-logging-policies/ensure-that-detailed-monitoring-is-enabled-for-ec2-instances",
+              "line": 29,
+              "message": "Ensure that detailed monitoring is enabled for EC2 instances",
+              "resource": "aws_instance.web_server",
+              "rule_id": "CKV_AWS_126",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "samples/ec2_open.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-general-policies/ensure-that-ec2-is-ebs-optimized",
+              "line": 29,
+              "message": "Ensure that EC2 is EBS optimized",
+              "resource": "aws_instance.web_server",
+              "rule_id": "CKV_AWS_135",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "samples/ec2_open.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-networking-policies/networking-31",
+              "line": 6,
+              "message": "Ensure every security group and rule has a description",
+              "resource": "aws_security_group.vulnerable_sg",
+              "rule_id": "CKV_AWS_23",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "samples/ec2_open.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-networking-policies/networking-1-port-security",
+              "line": 6,
+              "message": "Ensure no security groups allow ingress from 0.0.0.0:0 to port 22",
+              "resource": "aws_security_group.vulnerable_sg",
+              "rule_id": "CKV_AWS_24",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "samples/ec2_open.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-networking-policies/bc-aws-382",
+              "line": 6,
+              "message": "Ensure no security groups allow egress from 0.0.0.0:0 to port -1",
+              "resource": "aws_security_group.vulnerable_sg",
+              "rule_id": "CKV_AWS_382",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "samples/ec2_open.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-general-policies/bc-aws-general-31",
+              "line": 29,
+              "message": "Ensure Instance Metadata Service Version 1 is not enabled",
+              "resource": "aws_instance.web_server",
+              "rule_id": "CKV_AWS_79",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "samples/ec2_open.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-general-policies/general-13",
+              "line": 29,
+              "message": "Ensure all data stored in the Launch configuration or instance Elastic Blocks Store is securely encrypted",
+              "resource": "aws_instance.web_server",
+              "rule_id": "CKV_AWS_8",
+              "scanner": "checkov",
+              "severity": "unknown"
+            }
+          ],
+          "failed_count": 8,
+          "iac_type": "terraform",
+          "parse_errors": 0,
+          "passed_count": 7,
+          "scanner": "checkov",
+          "target": "samples/ec2_open.tf"
+        },
+        "trivy": {
+          "failed": [
+            {
+              "file": "samples/ec2_open.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/avd-aws-0028",
+              "line": 29,
+              "message": "aws_instance should activate session tokens for Instance Metadata Service.",
+              "resource": "aws_instance.web_server",
+              "rule_id": "AVD-AWS-0028",
+              "scanner": "trivy",
+              "severity": "high"
+            },
+            {
+              "file": "samples/ec2_open.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/avd-aws-0107",
+              "line": 14,
+              "message": "Security groups should not allow unrestricted ingress to SSH or RDP from any IP address.",
+              "resource": "aws_security_group.vulnerable_sg",
+              "rule_id": "AVD-AWS-0107",
+              "scanner": "trivy",
+              "severity": "high"
+            },
+            {
+              "file": "samples/ec2_open.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/avd-aws-0131",
+              "line": 29,
+              "message": "Instance with unencrypted block device.",
+              "resource": "aws_instance.web_server",
+              "rule_id": "AVD-AWS-0131",
+              "scanner": "trivy",
+              "severity": "high"
+            },
+            {
+              "file": "samples/ec2_open.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/aws-vpc-add-description-to-security-group-rule",
+              "line": 10,
+              "message": "Missing description for security group rule.",
+              "resource": "aws_security_group.vulnerable_sg",
+              "rule_id": "aws-vpc-add-description-to-security-group-rule",
+              "scanner": "trivy",
+              "severity": "low"
+            },
+            {
+              "file": "samples/ec2_open.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/aws-vpc-add-description-to-security-group-rule",
+              "line": 17,
+              "message": "Missing description for security group rule.",
+              "resource": "aws_security_group.vulnerable_sg",
+              "rule_id": "aws-vpc-add-description-to-security-group-rule",
+              "scanner": "trivy",
+              "severity": "low"
+            },
+            {
+              "file": "samples/ec2_open.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/aws-vpc-no-public-egress-sgr",
+              "line": 21,
+              "message": "A security group rule should not allow unrestricted egress to any IP address.",
+              "resource": "aws_security_group.vulnerable_sg",
+              "rule_id": "aws-vpc-no-public-egress-sgr",
+              "scanner": "trivy",
+              "severity": "critical"
+            }
+          ],
+          "failed_count": 6,
+          "iac_type": "terraform",
+          "parse_errors": 0,
+          "passed_count": 0,
+          "scanner": "trivy",
+          "target": "samples/ec2_open.tf"
+        }
+      },
+      "samples/s3_public.tf": {
+        "checkov": {
+          "failed": [
+            {
+              "file": "samples/s3_public.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-networking-policies/s3-bucket-should-have-public-access-blocks-defaults-to-false-if-the-public-access-block-is-not-attached",
+              "line": 1,
+              "message": "Ensure that S3 bucket has a Public Access block",
+              "resource": "aws_s3_bucket.example",
+              "rule_id": "CKV2_AWS_6",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "samples/s3_public.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-logging-policies/bc-aws-2-61",
+              "line": 1,
+              "message": "Ensure that an S3 bucket has a lifecycle configuration",
+              "resource": "aws_s3_bucket.example",
+              "rule_id": "CKV2_AWS_61",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "samples/s3_public.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-logging-policies/bc-aws-2-62",
+              "line": 1,
+              "message": "Ensure S3 buckets should have event notifications enabled",
+              "resource": "aws_s3_bucket.example",
+              "rule_id": "CKV2_AWS_62",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "samples/s3_public.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-general-policies/ensure-that-s3-bucket-has-cross-region-replication-enabled",
+              "line": 1,
+              "message": "Ensure that S3 bucket has cross-region replication enabled",
+              "resource": "aws_s3_bucket.example",
+              "rule_id": "CKV_AWS_144",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "samples/s3_public.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-general-policies/ensure-that-s3-buckets-are-encrypted-with-kms-by-default",
+              "line": 1,
+              "message": "Ensure that S3 buckets are encrypted with KMS by default",
+              "resource": "aws_s3_bucket.example",
+              "rule_id": "CKV_AWS_145",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "samples/s3_public.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/s3-policies/s3-13-enable-logging",
+              "line": 1,
+              "message": "Ensure the S3 bucket has access logging enabled",
+              "resource": "aws_s3_bucket.example",
+              "rule_id": "CKV_AWS_18",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "samples/s3_public.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/s3-policies/s3-1-acl-read-permissions-everyone",
+              "line": 1,
+              "message": "S3 Bucket has an ACL defined which allows public READ access.",
+              "resource": "aws_s3_bucket.example",
+              "rule_id": "CKV_AWS_20",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "samples/s3_public.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/s3-policies/s3-16-enable-versioning",
+              "line": 1,
+              "message": "Ensure all data stored in the S3 bucket have versioning enabled",
+              "resource": "aws_s3_bucket.example",
+              "rule_id": "CKV_AWS_21",
+              "scanner": "checkov",
+              "severity": "unknown"
+            }
+          ],
+          "failed_count": 8,
+          "iac_type": "terraform",
+          "parse_errors": 0,
+          "passed_count": 3,
+          "scanner": "checkov",
+          "target": "samples/s3_public.tf"
+        },
+        "trivy": {
+          "failed": [
+            {
+              "file": "samples/s3_public.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/avd-aws-0086",
+              "line": 1,
+              "message": "S3 Access block should block public ACL",
+              "resource": "aws_s3_bucket.example",
+              "rule_id": "AVD-AWS-0086",
+              "scanner": "trivy",
+              "severity": "high"
+            },
+            {
+              "file": "samples/s3_public.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/avd-aws-0087",
+              "line": 1,
+              "message": "S3 Access block should block public policy",
+              "resource": "aws_s3_bucket.example",
+              "rule_id": "AVD-AWS-0087",
+              "scanner": "trivy",
+              "severity": "high"
+            },
+            {
+              "file": "samples/s3_public.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/avd-aws-0088",
+              "line": 1,
+              "message": "Unencrypted S3 bucket.",
+              "resource": "aws_s3_bucket.example",
+              "rule_id": "AVD-AWS-0088",
+              "scanner": "trivy",
+              "severity": "high"
+            },
+            {
+              "file": "samples/s3_public.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/avd-aws-0090",
+              "line": 1,
+              "message": "S3 Data should be versioned",
+              "resource": "aws_s3_bucket.example",
+              "rule_id": "AVD-AWS-0090",
+              "scanner": "trivy",
+              "severity": "medium"
+            },
+            {
+              "file": "samples/s3_public.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/avd-aws-0091",
+              "line": 1,
+              "message": "S3 Access Block should Ignore Public ACL",
+              "resource": "aws_s3_bucket.example",
+              "rule_id": "AVD-AWS-0091",
+              "scanner": "trivy",
+              "severity": "high"
+            },
+            {
+              "file": "samples/s3_public.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/avd-aws-0092",
+              "line": 3,
+              "message": "S3 Buckets not publicly accessible through ACL.",
+              "resource": "aws_s3_bucket.example",
+              "rule_id": "AVD-AWS-0092",
+              "scanner": "trivy",
+              "severity": "high"
+            },
+            {
+              "file": "samples/s3_public.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/avd-aws-0093",
+              "line": 1,
+              "message": "S3 Access block should restrict public bucket to limit access",
+              "resource": "aws_s3_bucket.example",
+              "rule_id": "AVD-AWS-0093",
+              "scanner": "trivy",
+              "severity": "high"
+            },
+            {
+              "file": "samples/s3_public.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/avd-aws-0094",
+              "line": 1,
+              "message": "S3 buckets should each define an aws_s3_bucket_public_access_block",
+              "resource": "aws_s3_bucket.example",
+              "rule_id": "AVD-AWS-0094",
+              "scanner": "trivy",
+              "severity": "low"
+            },
+            {
+              "file": "samples/s3_public.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/avd-aws-0132",
+              "line": 1,
+              "message": "S3 encryption should use Customer Managed Keys",
+              "resource": "aws_s3_bucket.example",
+              "rule_id": "AVD-AWS-0132",
+              "scanner": "trivy",
+              "severity": "high"
+            },
+            {
+              "file": "samples/s3_public.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/s3-bucket-logging",
+              "line": 1,
+              "message": "S3 Bucket Logging",
+              "resource": "aws_s3_bucket.example",
+              "rule_id": "s3-bucket-logging",
+              "scanner": "trivy",
+              "severity": "low"
+            }
+          ],
+          "failed_count": 10,
+          "iac_type": "terraform",
+          "parse_errors": 0,
+          "passed_count": 0,
+          "scanner": "trivy",
+          "target": "samples/s3_public.tf"
+        }
+      },
+      "samples/vulnerable.Dockerfile": {
+        "checkov": {
+          "failed": [
+            {
+              "file": "samples/vulnerable.Dockerfile",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/docker-policies/docker-policy-index/ensure-docker-dont-use-sudo",
+              "line": 8,
+              "message": "Ensure that sudo isn't used",
+              "resource": "samples/vulnerable.Dockerfile.RUN",
+              "rule_id": "CKV2_DOCKER_1",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "samples/vulnerable.Dockerfile",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/docker-policies/docker-policy-index/ensure-port-22-is-not-exposed",
+              "line": 25,
+              "message": "Ensure port 22 is not exposed",
+              "resource": "samples/vulnerable.Dockerfile.EXPOSE",
+              "rule_id": "CKV_DOCKER_1",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "samples/vulnerable.Dockerfile",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/docker-policies/docker-policy-index/ensure-that-healthcheck-instructions-have-been-added-to-container-images",
+              "line": 1,
+              "message": "Ensure that HEALTHCHECK instructions have been added to container images",
+              "resource": "samples/vulnerable.Dockerfile.",
+              "rule_id": "CKV_DOCKER_2",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "samples/vulnerable.Dockerfile",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/docker-policies/docker-policy-index/ensure-that-a-user-for-the-container-has-been-created",
+              "line": 1,
+              "message": "Ensure that a user for the container has been created",
+              "resource": "samples/vulnerable.Dockerfile.",
+              "rule_id": "CKV_DOCKER_3",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "samples/vulnerable.Dockerfile",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/docker-policies/docker-policy-index/ensure-that-copy-is-used-instead-of-add-in-dockerfiles",
+              "line": 17,
+              "message": "Ensure that COPY is used instead of ADD in Dockerfiles",
+              "resource": "samples/vulnerable.Dockerfile.ADD",
+              "rule_id": "CKV_DOCKER_4",
+              "scanner": "checkov",
+              "severity": "unknown"
+            }
+          ],
+          "failed_count": 5,
+          "iac_type": "dockerfile",
+          "parse_errors": 0,
+          "passed_count": 121,
+          "scanner": "checkov",
+          "target": "samples/vulnerable.Dockerfile"
+        },
+        "trivy": {
+          "failed": [
+            {
+              "file": "samples/vulnerable.Dockerfile",
+              "guideline": "https://avd.aquasec.com/misconfig/ds002",
+              "line": null,
+              "message": "Image user should not be 'root'",
+              "resource": "",
+              "rule_id": "DS002",
+              "scanner": "trivy",
+              "severity": "high"
+            },
+            {
+              "file": "samples/vulnerable.Dockerfile",
+              "guideline": "https://avd.aquasec.com/misconfig/ds004",
+              "line": 25,
+              "message": "Port 22 exposed",
+              "resource": "",
+              "rule_id": "DS004",
+              "scanner": "trivy",
+              "severity": "medium"
+            },
+            {
+              "file": "samples/vulnerable.Dockerfile",
+              "guideline": "https://avd.aquasec.com/misconfig/ds026",
+              "line": null,
+              "message": "No HEALTHCHECK defined",
+              "resource": "",
+              "rule_id": "DS026",
+              "scanner": "trivy",
+              "severity": "low"
+            },
+            {
+              "file": "samples/vulnerable.Dockerfile",
+              "guideline": "https://avd.aquasec.com/misconfig/ds031",
+              "line": 28,
+              "message": "Secrets passed via `build-args` or envs or copied secret files",
+              "resource": "",
+              "rule_id": "DS031",
+              "scanner": "trivy",
+              "severity": "critical"
+            },
+            {
+              "file": "samples/vulnerable.Dockerfile",
+              "guideline": "https://avd.aquasec.com/misconfig/ds031",
+              "line": 29,
+              "message": "Secrets passed via `build-args` or envs or copied secret files",
+              "resource": "",
+              "rule_id": "DS031",
+              "scanner": "trivy",
+              "severity": "critical"
+            },
+            {
+              "file": "samples/vulnerable.Dockerfile",
+              "guideline": "https://avd.aquasec.com/misconfig/ds031",
+              "line": 30,
+              "message": "Secrets passed via `build-args` or envs or copied secret files",
+              "resource": "",
+              "rule_id": "DS031",
+              "scanner": "trivy",
+              "severity": "critical"
+            }
+          ],
+          "failed_count": 6,
+          "iac_type": "dockerfile",
+          "parse_errors": 0,
+          "passed_count": 0,
+          "scanner": "trivy",
+          "target": "samples/vulnerable.Dockerfile"
+        }
+      },
+      "samples/vulnerable_main.tf": {
+        "checkov": {
+          "failed": [
+            {
+              "file": "samples/vulnerable_main.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-iam-policies/bc-aws-2-40",
+              "line": 120,
+              "message": "Ensure AWS IAM policy does not allow full IAM privileges",
+              "resource": "aws_iam_policy.over_permissive_policy",
+              "rule_id": "CKV2_AWS_40",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "samples/vulnerable_main.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-iam-policies/ensure-an-iam-role-is-attached-to-ec2-instance",
+              "line": 76,
+              "message": "Ensure an IAM role is attached to EC2 instance",
+              "resource": "aws_instance.bad_instance",
+              "rule_id": "CKV2_AWS_41",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "samples/vulnerable_main.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-networking-policies/s3-bucket-should-have-public-access-blocks-defaults-to-false-if-the-public-access-block-is-not-attached",
+              "line": 23,
+              "message": "Ensure that S3 bucket has a Public Access block",
+              "resource": "aws_s3_bucket.public_bucket",
+              "rule_id": "CKV2_AWS_6",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "samples/vulnerable_main.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-general-policies/bc-aws-2-60",
+              "line": 102,
+              "message": "Ensure RDS instance with copy tags to snapshots is enabled",
+              "resource": "aws_db_instance.bad_rds",
+              "rule_id": "CKV2_AWS_60",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "samples/vulnerable_main.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-logging-policies/bc-aws-2-61",
+              "line": 23,
+              "message": "Ensure that an S3 bucket has a lifecycle configuration",
+              "resource": "aws_s3_bucket.public_bucket",
+              "rule_id": "CKV2_AWS_61",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "samples/vulnerable_main.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-logging-policies/bc-aws-2-62",
+              "line": 23,
+              "message": "Ensure S3 buckets should have event notifications enabled",
+              "resource": "aws_s3_bucket.public_bucket",
+              "rule_id": "CKV2_AWS_62",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "samples/vulnerable_main.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-logging-policies/ensure-that-enhanced-monitoring-is-enabled-for-amazon-rds-instances",
+              "line": 102,
+              "message": "Ensure that enhanced monitoring is enabled for Amazon RDS instances",
+              "resource": "aws_db_instance.bad_rds",
+              "rule_id": "CKV_AWS_118",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "samples/vulnerable_main.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-logging-policies/ensure-that-detailed-monitoring-is-enabled-for-ec2-instances",
+              "line": 76,
+              "message": "Ensure that detailed monitoring is enabled for EC2 instances",
+              "resource": "aws_instance.bad_instance",
+              "rule_id": "CKV_AWS_126",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "samples/vulnerable_main.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-iam-policies/ensure-that-respective-logs-of-amazon-relational-database-service-amazon-rds-are-enabled",
+              "line": 102,
+              "message": "Ensure that respective logs of Amazon Relational Database Service (Amazon RDS) are enabled",
+              "resource": "aws_db_instance.bad_rds",
+              "rule_id": "CKV_AWS_129",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "samples/vulnerable_main.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-general-policies/ensure-that-ec2-is-ebs-optimized",
+              "line": 76,
+              "message": "Ensure that EC2 is EBS optimized",
+              "resource": "aws_instance.bad_instance",
+              "rule_id": "CKV_AWS_135",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "samples/vulnerable_main.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-general-policies/ensure-that-s3-bucket-has-cross-region-replication-enabled",
+              "line": 23,
+              "message": "Ensure that S3 bucket has cross-region replication enabled",
+              "resource": "aws_s3_bucket.public_bucket",
+              "rule_id": "CKV_AWS_144",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "samples/vulnerable_main.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-general-policies/ensure-that-s3-buckets-are-encrypted-with-kms-by-default",
+              "line": 23,
+              "message": "Ensure that S3 buckets are encrypted with KMS by default",
+              "resource": "aws_s3_bucket.public_bucket",
+              "rule_id": "CKV_AWS_145",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "samples/vulnerable_main.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-general-policies/general-73",
+              "line": 102,
+              "message": "Ensure that RDS instances have Multi-AZ enabled",
+              "resource": "aws_db_instance.bad_rds",
+              "rule_id": "CKV_AWS_157",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "samples/vulnerable_main.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-general-policies/general-4",
+              "line": 102,
+              "message": "Ensure all data stored in the RDS is securely encrypted at rest",
+              "resource": "aws_db_instance.bad_rds",
+              "rule_id": "CKV_AWS_16",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "samples/vulnerable_main.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-iam-policies/ensure-rds-database-has-iam-authentication-enabled",
+              "line": 102,
+              "message": "Ensure RDS database has IAM authentication enabled",
+              "resource": "aws_db_instance.bad_rds",
+              "rule_id": "CKV_AWS_161",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "samples/vulnerable_main.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/public-policies/public-2",
+              "line": 102,
+              "message": "Ensure all data stored in RDS is not publicly accessible",
+              "resource": "aws_db_instance.bad_rds",
+              "rule_id": "CKV_AWS_17",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "samples/vulnerable_main.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/s3-policies/s3-13-enable-logging",
+              "line": 23,
+              "message": "Ensure the S3 bucket has access logging enabled",
+              "resource": "aws_s3_bucket.public_bucket",
+              "rule_id": "CKV_AWS_18",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "samples/vulnerable_main.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/s3-policies/s3-1-acl-read-permissions-everyone",
+              "line": 23,
+              "message": "S3 Bucket has an ACL defined which allows public READ access.",
+              "resource": "aws_s3_bucket.public_bucket",
+              "rule_id": "CKV_AWS_20",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "samples/vulnerable_main.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/s3-policies/s3-16-enable-versioning",
+              "line": 23,
+              "message": "Ensure all data stored in the S3 bucket have versioning enabled",
+              "resource": "aws_s3_bucket.public_bucket",
+              "rule_id": "CKV_AWS_21",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "samples/vulnerable_main.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-general-policies/ensure-aws-db-instance-gets-all-minor-upgrades-automatically",
+              "line": 102,
+              "message": "Ensure DB instance gets all minor upgrades automatically",
+              "resource": "aws_db_instance.bad_rds",
+              "rule_id": "CKV_AWS_226",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "samples/vulnerable_main.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-networking-policies/networking-31",
+              "line": 51,
+              "message": "Ensure every security group and rule has a description",
+              "resource": "aws_security_group.insecure_sg",
+              "rule_id": "CKV_AWS_23",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "samples/vulnerable_main.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-networking-policies/networking-1-port-security",
+              "line": 51,
+              "message": "Ensure no security groups allow ingress from 0.0.0.0:0 to port 22",
+              "resource": "aws_security_group.insecure_sg",
+              "rule_id": "CKV_AWS_24",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "samples/vulnerable_main.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-iam-policies/bc-aws-273",
+              "line": 116,
+              "message": "Ensure access is controlled through SSO and not AWS IAM defined users",
+              "resource": "aws_iam_user.danger_user",
+              "rule_id": "CKV_AWS_273",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "samples/vulnerable_main.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-iam-policies/bc-aws-286",
+              "line": 120,
+              "message": "Ensure IAM policies does not allow privilege escalation",
+              "resource": "aws_iam_policy.over_permissive_policy",
+              "rule_id": "CKV_AWS_286",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "samples/vulnerable_main.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-iam-policies/bc-aws-287",
+              "line": 120,
+              "message": "Ensure IAM policies does not allow credentials exposure",
+              "resource": "aws_iam_policy.over_permissive_policy",
+              "rule_id": "CKV_AWS_287",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "samples/vulnerable_main.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-iam-policies/bc-aws-288",
+              "line": 120,
+              "message": "Ensure IAM policies does not allow data exfiltration",
+              "resource": "aws_iam_policy.over_permissive_policy",
+              "rule_id": "CKV_AWS_288",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "samples/vulnerable_main.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-iam-policies/bc-aws-289",
+              "line": 120,
+              "message": "Ensure IAM policies does not allow permissions management / resource exposure without constraints",
+              "resource": "aws_iam_policy.over_permissive_policy",
+              "rule_id": "CKV_AWS_289",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "samples/vulnerable_main.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-iam-policies/bc-aws-290",
+              "line": 120,
+              "message": "Ensure IAM policies does not allow write access without constraints",
+              "resource": "aws_iam_policy.over_permissive_policy",
+              "rule_id": "CKV_AWS_290",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "samples/vulnerable_main.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-general-policies/bc-aws-293",
+              "line": 102,
+              "message": "Ensure that AWS database instances have deletion protection enabled",
+              "resource": "aws_db_instance.bad_rds",
+              "rule_id": "CKV_AWS_293",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "samples/vulnerable_main.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-iam-policies/bc-aws-355",
+              "line": 120,
+              "message": "Ensure no IAM policies documents allow \"*\" as a statement's resource for restrictable actions",
+              "resource": "aws_iam_policy.over_permissive_policy",
+              "rule_id": "CKV_AWS_355",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "samples/vulnerable_main.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-networking-policies/bc-aws-382",
+              "line": 51,
+              "message": "Ensure no security groups allow egress from 0.0.0.0:0 to port -1",
+              "resource": "aws_security_group.insecure_sg",
+              "rule_id": "CKV_AWS_382",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "samples/vulnerable_main.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-iam-policies/iam-16-iam-policy-privileges-1",
+              "line": 135,
+              "message": "Ensure IAM policies are attached only to groups or roles (Reducing access management complexity may in-turn reduce opportunity for a principal to inadvertently receive or retain excessive privileges.)",
+              "resource": "aws_iam_user_policy_attachment.attach_danger",
+              "rule_id": "CKV_AWS_40",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "samples/vulnerable_main.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-iam-policies/bc-aws-iam-45",
+              "line": 120,
+              "message": "Ensure IAM policies that allow full \"*-*\" administrative privileges are not created",
+              "resource": "aws_iam_policy.over_permissive_policy",
+              "rule_id": "CKV_AWS_62",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "samples/vulnerable_main.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-iam-policies/iam-48",
+              "line": 120,
+              "message": "Ensure no IAM policies documents allow \"*\" as a statement's actions",
+              "resource": "aws_iam_policy.over_permissive_policy",
+              "rule_id": "CKV_AWS_63",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "samples/vulnerable_main.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/s3-policies/bc-aws-s3-23",
+              "line": 31,
+              "message": "Ensure S3 bucket does not allow an action with any Principal",
+              "resource": "aws_s3_bucket_policy.public_policy",
+              "rule_id": "CKV_AWS_70",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "samples/vulnerable_main.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-general-policies/bc-aws-general-31",
+              "line": 76,
+              "message": "Ensure Instance Metadata Service Version 1 is not enabled",
+              "resource": "aws_instance.bad_instance",
+              "rule_id": "CKV_AWS_79",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "samples/vulnerable_main.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-general-policies/general-13",
+              "line": 76,
+              "message": "Ensure all data stored in the Launch configuration or instance Elastic Blocks Store is securely encrypted",
+              "resource": "aws_instance.bad_instance",
+              "rule_id": "CKV_AWS_8",
+              "scanner": "checkov",
+              "severity": "unknown"
+            }
+          ],
+          "failed_count": 37,
+          "iac_type": "terraform",
+          "parse_errors": 0,
+          "passed_count": 18,
+          "scanner": "checkov",
+          "target": "samples/vulnerable_main.tf"
+        },
+        "trivy": {
+          "failed": [
+            {
+              "file": "samples/vulnerable_main.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/avd-aws-0028",
+              "line": 76,
+              "message": "aws_instance should activate session tokens for Instance Metadata Service.",
+              "resource": "aws_instance.bad_instance",
+              "rule_id": "AVD-AWS-0028",
+              "scanner": "trivy",
+              "severity": "high"
+            },
+            {
+              "file": "samples/vulnerable_main.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/avd-aws-0077",
+              "line": 102,
+              "message": "RDS Cluster and RDS instance should have backup retention longer than default 1 day",
+              "resource": "aws_db_instance.bad_rds",
+              "rule_id": "AVD-AWS-0077",
+              "scanner": "trivy",
+              "severity": "medium"
+            },
+            {
+              "file": "samples/vulnerable_main.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/avd-aws-0080",
+              "line": 102,
+              "message": "RDS encryption has not been enabled at a DB Instance level.",
+              "resource": "aws_db_instance.bad_rds",
+              "rule_id": "AVD-AWS-0080",
+              "scanner": "trivy",
+              "severity": "high"
+            },
+            {
+              "file": "samples/vulnerable_main.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/avd-aws-0086",
+              "line": 23,
+              "message": "S3 Access block should block public ACL",
+              "resource": "aws_s3_bucket.public_bucket",
+              "rule_id": "AVD-AWS-0086",
+              "scanner": "trivy",
+              "severity": "high"
+            },
+            {
+              "file": "samples/vulnerable_main.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/avd-aws-0087",
+              "line": 23,
+              "message": "S3 Access block should block public policy",
+              "resource": "aws_s3_bucket.public_bucket",
+              "rule_id": "AVD-AWS-0087",
+              "scanner": "trivy",
+              "severity": "high"
+            },
+            {
+              "file": "samples/vulnerable_main.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/avd-aws-0088",
+              "line": 23,
+              "message": "Unencrypted S3 bucket.",
+              "resource": "aws_s3_bucket.public_bucket",
+              "rule_id": "AVD-AWS-0088",
+              "scanner": "trivy",
+              "severity": "high"
+            },
+            {
+              "file": "samples/vulnerable_main.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/avd-aws-0090",
+              "line": 23,
+              "message": "S3 Data should be versioned",
+              "resource": "aws_s3_bucket.public_bucket",
+              "rule_id": "AVD-AWS-0090",
+              "scanner": "trivy",
+              "severity": "medium"
+            },
+            {
+              "file": "samples/vulnerable_main.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/avd-aws-0091",
+              "line": 23,
+              "message": "S3 Access Block should Ignore Public ACL",
+              "resource": "aws_s3_bucket.public_bucket",
+              "rule_id": "AVD-AWS-0091",
+              "scanner": "trivy",
+              "severity": "high"
+            },
+            {
+              "file": "samples/vulnerable_main.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/avd-aws-0092",
+              "line": 25,
+              "message": "S3 Buckets not publicly accessible through ACL.",
+              "resource": "aws_s3_bucket.public_bucket",
+              "rule_id": "AVD-AWS-0092",
+              "scanner": "trivy",
+              "severity": "high"
+            },
+            {
+              "file": "samples/vulnerable_main.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/avd-aws-0093",
+              "line": 23,
+              "message": "S3 Access block should restrict public bucket to limit access",
+              "resource": "aws_s3_bucket.public_bucket",
+              "rule_id": "AVD-AWS-0093",
+              "scanner": "trivy",
+              "severity": "high"
+            },
+            {
+              "file": "samples/vulnerable_main.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/avd-aws-0094",
+              "line": 23,
+              "message": "S3 buckets should each define an aws_s3_bucket_public_access_block",
+              "resource": "aws_s3_bucket.public_bucket",
+              "rule_id": "AVD-AWS-0094",
+              "scanner": "trivy",
+              "severity": "low"
+            },
+            {
+              "file": "samples/vulnerable_main.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/avd-aws-0107",
+              "line": 61,
+              "message": "Security groups should not allow unrestricted ingress to SSH or RDP from any IP address.",
+              "resource": "aws_security_group.insecure_sg",
+              "rule_id": "AVD-AWS-0107",
+              "scanner": "trivy",
+              "severity": "high"
+            },
+            {
+              "file": "samples/vulnerable_main.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/avd-aws-0131",
+              "line": 91,
+              "message": "Instance with unencrypted block device.",
+              "resource": "aws_instance.bad_instance",
+              "rule_id": "AVD-AWS-0131",
+              "scanner": "trivy",
+              "severity": "high"
+            },
+            {
+              "file": "samples/vulnerable_main.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/avd-aws-0132",
+              "line": 23,
+              "message": "S3 encryption should use Customer Managed Keys",
+              "resource": "aws_s3_bucket.public_bucket",
+              "rule_id": "AVD-AWS-0132",
+              "scanner": "trivy",
+              "severity": "high"
+            },
+            {
+              "file": "samples/vulnerable_main.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/avd-aws-0133",
+              "line": 102,
+              "message": "Enable Performance Insights to detect potential problems",
+              "resource": "aws_db_instance.bad_rds",
+              "rule_id": "AVD-AWS-0133",
+              "scanner": "trivy",
+              "severity": "low"
+            },
+            {
+              "file": "samples/vulnerable_main.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/avd-aws-0143",
+              "line": 116,
+              "message": "IAM policies should not be granted directly to users.",
+              "resource": "aws_iam_user.danger_user",
+              "rule_id": "AVD-AWS-0143",
+              "scanner": "trivy",
+              "severity": "low"
+            },
+            {
+              "file": "samples/vulnerable_main.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/avd-aws-0176",
+              "line": 102,
+              "message": "RDS IAM Database Authentication Disabled",
+              "resource": "aws_db_instance.bad_rds",
+              "rule_id": "AVD-AWS-0176",
+              "scanner": "trivy",
+              "severity": "medium"
+            },
+            {
+              "file": "samples/vulnerable_main.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/avd-aws-0177",
+              "line": 102,
+              "message": "RDS Deletion Protection Disabled",
+              "resource": "aws_db_instance.bad_rds",
+              "rule_id": "AVD-AWS-0177",
+              "scanner": "trivy",
+              "severity": "medium"
+            },
+            {
+              "file": "samples/vulnerable_main.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/avd-aws-0180",
+              "line": 109,
+              "message": "RDS Publicly Accessible",
+              "resource": "aws_db_instance.bad_rds",
+              "rule_id": "AVD-AWS-0180",
+              "scanner": "trivy",
+              "severity": "high"
+            },
+            {
+              "file": "samples/vulnerable_main.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/aws-autoscaling-no-public-ip",
+              "line": 82,
+              "message": "User data for EC2 instances must not contain sensitive AWS keys",
+              "resource": "aws_instance.bad_instance",
+              "rule_id": "aws-autoscaling-no-public-ip",
+              "scanner": "trivy",
+              "severity": "critical"
+            },
+            {
+              "file": "samples/vulnerable_main.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/aws-vpc-add-description-to-security-group-rule",
+              "line": 64,
+              "message": "Missing description for security group rule.",
+              "resource": "aws_security_group.insecure_sg",
+              "rule_id": "aws-vpc-add-description-to-security-group-rule",
+              "scanner": "trivy",
+              "severity": "low"
+            },
+            {
+              "file": "samples/vulnerable_main.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/aws-vpc-no-public-egress-sgr",
+              "line": 68,
+              "message": "A security group rule should not allow unrestricted egress to any IP address.",
+              "resource": "aws_security_group.insecure_sg",
+              "rule_id": "aws-vpc-no-public-egress-sgr",
+              "scanner": "trivy",
+              "severity": "critical"
+            },
+            {
+              "file": "samples/vulnerable_main.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/s3-bucket-logging",
+              "line": 23,
+              "message": "S3 Bucket Logging",
+              "resource": "aws_s3_bucket.public_bucket",
+              "rule_id": "s3-bucket-logging",
+              "scanner": "trivy",
+              "severity": "low"
+            }
+          ],
+          "failed_count": 23,
+          "iac_type": "terraform",
+          "parse_errors": 0,
+          "passed_count": 0,
+          "scanner": "trivy",
+          "target": "samples/vulnerable_main.tf"
+        }
+      },
+      "samples/vulnerable_network.tf": {
+        "checkov": {
+          "failed": [
+            {
+              "file": "samples/vulnerable_network.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-logging-policies/logging-9-enable-vpc-flow-logging",
+              "line": 5,
+              "message": "Ensure VPC flow logging is enabled in all VPCs",
+              "resource": "aws_vpc.test_vpc",
+              "rule_id": "CKV2_AWS_11",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "samples/vulnerable_network.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-networking-policies/networking-4",
+              "line": 5,
+              "message": "Ensure the default security group of every VPC restricts all traffic",
+              "resource": "aws_vpc.test_vpc",
+              "rule_id": "CKV2_AWS_12",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "samples/vulnerable_network.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-networking-policies/ensure-that-security-groups-are-attached-to-ec2-instances-or-elastic-network-interfaces-enis",
+              "line": 19,
+              "message": "Ensure that Security Groups are attached to another resource",
+              "resource": "aws_security_group.open_http",
+              "rule_id": "CKV2_AWS_5",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "samples/vulnerable_network.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-networking-policies/ensure-vpc-subnets-do-not-assign-public-ip-by-default",
+              "line": 12,
+              "message": "Ensure VPC subnets do not assign public IP by default",
+              "resource": "aws_subnet.test_subnet",
+              "rule_id": "CKV_AWS_130",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "samples/vulnerable_network.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-networking-policies/networking-31",
+              "line": 19,
+              "message": "Ensure every security group and rule has a description",
+              "resource": "aws_security_group.open_http",
+              "rule_id": "CKV_AWS_23",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "samples/vulnerable_network.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-networking-policies/ensure-aws-security-groups-do-not-allow-ingress-from-00000-to-port-80",
+              "line": 19,
+              "message": "Ensure no security groups allow ingress from 0.0.0.0:0 to port 80",
+              "resource": "aws_security_group.open_http",
+              "rule_id": "CKV_AWS_260",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "samples/vulnerable_network.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-networking-policies/bc-aws-382",
+              "line": 19,
+              "message": "Ensure no security groups allow egress from 0.0.0.0:0 to port -1",
+              "resource": "aws_security_group.open_http",
+              "rule_id": "CKV_AWS_382",
+              "scanner": "checkov",
+              "severity": "unknown"
+            }
+          ],
+          "failed_count": 7,
+          "iac_type": "terraform",
+          "parse_errors": 0,
+          "passed_count": 3,
+          "scanner": "checkov",
+          "target": "samples/vulnerable_network.tf"
+        },
+        "trivy": {
+          "failed": [
+            {
+              "file": "samples/vulnerable_network.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/aws-autoscaling-enable-at-rest-encryption",
+              "line": 5,
+              "message": "VPC Flow Logs is a feature that enables you to capture information about the IP traffic going to and from network interfaces in your VPC. After you've created a flow log, you can view and retrieve its data in Amazon CloudWatch Logs. It is recommended that VPC Flow Logs be enabled for packet \"Rejects\" for VPCs.",
+              "resource": "aws_vpc.test_vpc",
+              "rule_id": "aws-autoscaling-enable-at-rest-encryption",
+              "scanner": "trivy",
+              "severity": "medium"
+            },
+            {
+              "file": "samples/vulnerable_network.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/aws-vpc-add-description-to-security-group-rule",
+              "line": 24,
+              "message": "Missing description for security group rule.",
+              "resource": "aws_security_group.open_http",
+              "rule_id": "aws-vpc-add-description-to-security-group-rule",
+              "scanner": "trivy",
+              "severity": "low"
+            },
+            {
+              "file": "samples/vulnerable_network.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/aws-vpc-add-description-to-security-group-rule",
+              "line": 31,
+              "message": "Missing description for security group rule.",
+              "resource": "aws_security_group.open_http",
+              "rule_id": "aws-vpc-add-description-to-security-group-rule",
+              "scanner": "trivy",
+              "severity": "low"
+            },
+            {
+              "file": "samples/vulnerable_network.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/aws-vpc-no-public-egress-sgr",
+              "line": 35,
+              "message": "A security group rule should not allow unrestricted egress to any IP address.",
+              "resource": "aws_security_group.open_http",
+              "rule_id": "aws-vpc-no-public-egress-sgr",
+              "scanner": "trivy",
+              "severity": "critical"
+            },
+            {
+              "file": "samples/vulnerable_network.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/aws-vpc-no-public-ingress-sgr",
+              "line": 16,
+              "message": "Instances in a subnet should not receive a public IP address by default.",
+              "resource": "aws_subnet.test_subnet",
+              "rule_id": "aws-vpc-no-public-ingress-sgr",
+              "scanner": "trivy",
+              "severity": "high"
+            }
+          ],
+          "failed_count": 5,
+          "iac_type": "terraform",
+          "parse_errors": 0,
+          "passed_count": 0,
+          "scanner": "trivy",
+          "target": "samples/vulnerable_network.tf"
+        }
+      }
+    },
+    "stripped": {
+      "samples/docker_insecure.Dockerfile": {
+        "checkov": {
+          "failed": [
+            {
+              "file": "eval/corpus/stripped/docker_insecure.Dockerfile",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/docker-policies/docker-policy-index/ensure-docker-dont-use-sudo",
+              "line": 8,
+              "message": "Ensure that sudo isn't used",
+              "resource": "eval/corpus/stripped/docker_insecure.Dockerfile.RUN",
+              "rule_id": "CKV2_DOCKER_1",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "eval/corpus/stripped/docker_insecure.Dockerfile",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/docker-policies/docker-policy-index/ensure-port-22-is-not-exposed",
+              "line": 26,
+              "message": "Ensure port 22 is not exposed",
+              "resource": "eval/corpus/stripped/docker_insecure.Dockerfile.EXPOSE",
+              "rule_id": "CKV_DOCKER_1",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "eval/corpus/stripped/docker_insecure.Dockerfile",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/docker-policies/docker-policy-index/ensure-that-healthcheck-instructions-have-been-added-to-container-images",
+              "line": 1,
+              "message": "Ensure that HEALTHCHECK instructions have been added to container images",
+              "resource": "eval/corpus/stripped/docker_insecure.Dockerfile.",
+              "rule_id": "CKV_DOCKER_2",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "eval/corpus/stripped/docker_insecure.Dockerfile",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/docker-policies/docker-policy-index/ensure-that-a-user-for-the-container-has-been-created",
+              "line": 1,
+              "message": "Ensure that a user for the container has been created",
+              "resource": "eval/corpus/stripped/docker_insecure.Dockerfile.",
+              "rule_id": "CKV_DOCKER_3",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "eval/corpus/stripped/docker_insecure.Dockerfile",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/docker-policies/docker-policy-index/ensure-that-copy-is-used-instead-of-add-in-dockerfiles",
+              "line": 16,
+              "message": "Ensure that COPY is used instead of ADD in Dockerfiles",
+              "resource": "eval/corpus/stripped/docker_insecure.Dockerfile.ADD",
+              "rule_id": "CKV_DOCKER_4",
+              "scanner": "checkov",
+              "severity": "unknown"
+            }
+          ],
+          "failed_count": 5,
+          "iac_type": "dockerfile",
+          "parse_errors": 0,
+          "passed_count": 138,
+          "scanner": "checkov",
+          "target": "eval/corpus/stripped/docker_insecure.Dockerfile"
+        },
+        "trivy": {
+          "failed": [
+            {
+              "file": "eval/corpus/stripped/docker_insecure.Dockerfile",
+              "guideline": "https://avd.aquasec.com/misconfig/ds002",
+              "line": null,
+              "message": "Image user should not be 'root'",
+              "resource": "",
+              "rule_id": "DS002",
+              "scanner": "trivy",
+              "severity": "high"
+            },
+            {
+              "file": "eval/corpus/stripped/docker_insecure.Dockerfile",
+              "guideline": "https://avd.aquasec.com/misconfig/ds004",
+              "line": 26,
+              "message": "Port 22 exposed",
+              "resource": "",
+              "rule_id": "DS004",
+              "scanner": "trivy",
+              "severity": "medium"
+            },
+            {
+              "file": "eval/corpus/stripped/docker_insecure.Dockerfile",
+              "guideline": "https://avd.aquasec.com/misconfig/ds026",
+              "line": null,
+              "message": "No HEALTHCHECK defined",
+              "resource": "",
+              "rule_id": "DS026",
+              "scanner": "trivy",
+              "severity": "low"
+            },
+            {
+              "file": "eval/corpus/stripped/docker_insecure.Dockerfile",
+              "guideline": "https://avd.aquasec.com/misconfig/ds029",
+              "line": 8,
+              "message": "'apt-get' missing '--no-install-recommends'",
+              "resource": "",
+              "rule_id": "DS029",
+              "scanner": "trivy",
+              "severity": "high"
+            },
+            {
+              "file": "eval/corpus/stripped/docker_insecure.Dockerfile",
+              "guideline": "https://avd.aquasec.com/misconfig/ds031",
+              "line": 29,
+              "message": "Secrets passed via `build-args` or envs or copied secret files",
+              "resource": "",
+              "rule_id": "DS031",
+              "scanner": "trivy",
+              "severity": "critical"
+            },
+            {
+              "file": "eval/corpus/stripped/docker_insecure.Dockerfile",
+              "guideline": "https://avd.aquasec.com/misconfig/ds031",
+              "line": 30,
+              "message": "Secrets passed via `build-args` or envs or copied secret files",
+              "resource": "",
+              "rule_id": "DS031",
+              "scanner": "trivy",
+              "severity": "critical"
+            },
+            {
+              "file": "eval/corpus/stripped/docker_insecure.Dockerfile",
+              "guideline": "https://avd.aquasec.com/misconfig/ds031",
+              "line": 31,
+              "message": "Secrets passed via `build-args` or envs or copied secret files",
+              "resource": "",
+              "rule_id": "DS031",
+              "scanner": "trivy",
+              "severity": "critical"
+            }
+          ],
+          "failed_count": 7,
+          "iac_type": "dockerfile",
+          "parse_errors": 0,
+          "passed_count": 0,
+          "scanner": "trivy",
+          "target": "eval/corpus/stripped/docker_insecure.Dockerfile"
+        }
+      },
+      "samples/ec2_open.tf": {
+        "checkov": {
+          "failed": [
+            {
+              "file": "eval/corpus/stripped/ec2_open.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-iam-policies/ensure-an-iam-role-is-attached-to-ec2-instance",
+              "line": 29,
+              "message": "Ensure an IAM role is attached to EC2 instance",
+              "resource": "aws_instance.web_server",
+              "rule_id": "CKV2_AWS_41",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "eval/corpus/stripped/ec2_open.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-logging-policies/ensure-that-detailed-monitoring-is-enabled-for-ec2-instances",
+              "line": 29,
+              "message": "Ensure that detailed monitoring is enabled for EC2 instances",
+              "resource": "aws_instance.web_server",
+              "rule_id": "CKV_AWS_126",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "eval/corpus/stripped/ec2_open.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-general-policies/ensure-that-ec2-is-ebs-optimized",
+              "line": 29,
+              "message": "Ensure that EC2 is EBS optimized",
+              "resource": "aws_instance.web_server",
+              "rule_id": "CKV_AWS_135",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "eval/corpus/stripped/ec2_open.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-networking-policies/networking-31",
+              "line": 6,
+              "message": "Ensure every security group and rule has a description",
+              "resource": "aws_security_group.vulnerable_sg",
+              "rule_id": "CKV_AWS_23",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "eval/corpus/stripped/ec2_open.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-networking-policies/networking-1-port-security",
+              "line": 6,
+              "message": "Ensure no security groups allow ingress from 0.0.0.0:0 to port 22",
+              "resource": "aws_security_group.vulnerable_sg",
+              "rule_id": "CKV_AWS_24",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "eval/corpus/stripped/ec2_open.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-networking-policies/bc-aws-382",
+              "line": 6,
+              "message": "Ensure no security groups allow egress from 0.0.0.0:0 to port -1",
+              "resource": "aws_security_group.vulnerable_sg",
+              "rule_id": "CKV_AWS_382",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "eval/corpus/stripped/ec2_open.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-general-policies/bc-aws-general-31",
+              "line": 29,
+              "message": "Ensure Instance Metadata Service Version 1 is not enabled",
+              "resource": "aws_instance.web_server",
+              "rule_id": "CKV_AWS_79",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "eval/corpus/stripped/ec2_open.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-general-policies/general-13",
+              "line": 29,
+              "message": "Ensure all data stored in the Launch configuration or instance Elastic Blocks Store is securely encrypted",
+              "resource": "aws_instance.web_server",
+              "rule_id": "CKV_AWS_8",
+              "scanner": "checkov",
+              "severity": "unknown"
+            }
+          ],
+          "failed_count": 8,
+          "iac_type": "terraform",
+          "parse_errors": 0,
+          "passed_count": 7,
+          "scanner": "checkov",
+          "target": "eval/corpus/stripped/ec2_open.tf"
+        },
+        "trivy": {
+          "failed": [
+            {
+              "file": "eval/corpus/stripped/ec2_open.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/avd-aws-0028",
+              "line": 29,
+              "message": "aws_instance should activate session tokens for Instance Metadata Service.",
+              "resource": "aws_instance.web_server",
+              "rule_id": "AVD-AWS-0028",
+              "scanner": "trivy",
+              "severity": "high"
+            },
+            {
+              "file": "eval/corpus/stripped/ec2_open.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/avd-aws-0107",
+              "line": 14,
+              "message": "Security groups should not allow unrestricted ingress to SSH or RDP from any IP address.",
+              "resource": "aws_security_group.vulnerable_sg",
+              "rule_id": "AVD-AWS-0107",
+              "scanner": "trivy",
+              "severity": "high"
+            },
+            {
+              "file": "eval/corpus/stripped/ec2_open.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/avd-aws-0131",
+              "line": 29,
+              "message": "Instance with unencrypted block device.",
+              "resource": "aws_instance.web_server",
+              "rule_id": "AVD-AWS-0131",
+              "scanner": "trivy",
+              "severity": "high"
+            },
+            {
+              "file": "eval/corpus/stripped/ec2_open.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/aws-vpc-add-description-to-security-group-rule",
+              "line": 10,
+              "message": "Missing description for security group rule.",
+              "resource": "aws_security_group.vulnerable_sg",
+              "rule_id": "aws-vpc-add-description-to-security-group-rule",
+              "scanner": "trivy",
+              "severity": "low"
+            },
+            {
+              "file": "eval/corpus/stripped/ec2_open.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/aws-vpc-add-description-to-security-group-rule",
+              "line": 17,
+              "message": "Missing description for security group rule.",
+              "resource": "aws_security_group.vulnerable_sg",
+              "rule_id": "aws-vpc-add-description-to-security-group-rule",
+              "scanner": "trivy",
+              "severity": "low"
+            },
+            {
+              "file": "eval/corpus/stripped/ec2_open.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/aws-vpc-no-public-egress-sgr",
+              "line": 21,
+              "message": "A security group rule should not allow unrestricted egress to any IP address.",
+              "resource": "aws_security_group.vulnerable_sg",
+              "rule_id": "aws-vpc-no-public-egress-sgr",
+              "scanner": "trivy",
+              "severity": "critical"
+            }
+          ],
+          "failed_count": 6,
+          "iac_type": "terraform",
+          "parse_errors": 0,
+          "passed_count": 0,
+          "scanner": "trivy",
+          "target": "eval/corpus/stripped/ec2_open.tf"
+        }
+      },
+      "samples/s3_public.tf": {
+        "checkov": {
+          "failed": [
+            {
+              "file": "eval/corpus/stripped/s3_public.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-networking-policies/s3-bucket-should-have-public-access-blocks-defaults-to-false-if-the-public-access-block-is-not-attached",
+              "line": 1,
+              "message": "Ensure that S3 bucket has a Public Access block",
+              "resource": "aws_s3_bucket.example",
+              "rule_id": "CKV2_AWS_6",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "eval/corpus/stripped/s3_public.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-logging-policies/bc-aws-2-61",
+              "line": 1,
+              "message": "Ensure that an S3 bucket has a lifecycle configuration",
+              "resource": "aws_s3_bucket.example",
+              "rule_id": "CKV2_AWS_61",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "eval/corpus/stripped/s3_public.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-logging-policies/bc-aws-2-62",
+              "line": 1,
+              "message": "Ensure S3 buckets should have event notifications enabled",
+              "resource": "aws_s3_bucket.example",
+              "rule_id": "CKV2_AWS_62",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "eval/corpus/stripped/s3_public.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-general-policies/ensure-that-s3-bucket-has-cross-region-replication-enabled",
+              "line": 1,
+              "message": "Ensure that S3 bucket has cross-region replication enabled",
+              "resource": "aws_s3_bucket.example",
+              "rule_id": "CKV_AWS_144",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "eval/corpus/stripped/s3_public.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-general-policies/ensure-that-s3-buckets-are-encrypted-with-kms-by-default",
+              "line": 1,
+              "message": "Ensure that S3 buckets are encrypted with KMS by default",
+              "resource": "aws_s3_bucket.example",
+              "rule_id": "CKV_AWS_145",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "eval/corpus/stripped/s3_public.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/s3-policies/s3-13-enable-logging",
+              "line": 1,
+              "message": "Ensure the S3 bucket has access logging enabled",
+              "resource": "aws_s3_bucket.example",
+              "rule_id": "CKV_AWS_18",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "eval/corpus/stripped/s3_public.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/s3-policies/s3-1-acl-read-permissions-everyone",
+              "line": 1,
+              "message": "S3 Bucket has an ACL defined which allows public READ access.",
+              "resource": "aws_s3_bucket.example",
+              "rule_id": "CKV_AWS_20",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "eval/corpus/stripped/s3_public.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/s3-policies/s3-16-enable-versioning",
+              "line": 1,
+              "message": "Ensure all data stored in the S3 bucket have versioning enabled",
+              "resource": "aws_s3_bucket.example",
+              "rule_id": "CKV_AWS_21",
+              "scanner": "checkov",
+              "severity": "unknown"
+            }
+          ],
+          "failed_count": 8,
+          "iac_type": "terraform",
+          "parse_errors": 0,
+          "passed_count": 3,
+          "scanner": "checkov",
+          "target": "eval/corpus/stripped/s3_public.tf"
+        },
+        "trivy": {
+          "failed": [
+            {
+              "file": "eval/corpus/stripped/s3_public.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/avd-aws-0086",
+              "line": 1,
+              "message": "S3 Access block should block public ACL",
+              "resource": "aws_s3_bucket.example",
+              "rule_id": "AVD-AWS-0086",
+              "scanner": "trivy",
+              "severity": "high"
+            },
+            {
+              "file": "eval/corpus/stripped/s3_public.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/avd-aws-0087",
+              "line": 1,
+              "message": "S3 Access block should block public policy",
+              "resource": "aws_s3_bucket.example",
+              "rule_id": "AVD-AWS-0087",
+              "scanner": "trivy",
+              "severity": "high"
+            },
+            {
+              "file": "eval/corpus/stripped/s3_public.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/avd-aws-0088",
+              "line": 1,
+              "message": "Unencrypted S3 bucket.",
+              "resource": "aws_s3_bucket.example",
+              "rule_id": "AVD-AWS-0088",
+              "scanner": "trivy",
+              "severity": "high"
+            },
+            {
+              "file": "eval/corpus/stripped/s3_public.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/avd-aws-0090",
+              "line": 1,
+              "message": "S3 Data should be versioned",
+              "resource": "aws_s3_bucket.example",
+              "rule_id": "AVD-AWS-0090",
+              "scanner": "trivy",
+              "severity": "medium"
+            },
+            {
+              "file": "eval/corpus/stripped/s3_public.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/avd-aws-0091",
+              "line": 1,
+              "message": "S3 Access Block should Ignore Public ACL",
+              "resource": "aws_s3_bucket.example",
+              "rule_id": "AVD-AWS-0091",
+              "scanner": "trivy",
+              "severity": "high"
+            },
+            {
+              "file": "eval/corpus/stripped/s3_public.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/avd-aws-0092",
+              "line": 3,
+              "message": "S3 Buckets not publicly accessible through ACL.",
+              "resource": "aws_s3_bucket.example",
+              "rule_id": "AVD-AWS-0092",
+              "scanner": "trivy",
+              "severity": "high"
+            },
+            {
+              "file": "eval/corpus/stripped/s3_public.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/avd-aws-0093",
+              "line": 1,
+              "message": "S3 Access block should restrict public bucket to limit access",
+              "resource": "aws_s3_bucket.example",
+              "rule_id": "AVD-AWS-0093",
+              "scanner": "trivy",
+              "severity": "high"
+            },
+            {
+              "file": "eval/corpus/stripped/s3_public.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/avd-aws-0094",
+              "line": 1,
+              "message": "S3 buckets should each define an aws_s3_bucket_public_access_block",
+              "resource": "aws_s3_bucket.example",
+              "rule_id": "AVD-AWS-0094",
+              "scanner": "trivy",
+              "severity": "low"
+            },
+            {
+              "file": "eval/corpus/stripped/s3_public.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/avd-aws-0132",
+              "line": 1,
+              "message": "S3 encryption should use Customer Managed Keys",
+              "resource": "aws_s3_bucket.example",
+              "rule_id": "AVD-AWS-0132",
+              "scanner": "trivy",
+              "severity": "high"
+            },
+            {
+              "file": "eval/corpus/stripped/s3_public.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/s3-bucket-logging",
+              "line": 1,
+              "message": "S3 Bucket Logging",
+              "resource": "aws_s3_bucket.example",
+              "rule_id": "s3-bucket-logging",
+              "scanner": "trivy",
+              "severity": "low"
+            }
+          ],
+          "failed_count": 10,
+          "iac_type": "terraform",
+          "parse_errors": 0,
+          "passed_count": 0,
+          "scanner": "trivy",
+          "target": "eval/corpus/stripped/s3_public.tf"
+        }
+      },
+      "samples/vulnerable.Dockerfile": {
+        "checkov": {
+          "failed": [
+            {
+              "file": "eval/corpus/stripped/vulnerable.Dockerfile",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/docker-policies/docker-policy-index/ensure-docker-dont-use-sudo",
+              "line": 8,
+              "message": "Ensure that sudo isn't used",
+              "resource": "eval/corpus/stripped/vulnerable.Dockerfile.RUN",
+              "rule_id": "CKV2_DOCKER_1",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "eval/corpus/stripped/vulnerable.Dockerfile",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/docker-policies/docker-policy-index/ensure-port-22-is-not-exposed",
+              "line": 25,
+              "message": "Ensure port 22 is not exposed",
+              "resource": "eval/corpus/stripped/vulnerable.Dockerfile.EXPOSE",
+              "rule_id": "CKV_DOCKER_1",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "eval/corpus/stripped/vulnerable.Dockerfile",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/docker-policies/docker-policy-index/ensure-that-healthcheck-instructions-have-been-added-to-container-images",
+              "line": 1,
+              "message": "Ensure that HEALTHCHECK instructions have been added to container images",
+              "resource": "eval/corpus/stripped/vulnerable.Dockerfile.",
+              "rule_id": "CKV_DOCKER_2",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "eval/corpus/stripped/vulnerable.Dockerfile",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/docker-policies/docker-policy-index/ensure-that-a-user-for-the-container-has-been-created",
+              "line": 1,
+              "message": "Ensure that a user for the container has been created",
+              "resource": "eval/corpus/stripped/vulnerable.Dockerfile.",
+              "rule_id": "CKV_DOCKER_3",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "eval/corpus/stripped/vulnerable.Dockerfile",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/docker-policies/docker-policy-index/ensure-that-copy-is-used-instead-of-add-in-dockerfiles",
+              "line": 17,
+              "message": "Ensure that COPY is used instead of ADD in Dockerfiles",
+              "resource": "eval/corpus/stripped/vulnerable.Dockerfile.ADD",
+              "rule_id": "CKV_DOCKER_4",
+              "scanner": "checkov",
+              "severity": "unknown"
+            }
+          ],
+          "failed_count": 5,
+          "iac_type": "dockerfile",
+          "parse_errors": 0,
+          "passed_count": 121,
+          "scanner": "checkov",
+          "target": "eval/corpus/stripped/vulnerable.Dockerfile"
+        },
+        "trivy": {
+          "failed": [
+            {
+              "file": "eval/corpus/stripped/vulnerable.Dockerfile",
+              "guideline": "https://avd.aquasec.com/misconfig/ds002",
+              "line": null,
+              "message": "Image user should not be 'root'",
+              "resource": "",
+              "rule_id": "DS002",
+              "scanner": "trivy",
+              "severity": "high"
+            },
+            {
+              "file": "eval/corpus/stripped/vulnerable.Dockerfile",
+              "guideline": "https://avd.aquasec.com/misconfig/ds004",
+              "line": 25,
+              "message": "Port 22 exposed",
+              "resource": "",
+              "rule_id": "DS004",
+              "scanner": "trivy",
+              "severity": "medium"
+            },
+            {
+              "file": "eval/corpus/stripped/vulnerable.Dockerfile",
+              "guideline": "https://avd.aquasec.com/misconfig/ds026",
+              "line": null,
+              "message": "No HEALTHCHECK defined",
+              "resource": "",
+              "rule_id": "DS026",
+              "scanner": "trivy",
+              "severity": "low"
+            },
+            {
+              "file": "eval/corpus/stripped/vulnerable.Dockerfile",
+              "guideline": "https://avd.aquasec.com/misconfig/ds031",
+              "line": 28,
+              "message": "Secrets passed via `build-args` or envs or copied secret files",
+              "resource": "",
+              "rule_id": "DS031",
+              "scanner": "trivy",
+              "severity": "critical"
+            },
+            {
+              "file": "eval/corpus/stripped/vulnerable.Dockerfile",
+              "guideline": "https://avd.aquasec.com/misconfig/ds031",
+              "line": 29,
+              "message": "Secrets passed via `build-args` or envs or copied secret files",
+              "resource": "",
+              "rule_id": "DS031",
+              "scanner": "trivy",
+              "severity": "critical"
+            },
+            {
+              "file": "eval/corpus/stripped/vulnerable.Dockerfile",
+              "guideline": "https://avd.aquasec.com/misconfig/ds031",
+              "line": 30,
+              "message": "Secrets passed via `build-args` or envs or copied secret files",
+              "resource": "",
+              "rule_id": "DS031",
+              "scanner": "trivy",
+              "severity": "critical"
+            }
+          ],
+          "failed_count": 6,
+          "iac_type": "dockerfile",
+          "parse_errors": 0,
+          "passed_count": 0,
+          "scanner": "trivy",
+          "target": "eval/corpus/stripped/vulnerable.Dockerfile"
+        }
+      },
+      "samples/vulnerable_main.tf": {
+        "checkov": {
+          "failed": [
+            {
+              "file": "eval/corpus/stripped/vulnerable_main.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-iam-policies/bc-aws-2-40",
+              "line": 120,
+              "message": "Ensure AWS IAM policy does not allow full IAM privileges",
+              "resource": "aws_iam_policy.over_permissive_policy",
+              "rule_id": "CKV2_AWS_40",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "eval/corpus/stripped/vulnerable_main.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-iam-policies/ensure-an-iam-role-is-attached-to-ec2-instance",
+              "line": 76,
+              "message": "Ensure an IAM role is attached to EC2 instance",
+              "resource": "aws_instance.bad_instance",
+              "rule_id": "CKV2_AWS_41",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "eval/corpus/stripped/vulnerable_main.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-networking-policies/s3-bucket-should-have-public-access-blocks-defaults-to-false-if-the-public-access-block-is-not-attached",
+              "line": 23,
+              "message": "Ensure that S3 bucket has a Public Access block",
+              "resource": "aws_s3_bucket.public_bucket",
+              "rule_id": "CKV2_AWS_6",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "eval/corpus/stripped/vulnerable_main.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-general-policies/bc-aws-2-60",
+              "line": 102,
+              "message": "Ensure RDS instance with copy tags to snapshots is enabled",
+              "resource": "aws_db_instance.bad_rds",
+              "rule_id": "CKV2_AWS_60",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "eval/corpus/stripped/vulnerable_main.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-logging-policies/bc-aws-2-61",
+              "line": 23,
+              "message": "Ensure that an S3 bucket has a lifecycle configuration",
+              "resource": "aws_s3_bucket.public_bucket",
+              "rule_id": "CKV2_AWS_61",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "eval/corpus/stripped/vulnerable_main.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-logging-policies/bc-aws-2-62",
+              "line": 23,
+              "message": "Ensure S3 buckets should have event notifications enabled",
+              "resource": "aws_s3_bucket.public_bucket",
+              "rule_id": "CKV2_AWS_62",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "eval/corpus/stripped/vulnerable_main.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-logging-policies/ensure-that-enhanced-monitoring-is-enabled-for-amazon-rds-instances",
+              "line": 102,
+              "message": "Ensure that enhanced monitoring is enabled for Amazon RDS instances",
+              "resource": "aws_db_instance.bad_rds",
+              "rule_id": "CKV_AWS_118",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "eval/corpus/stripped/vulnerable_main.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-logging-policies/ensure-that-detailed-monitoring-is-enabled-for-ec2-instances",
+              "line": 76,
+              "message": "Ensure that detailed monitoring is enabled for EC2 instances",
+              "resource": "aws_instance.bad_instance",
+              "rule_id": "CKV_AWS_126",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "eval/corpus/stripped/vulnerable_main.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-iam-policies/ensure-that-respective-logs-of-amazon-relational-database-service-amazon-rds-are-enabled",
+              "line": 102,
+              "message": "Ensure that respective logs of Amazon Relational Database Service (Amazon RDS) are enabled",
+              "resource": "aws_db_instance.bad_rds",
+              "rule_id": "CKV_AWS_129",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "eval/corpus/stripped/vulnerable_main.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-general-policies/ensure-that-ec2-is-ebs-optimized",
+              "line": 76,
+              "message": "Ensure that EC2 is EBS optimized",
+              "resource": "aws_instance.bad_instance",
+              "rule_id": "CKV_AWS_135",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "eval/corpus/stripped/vulnerable_main.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-general-policies/ensure-that-s3-bucket-has-cross-region-replication-enabled",
+              "line": 23,
+              "message": "Ensure that S3 bucket has cross-region replication enabled",
+              "resource": "aws_s3_bucket.public_bucket",
+              "rule_id": "CKV_AWS_144",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "eval/corpus/stripped/vulnerable_main.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-general-policies/ensure-that-s3-buckets-are-encrypted-with-kms-by-default",
+              "line": 23,
+              "message": "Ensure that S3 buckets are encrypted with KMS by default",
+              "resource": "aws_s3_bucket.public_bucket",
+              "rule_id": "CKV_AWS_145",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "eval/corpus/stripped/vulnerable_main.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-general-policies/general-73",
+              "line": 102,
+              "message": "Ensure that RDS instances have Multi-AZ enabled",
+              "resource": "aws_db_instance.bad_rds",
+              "rule_id": "CKV_AWS_157",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "eval/corpus/stripped/vulnerable_main.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-general-policies/general-4",
+              "line": 102,
+              "message": "Ensure all data stored in the RDS is securely encrypted at rest",
+              "resource": "aws_db_instance.bad_rds",
+              "rule_id": "CKV_AWS_16",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "eval/corpus/stripped/vulnerable_main.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-iam-policies/ensure-rds-database-has-iam-authentication-enabled",
+              "line": 102,
+              "message": "Ensure RDS database has IAM authentication enabled",
+              "resource": "aws_db_instance.bad_rds",
+              "rule_id": "CKV_AWS_161",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "eval/corpus/stripped/vulnerable_main.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/public-policies/public-2",
+              "line": 102,
+              "message": "Ensure all data stored in RDS is not publicly accessible",
+              "resource": "aws_db_instance.bad_rds",
+              "rule_id": "CKV_AWS_17",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "eval/corpus/stripped/vulnerable_main.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/s3-policies/s3-13-enable-logging",
+              "line": 23,
+              "message": "Ensure the S3 bucket has access logging enabled",
+              "resource": "aws_s3_bucket.public_bucket",
+              "rule_id": "CKV_AWS_18",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "eval/corpus/stripped/vulnerable_main.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/s3-policies/s3-1-acl-read-permissions-everyone",
+              "line": 23,
+              "message": "S3 Bucket has an ACL defined which allows public READ access.",
+              "resource": "aws_s3_bucket.public_bucket",
+              "rule_id": "CKV_AWS_20",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "eval/corpus/stripped/vulnerable_main.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/s3-policies/s3-16-enable-versioning",
+              "line": 23,
+              "message": "Ensure all data stored in the S3 bucket have versioning enabled",
+              "resource": "aws_s3_bucket.public_bucket",
+              "rule_id": "CKV_AWS_21",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "eval/corpus/stripped/vulnerable_main.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-general-policies/ensure-aws-db-instance-gets-all-minor-upgrades-automatically",
+              "line": 102,
+              "message": "Ensure DB instance gets all minor upgrades automatically",
+              "resource": "aws_db_instance.bad_rds",
+              "rule_id": "CKV_AWS_226",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "eval/corpus/stripped/vulnerable_main.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-networking-policies/networking-31",
+              "line": 51,
+              "message": "Ensure every security group and rule has a description",
+              "resource": "aws_security_group.insecure_sg",
+              "rule_id": "CKV_AWS_23",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "eval/corpus/stripped/vulnerable_main.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-networking-policies/networking-1-port-security",
+              "line": 51,
+              "message": "Ensure no security groups allow ingress from 0.0.0.0:0 to port 22",
+              "resource": "aws_security_group.insecure_sg",
+              "rule_id": "CKV_AWS_24",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "eval/corpus/stripped/vulnerable_main.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-iam-policies/bc-aws-273",
+              "line": 116,
+              "message": "Ensure access is controlled through SSO and not AWS IAM defined users",
+              "resource": "aws_iam_user.danger_user",
+              "rule_id": "CKV_AWS_273",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "eval/corpus/stripped/vulnerable_main.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-iam-policies/bc-aws-286",
+              "line": 120,
+              "message": "Ensure IAM policies does not allow privilege escalation",
+              "resource": "aws_iam_policy.over_permissive_policy",
+              "rule_id": "CKV_AWS_286",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "eval/corpus/stripped/vulnerable_main.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-iam-policies/bc-aws-287",
+              "line": 120,
+              "message": "Ensure IAM policies does not allow credentials exposure",
+              "resource": "aws_iam_policy.over_permissive_policy",
+              "rule_id": "CKV_AWS_287",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "eval/corpus/stripped/vulnerable_main.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-iam-policies/bc-aws-288",
+              "line": 120,
+              "message": "Ensure IAM policies does not allow data exfiltration",
+              "resource": "aws_iam_policy.over_permissive_policy",
+              "rule_id": "CKV_AWS_288",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "eval/corpus/stripped/vulnerable_main.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-iam-policies/bc-aws-289",
+              "line": 120,
+              "message": "Ensure IAM policies does not allow permissions management / resource exposure without constraints",
+              "resource": "aws_iam_policy.over_permissive_policy",
+              "rule_id": "CKV_AWS_289",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "eval/corpus/stripped/vulnerable_main.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-iam-policies/bc-aws-290",
+              "line": 120,
+              "message": "Ensure IAM policies does not allow write access without constraints",
+              "resource": "aws_iam_policy.over_permissive_policy",
+              "rule_id": "CKV_AWS_290",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "eval/corpus/stripped/vulnerable_main.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-general-policies/bc-aws-293",
+              "line": 102,
+              "message": "Ensure that AWS database instances have deletion protection enabled",
+              "resource": "aws_db_instance.bad_rds",
+              "rule_id": "CKV_AWS_293",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "eval/corpus/stripped/vulnerable_main.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-iam-policies/bc-aws-355",
+              "line": 120,
+              "message": "Ensure no IAM policies documents allow \"*\" as a statement's resource for restrictable actions",
+              "resource": "aws_iam_policy.over_permissive_policy",
+              "rule_id": "CKV_AWS_355",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "eval/corpus/stripped/vulnerable_main.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-networking-policies/bc-aws-382",
+              "line": 51,
+              "message": "Ensure no security groups allow egress from 0.0.0.0:0 to port -1",
+              "resource": "aws_security_group.insecure_sg",
+              "rule_id": "CKV_AWS_382",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "eval/corpus/stripped/vulnerable_main.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-iam-policies/iam-16-iam-policy-privileges-1",
+              "line": 135,
+              "message": "Ensure IAM policies are attached only to groups or roles (Reducing access management complexity may in-turn reduce opportunity for a principal to inadvertently receive or retain excessive privileges.)",
+              "resource": "aws_iam_user_policy_attachment.attach_danger",
+              "rule_id": "CKV_AWS_40",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "eval/corpus/stripped/vulnerable_main.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-iam-policies/bc-aws-iam-45",
+              "line": 120,
+              "message": "Ensure IAM policies that allow full \"*-*\" administrative privileges are not created",
+              "resource": "aws_iam_policy.over_permissive_policy",
+              "rule_id": "CKV_AWS_62",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "eval/corpus/stripped/vulnerable_main.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-iam-policies/iam-48",
+              "line": 120,
+              "message": "Ensure no IAM policies documents allow \"*\" as a statement's actions",
+              "resource": "aws_iam_policy.over_permissive_policy",
+              "rule_id": "CKV_AWS_63",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "eval/corpus/stripped/vulnerable_main.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/s3-policies/bc-aws-s3-23",
+              "line": 31,
+              "message": "Ensure S3 bucket does not allow an action with any Principal",
+              "resource": "aws_s3_bucket_policy.public_policy",
+              "rule_id": "CKV_AWS_70",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "eval/corpus/stripped/vulnerable_main.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-general-policies/bc-aws-general-31",
+              "line": 76,
+              "message": "Ensure Instance Metadata Service Version 1 is not enabled",
+              "resource": "aws_instance.bad_instance",
+              "rule_id": "CKV_AWS_79",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "eval/corpus/stripped/vulnerable_main.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-general-policies/general-13",
+              "line": 76,
+              "message": "Ensure all data stored in the Launch configuration or instance Elastic Blocks Store is securely encrypted",
+              "resource": "aws_instance.bad_instance",
+              "rule_id": "CKV_AWS_8",
+              "scanner": "checkov",
+              "severity": "unknown"
+            }
+          ],
+          "failed_count": 37,
+          "iac_type": "terraform",
+          "parse_errors": 0,
+          "passed_count": 18,
+          "scanner": "checkov",
+          "target": "eval/corpus/stripped/vulnerable_main.tf"
+        },
+        "trivy": {
+          "failed": [
+            {
+              "file": "eval/corpus/stripped/vulnerable_main.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/avd-aws-0028",
+              "line": 76,
+              "message": "aws_instance should activate session tokens for Instance Metadata Service.",
+              "resource": "aws_instance.bad_instance",
+              "rule_id": "AVD-AWS-0028",
+              "scanner": "trivy",
+              "severity": "high"
+            },
+            {
+              "file": "eval/corpus/stripped/vulnerable_main.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/avd-aws-0077",
+              "line": 102,
+              "message": "RDS Cluster and RDS instance should have backup retention longer than default 1 day",
+              "resource": "aws_db_instance.bad_rds",
+              "rule_id": "AVD-AWS-0077",
+              "scanner": "trivy",
+              "severity": "medium"
+            },
+            {
+              "file": "eval/corpus/stripped/vulnerable_main.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/avd-aws-0080",
+              "line": 102,
+              "message": "RDS encryption has not been enabled at a DB Instance level.",
+              "resource": "aws_db_instance.bad_rds",
+              "rule_id": "AVD-AWS-0080",
+              "scanner": "trivy",
+              "severity": "high"
+            },
+            {
+              "file": "eval/corpus/stripped/vulnerable_main.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/avd-aws-0086",
+              "line": 23,
+              "message": "S3 Access block should block public ACL",
+              "resource": "aws_s3_bucket.public_bucket",
+              "rule_id": "AVD-AWS-0086",
+              "scanner": "trivy",
+              "severity": "high"
+            },
+            {
+              "file": "eval/corpus/stripped/vulnerable_main.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/avd-aws-0087",
+              "line": 23,
+              "message": "S3 Access block should block public policy",
+              "resource": "aws_s3_bucket.public_bucket",
+              "rule_id": "AVD-AWS-0087",
+              "scanner": "trivy",
+              "severity": "high"
+            },
+            {
+              "file": "eval/corpus/stripped/vulnerable_main.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/avd-aws-0088",
+              "line": 23,
+              "message": "Unencrypted S3 bucket.",
+              "resource": "aws_s3_bucket.public_bucket",
+              "rule_id": "AVD-AWS-0088",
+              "scanner": "trivy",
+              "severity": "high"
+            },
+            {
+              "file": "eval/corpus/stripped/vulnerable_main.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/avd-aws-0090",
+              "line": 23,
+              "message": "S3 Data should be versioned",
+              "resource": "aws_s3_bucket.public_bucket",
+              "rule_id": "AVD-AWS-0090",
+              "scanner": "trivy",
+              "severity": "medium"
+            },
+            {
+              "file": "eval/corpus/stripped/vulnerable_main.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/avd-aws-0091",
+              "line": 23,
+              "message": "S3 Access Block should Ignore Public ACL",
+              "resource": "aws_s3_bucket.public_bucket",
+              "rule_id": "AVD-AWS-0091",
+              "scanner": "trivy",
+              "severity": "high"
+            },
+            {
+              "file": "eval/corpus/stripped/vulnerable_main.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/avd-aws-0092",
+              "line": 25,
+              "message": "S3 Buckets not publicly accessible through ACL.",
+              "resource": "aws_s3_bucket.public_bucket",
+              "rule_id": "AVD-AWS-0092",
+              "scanner": "trivy",
+              "severity": "high"
+            },
+            {
+              "file": "eval/corpus/stripped/vulnerable_main.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/avd-aws-0093",
+              "line": 23,
+              "message": "S3 Access block should restrict public bucket to limit access",
+              "resource": "aws_s3_bucket.public_bucket",
+              "rule_id": "AVD-AWS-0093",
+              "scanner": "trivy",
+              "severity": "high"
+            },
+            {
+              "file": "eval/corpus/stripped/vulnerable_main.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/avd-aws-0094",
+              "line": 23,
+              "message": "S3 buckets should each define an aws_s3_bucket_public_access_block",
+              "resource": "aws_s3_bucket.public_bucket",
+              "rule_id": "AVD-AWS-0094",
+              "scanner": "trivy",
+              "severity": "low"
+            },
+            {
+              "file": "eval/corpus/stripped/vulnerable_main.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/avd-aws-0107",
+              "line": 61,
+              "message": "Security groups should not allow unrestricted ingress to SSH or RDP from any IP address.",
+              "resource": "aws_security_group.insecure_sg",
+              "rule_id": "AVD-AWS-0107",
+              "scanner": "trivy",
+              "severity": "high"
+            },
+            {
+              "file": "eval/corpus/stripped/vulnerable_main.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/avd-aws-0131",
+              "line": 91,
+              "message": "Instance with unencrypted block device.",
+              "resource": "aws_instance.bad_instance",
+              "rule_id": "AVD-AWS-0131",
+              "scanner": "trivy",
+              "severity": "high"
+            },
+            {
+              "file": "eval/corpus/stripped/vulnerable_main.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/avd-aws-0132",
+              "line": 23,
+              "message": "S3 encryption should use Customer Managed Keys",
+              "resource": "aws_s3_bucket.public_bucket",
+              "rule_id": "AVD-AWS-0132",
+              "scanner": "trivy",
+              "severity": "high"
+            },
+            {
+              "file": "eval/corpus/stripped/vulnerable_main.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/avd-aws-0133",
+              "line": 102,
+              "message": "Enable Performance Insights to detect potential problems",
+              "resource": "aws_db_instance.bad_rds",
+              "rule_id": "AVD-AWS-0133",
+              "scanner": "trivy",
+              "severity": "low"
+            },
+            {
+              "file": "eval/corpus/stripped/vulnerable_main.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/avd-aws-0143",
+              "line": 116,
+              "message": "IAM policies should not be granted directly to users.",
+              "resource": "aws_iam_user.danger_user",
+              "rule_id": "AVD-AWS-0143",
+              "scanner": "trivy",
+              "severity": "low"
+            },
+            {
+              "file": "eval/corpus/stripped/vulnerable_main.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/avd-aws-0176",
+              "line": 102,
+              "message": "RDS IAM Database Authentication Disabled",
+              "resource": "aws_db_instance.bad_rds",
+              "rule_id": "AVD-AWS-0176",
+              "scanner": "trivy",
+              "severity": "medium"
+            },
+            {
+              "file": "eval/corpus/stripped/vulnerable_main.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/avd-aws-0177",
+              "line": 102,
+              "message": "RDS Deletion Protection Disabled",
+              "resource": "aws_db_instance.bad_rds",
+              "rule_id": "AVD-AWS-0177",
+              "scanner": "trivy",
+              "severity": "medium"
+            },
+            {
+              "file": "eval/corpus/stripped/vulnerable_main.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/avd-aws-0180",
+              "line": 109,
+              "message": "RDS Publicly Accessible",
+              "resource": "aws_db_instance.bad_rds",
+              "rule_id": "AVD-AWS-0180",
+              "scanner": "trivy",
+              "severity": "high"
+            },
+            {
+              "file": "eval/corpus/stripped/vulnerable_main.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/aws-autoscaling-no-public-ip",
+              "line": 82,
+              "message": "User data for EC2 instances must not contain sensitive AWS keys",
+              "resource": "aws_instance.bad_instance",
+              "rule_id": "aws-autoscaling-no-public-ip",
+              "scanner": "trivy",
+              "severity": "critical"
+            },
+            {
+              "file": "eval/corpus/stripped/vulnerable_main.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/aws-vpc-add-description-to-security-group-rule",
+              "line": 64,
+              "message": "Missing description for security group rule.",
+              "resource": "aws_security_group.insecure_sg",
+              "rule_id": "aws-vpc-add-description-to-security-group-rule",
+              "scanner": "trivy",
+              "severity": "low"
+            },
+            {
+              "file": "eval/corpus/stripped/vulnerable_main.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/aws-vpc-no-public-egress-sgr",
+              "line": 68,
+              "message": "A security group rule should not allow unrestricted egress to any IP address.",
+              "resource": "aws_security_group.insecure_sg",
+              "rule_id": "aws-vpc-no-public-egress-sgr",
+              "scanner": "trivy",
+              "severity": "critical"
+            },
+            {
+              "file": "eval/corpus/stripped/vulnerable_main.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/s3-bucket-logging",
+              "line": 23,
+              "message": "S3 Bucket Logging",
+              "resource": "aws_s3_bucket.public_bucket",
+              "rule_id": "s3-bucket-logging",
+              "scanner": "trivy",
+              "severity": "low"
+            }
+          ],
+          "failed_count": 23,
+          "iac_type": "terraform",
+          "parse_errors": 0,
+          "passed_count": 0,
+          "scanner": "trivy",
+          "target": "eval/corpus/stripped/vulnerable_main.tf"
+        }
+      },
+      "samples/vulnerable_network.tf": {
+        "checkov": {
+          "failed": [
+            {
+              "file": "eval/corpus/stripped/vulnerable_network.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-logging-policies/logging-9-enable-vpc-flow-logging",
+              "line": 5,
+              "message": "Ensure VPC flow logging is enabled in all VPCs",
+              "resource": "aws_vpc.test_vpc",
+              "rule_id": "CKV2_AWS_11",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "eval/corpus/stripped/vulnerable_network.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-networking-policies/networking-4",
+              "line": 5,
+              "message": "Ensure the default security group of every VPC restricts all traffic",
+              "resource": "aws_vpc.test_vpc",
+              "rule_id": "CKV2_AWS_12",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "eval/corpus/stripped/vulnerable_network.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-networking-policies/ensure-that-security-groups-are-attached-to-ec2-instances-or-elastic-network-interfaces-enis",
+              "line": 19,
+              "message": "Ensure that Security Groups are attached to another resource",
+              "resource": "aws_security_group.open_http",
+              "rule_id": "CKV2_AWS_5",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "eval/corpus/stripped/vulnerable_network.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-networking-policies/ensure-vpc-subnets-do-not-assign-public-ip-by-default",
+              "line": 12,
+              "message": "Ensure VPC subnets do not assign public IP by default",
+              "resource": "aws_subnet.test_subnet",
+              "rule_id": "CKV_AWS_130",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "eval/corpus/stripped/vulnerable_network.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-networking-policies/networking-31",
+              "line": 19,
+              "message": "Ensure every security group and rule has a description",
+              "resource": "aws_security_group.open_http",
+              "rule_id": "CKV_AWS_23",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "eval/corpus/stripped/vulnerable_network.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-networking-policies/ensure-aws-security-groups-do-not-allow-ingress-from-00000-to-port-80",
+              "line": 19,
+              "message": "Ensure no security groups allow ingress from 0.0.0.0:0 to port 80",
+              "resource": "aws_security_group.open_http",
+              "rule_id": "CKV_AWS_260",
+              "scanner": "checkov",
+              "severity": "unknown"
+            },
+            {
+              "file": "eval/corpus/stripped/vulnerable_network.tf",
+              "guideline": "https://docs.prismacloud.io/en/enterprise-edition/policy-reference/aws-policies/aws-networking-policies/bc-aws-382",
+              "line": 19,
+              "message": "Ensure no security groups allow egress from 0.0.0.0:0 to port -1",
+              "resource": "aws_security_group.open_http",
+              "rule_id": "CKV_AWS_382",
+              "scanner": "checkov",
+              "severity": "unknown"
+            }
+          ],
+          "failed_count": 7,
+          "iac_type": "terraform",
+          "parse_errors": 0,
+          "passed_count": 3,
+          "scanner": "checkov",
+          "target": "eval/corpus/stripped/vulnerable_network.tf"
+        },
+        "trivy": {
+          "failed": [
+            {
+              "file": "eval/corpus/stripped/vulnerable_network.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/aws-autoscaling-enable-at-rest-encryption",
+              "line": 5,
+              "message": "VPC Flow Logs is a feature that enables you to capture information about the IP traffic going to and from network interfaces in your VPC. After you've created a flow log, you can view and retrieve its data in Amazon CloudWatch Logs. It is recommended that VPC Flow Logs be enabled for packet \"Rejects\" for VPCs.",
+              "resource": "aws_vpc.test_vpc",
+              "rule_id": "aws-autoscaling-enable-at-rest-encryption",
+              "scanner": "trivy",
+              "severity": "medium"
+            },
+            {
+              "file": "eval/corpus/stripped/vulnerable_network.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/aws-vpc-add-description-to-security-group-rule",
+              "line": 24,
+              "message": "Missing description for security group rule.",
+              "resource": "aws_security_group.open_http",
+              "rule_id": "aws-vpc-add-description-to-security-group-rule",
+              "scanner": "trivy",
+              "severity": "low"
+            },
+            {
+              "file": "eval/corpus/stripped/vulnerable_network.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/aws-vpc-add-description-to-security-group-rule",
+              "line": 31,
+              "message": "Missing description for security group rule.",
+              "resource": "aws_security_group.open_http",
+              "rule_id": "aws-vpc-add-description-to-security-group-rule",
+              "scanner": "trivy",
+              "severity": "low"
+            },
+            {
+              "file": "eval/corpus/stripped/vulnerable_network.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/aws-vpc-no-public-egress-sgr",
+              "line": 35,
+              "message": "A security group rule should not allow unrestricted egress to any IP address.",
+              "resource": "aws_security_group.open_http",
+              "rule_id": "aws-vpc-no-public-egress-sgr",
+              "scanner": "trivy",
+              "severity": "critical"
+            },
+            {
+              "file": "eval/corpus/stripped/vulnerable_network.tf",
+              "guideline": "https://avd.aquasec.com/misconfig/aws-vpc-no-public-ingress-sgr",
+              "line": 16,
+              "message": "Instances in a subnet should not receive a public IP address by default.",
+              "resource": "aws_subnet.test_subnet",
+              "rule_id": "aws-vpc-no-public-ingress-sgr",
+              "scanner": "trivy",
+              "severity": "high"
+            }
+          ],
+          "failed_count": 5,
+          "iac_type": "terraform",
+          "parse_errors": 0,
+          "passed_count": 0,
+          "scanner": "trivy",
+          "target": "eval/corpus/stripped/vulnerable_network.tf"
+        }
+      }
+    }
+  },
+  "metadata": {
+    "checkov_version": "3.2.489",
+    "fixtures": [
+      "samples/docker_insecure.Dockerfile",
+      "samples/ec2_open.tf",
+      "samples/s3_public.tf",
+      "samples/vulnerable.Dockerfile",
+      "samples/vulnerable_main.tf",
+      "samples/vulnerable_network.tf"
+    ],
+    "harness_schema_version": 1,
+    "kind": "scanner-only baseline (no model was called)",
+    "max_tokens": 4096,
+    "model": "gpt-4o-mini-2024-07-18",
+    "platform": "macOS-26.5.2-arm64-arm-64bit-Mach-O",
+    "prompt_version": "v2",
+    "python_version": "3.13.14",
+    "scanners": [
+      "checkov",
+      "trivy"
+    ],
+    "seed": 42,
+    "temperature": 0.0,
+    "timestamp": "2026-07-28T19:09:15+00:00",
+    "trivy_version": "0.68.1",
+    "variants": [
+      "commented",
+      "stripped"
+    ]
+  },
+  "schema_version": 1
+}

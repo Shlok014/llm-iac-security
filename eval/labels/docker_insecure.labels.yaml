@@ -1,0 +1,288 @@
+# Hand-authored ground truth. Every checkov_id / trivy_id below was copied from a real
+# scan of this fixture (checkov 3.2.489, trivy 0.68.1) -- none were written from memory.
+# See README.md in this directory for the schema and the planted-vs-incidental rule.
+#
+# The fixture numbers its own planted flaws 1-15 in comments; those numbers are quoted in
+# each description. Two of the fifteen comments overstate what the code does (see
+# BASE-IMAGE-NOT-PINNED) and two comments bundle independent flaws, so the label count is
+# not 15. Every one of checkov's 5 findings and trivy's 7 findings on this file maps onto a
+# planted label -- there are no incidental scanner findings here.
+#
+# Line-scoped labels carry the instruction's line number. An empty `lines` list means the
+# flaw is a property of the whole image (a missing instruction), not of any one line.
+schema_version: 1
+fixture: samples/docker_insecure.Dockerfile
+framework: dockerfile
+labels:
+  - id: BASE-IMAGE-NOT-PINNED
+    resource: FROM python:3.10-slim
+    lines: [4]
+    description: "Comment 1 calls this a floating 'latest' tag; the code actually pins python:3.10-slim, a mutable tag with no digest. The image still changes under you, but neither the latest-tag rules (CKV_DOCKER_7, DS001) nor any digest-pinning rule fires -- both PASS."
+    category: supply-chain
+    severity_expected: medium
+    checkov_ids: []
+    trivy_ids: []
+    detectable_by_scanner: false
+    aliases:
+      - "unpinned base image"
+      - "floating tag"
+      - "latest tag"
+      - "pin image by digest"
+      - "non-reproducible base image"
+
+  - id: CONTAINER-RUNS-AS-ROOT
+    resource: image
+    lines: []
+    description: "Comment 2: no USER instruction, so the container runs as root"
+    category: container-hardening
+    severity_expected: high
+    checkov_ids: [CKV_DOCKER_3]
+    trivy_ids: [DS002, AVD-DS-0002]
+    detectable_by_scanner: true
+    aliases:
+      - "runs as root"
+      - "no USER instruction"
+      - "non-root user"
+      - "drop privileges"
+      - "root user"
+
+  - id: PKG-SUDO-INSTALLED
+    resource: RUN apt-get install
+    lines: [8]
+    description: "Comment 3: sudo is installed into the image, giving any compromised process a privilege-escalation path"
+    category: container-hardening
+    severity_expected: medium
+    checkov_ids: [CKV2_DOCKER_1]
+    # Trivy's DS010 only flags *invoking* sudo in a RUN, not installing it, and it PASSES.
+    trivy_ids: []
+    detectable_by_scanner: true
+    aliases:
+      - "sudo installed"
+      - "sudo should not be used"
+      - "privilege escalation binary"
+
+  - id: PKG-APT-MISSING-NO-INSTALL-RECOMMENDS
+    resource: RUN apt-get install
+    lines: [8]
+    description: "Comment 3: apt-get install without --no-install-recommends pulls in recommended packages, enlarging the image and its attack surface"
+    category: container-hardening
+    severity_expected: low
+    checkov_ids: []
+    trivy_ids: [DS029, AVD-DS-0029]
+    detectable_by_scanner: true
+    aliases:
+      - "--no-install-recommends"
+      - "recommended packages installed"
+      - "apt-get install without no-install-recommends"
+
+  - id: PKG-EXCESSIVE-TOOLCHAIN
+    resource: RUN apt-get install
+    lines: [8]
+    description: "Comment 3: curl, wget, git, openssh-server and build-essential are left in the runtime image as ready-made attacker tooling"
+    category: container-hardening
+    severity_expected: medium
+    checkov_ids: []
+    trivy_ids: []
+    detectable_by_scanner: false
+    aliases:
+      - "unnecessary packages"
+      - "build tools in runtime image"
+      - "attack surface"
+      - "remove build-essential"
+      - "minimal image"
+
+  - id: SECRETS-FILE-COPIED-INTO-IMAGE
+    resource: COPY ./secrets.env
+    lines: [13]
+    description: "Comment 4: a secrets file is copied from the build context and baked into an image layer, where it survives deletion in later layers"
+    category: secrets
+    severity_expected: high
+    checkov_ids: []
+    # Trivy's DS031 title mentions copied secret files, but on this fixture it fired only on
+    # the three ENV lines (29-31); line 13 is not flagged by either scanner.
+    trivy_ids: []
+    detectable_by_scanner: false
+    aliases:
+      - "secrets.env copied into image"
+      - "secret file in image layer"
+      - "credentials baked into image"
+      - "use build secrets"
+
+  - id: ADD-USED-FOR-REMOTE-ARCHIVE
+    resource: ADD https://example.com/some-remote-tool.tar.gz
+    lines: [16]
+    description: "Comment 5: ADD fetches and unpacks a remote tarball with no checksum or signature verification"
+    category: supply-chain
+    severity_expected: high
+    checkov_ids: [CKV_DOCKER_4]
+    # Trivy's DS005 (ADD instead of COPY) PASSES here: it permits ADD for remote URLs.
+    trivy_ids: []
+    detectable_by_scanner: true
+    aliases:
+      - "ADD instead of COPY"
+      - "use COPY instead of ADD"
+      - "remote tarball"
+      - "unverified download"
+
+  - id: PIP-INSTALL-WITHOUT-HASHES
+    resource: RUN pip install
+    lines: [20]
+    description: "Comment 6: dependencies are installed without hash pinning, so a compromised or mutated package resolves silently"
+    category: supply-chain
+    severity_expected: medium
+    checkov_ids: []
+    trivy_ids: []
+    detectable_by_scanner: false
+    aliases:
+      - "pip install without hashes"
+      - "--require-hashes"
+      - "unpinned dependencies"
+      - "dependency confusion"
+
+  - id: WORLD-WRITABLE-APP-DATA-DIR
+    resource: RUN chmod 777 /app/data
+    lines: [23]
+    description: "Comment 7: chmod 777 makes /app/data writable by every user in the container"
+    category: container-hardening
+    severity_expected: medium
+    checkov_ids: []
+    trivy_ids: []
+    detectable_by_scanner: false
+    aliases:
+      - "chmod 777"
+      - "world-writable directory"
+      - "overly permissive file permissions"
+
+  - id: EXPOSE-SSH-PORT-22
+    resource: EXPOSE 22
+    lines: [26]
+    description: "Comment 8: port 22 is exposed, advertising an SSH service that a container should not run"
+    category: network-open
+    severity_expected: medium
+    checkov_ids: [CKV_DOCKER_1]
+    trivy_ids: [DS004, AVD-DS-0004]
+    detectable_by_scanner: true
+    aliases:
+      - "port 22 exposed"
+      - "ssh port exposed"
+      - "EXPOSE 22"
+
+  - id: EXPOSE-DOCKER-DAEMON-PORT-2375
+    resource: EXPOSE 2375
+    lines: [26]
+    description: "Comment 8: port 2375 is the unauthenticated Docker daemon API; exposing it is equivalent to handing out host root"
+    category: network-open
+    severity_expected: high
+    # Both scanners flag only port 22 on this line; 2375 is not in either rule set.
+    checkov_ids: []
+    trivy_ids: []
+    detectable_by_scanner: false
+    aliases:
+      - "port 2375 exposed"
+      - "docker daemon port"
+      - "unnecessary exposed ports"
+
+  - id: ENV-PLAINTEXT-CREDENTIALS
+    resource: ENV (DB_PASSWORD, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)
+    lines: [29, 30, 31]
+    description: "Comment 9: three credentials are baked into image metadata via ENV, readable by anyone who can run docker inspect"
+    category: secrets
+    severity_expected: critical
+    checkov_ids: []
+    # Trivy raises DS031 once per ENV line (29, 30, 31); one label covers all three because
+    # a reviewer or model would report them as a single issue.
+    trivy_ids: [DS031, AVD-DS-0031]
+    detectable_by_scanner: true
+    aliases:
+      - "hardcoded credentials in ENV"
+      - "secrets in environment variables"
+      - "AWS_SECRET_ACCESS_KEY"
+      - "DB_PASSWORD"
+      - "docker inspect reveals secrets"
+
+  - id: REMOTE-SCRIPT-PIPED-TO-SHELL
+    resource: RUN curl | sh
+    lines: [36]
+    description: "Comment 10: curl piped into sh executes unverified remote code at build time"
+    category: supply-chain
+    severity_expected: high
+    checkov_ids: []
+    trivy_ids: []
+    detectable_by_scanner: false
+    aliases:
+      - "curl | sh"
+      - "curl pipe bash"
+      - "remote code execution at build time"
+      - "unverified install script"
+
+  - id: SSHD-INSIDE-CONTAINER
+    resource: RUN mkdir /var/run/sshd
+    lines: [39]
+    description: "Comment 11: the image is prepared to run an SSH daemon, adding a remote-login surface to a container"
+    category: container-hardening
+    severity_expected: medium
+    checkov_ids: []
+    trivy_ids: []
+    detectable_by_scanner: false
+    aliases:
+      - "sshd in container"
+      - "ssh server inside image"
+      - "unnecessary service"
+
+  - id: COPY-ENTIRE-BUILD-CONTEXT
+    resource: COPY . /app
+    lines: [43]
+    description: "Comment 12: copying the whole build context drags in whatever the developer had locally -- .git, .env, keys"
+    category: secrets
+    severity_expected: medium
+    checkov_ids: []
+    trivy_ids: []
+    detectable_by_scanner: false
+    aliases:
+      - "COPY . /app"
+      - "copies entire build context"
+      - "dockerignore"
+      - "may include secrets"
+
+  - id: SUID-BINARY-CREATED
+    resource: RUN chmod 4755 /usr/local/bin/suid_sample
+    lines: [46]
+    description: "Comment 13: a setuid-root binary is created inside the image, a classic local privilege-escalation primitive"
+    category: container-hardening
+    severity_expected: high
+    checkov_ids: []
+    trivy_ids: []
+    detectable_by_scanner: false
+    aliases:
+      - "setuid binary"
+      - "chmod 4755"
+      - "suid"
+      - "privilege escalation"
+
+  - id: HEALTHCHECK-MISSING
+    resource: image
+    lines: []
+    description: "Comment 14: no HEALTHCHECK instruction, so the orchestrator cannot tell a wedged container from a healthy one"
+    category: container-hardening
+    severity_expected: low
+    checkov_ids: [CKV_DOCKER_2]
+    trivy_ids: [DS026, AVD-DS-0026]
+    detectable_by_scanner: true
+    aliases:
+      - "no healthcheck"
+      - "HEALTHCHECK missing"
+      - "add a healthcheck instruction"
+
+  - id: WORLD-WRITABLE-TMP-ARTIFACT
+    resource: RUN chmod 777 /tmp/temp
+    lines: [50]
+    description: "Comment 15 ('keep lots of build artifacts and caches'): leaves a world-writable file behind in the final image"
+    category: container-hardening
+    severity_expected: low
+    checkov_ids: []
+    trivy_ids: []
+    detectable_by_scanner: false
+    aliases:
+      - "chmod 777 /tmp"
+      - "world-writable file"
+      - "build artifacts left in image"

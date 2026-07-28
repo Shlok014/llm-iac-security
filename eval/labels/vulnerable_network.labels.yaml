@@ -1,0 +1,62 @@
+# Hand-authored ground truth. Every checkov_id / trivy_id below was copied from a real
+# scan of this fixture (checkov 3.2.489, trivy 0.68.1) -- none were written from memory.
+# See README.md in this directory for the schema and the planted-vs-incidental rule.
+#
+# Missing VPC flow logs (CKV2_AWS_11 / AVD-AWS-0178), the unrestricted default security
+# group (CKV2_AWS_12) and the unattached security group (CKV2_AWS_5) are incidental: the
+# fixture omits them rather than planting them.
+schema_version: 1
+fixture: samples/vulnerable_network.tf
+framework: terraform
+labels:
+  - id: SUBNET-AUTO-ASSIGN-PUBLIC-IP
+    resource: aws_subnet.test_subnet
+    lines: [16]
+    description: "Subnet assigns a public IP to every instance launched into it"
+    category: public-exposure
+    severity_expected: medium
+    checkov_ids: [CKV_AWS_130]
+    # Trivy's ID field here is the slug aws-vpc-no-public-ingress-sgr, which describes a
+    # different rule than the one that fired (AVD-AWS-0164, subnet public IP). Both strings
+    # are listed because Finding.rule_id carries whatever is in ID.
+    trivy_ids: [aws-vpc-no-public-ingress-sgr, AVD-AWS-0164]
+    detectable_by_scanner: true
+    aliases:
+      - "map_public_ip_on_launch"
+      - "public subnet"
+      - "auto-assign public ip"
+      - "instances get public ip addresses"
+
+  - id: SG-HTTP-OPEN-TO-WORLD
+    resource: aws_security_group.open_http
+    lines: [28]
+    description: "Security group allows inbound TCP/80 (HTTP) from any IP address"
+    category: network-open
+    severity_expected: medium
+    checkov_ids: [CKV_AWS_260]
+    # Trivy has no rule for unrestricted ingress on port 80: AVD-AWS-0107 covers SSH and
+    # RDP only and it PASSES on this fixture. Checkov-only detection.
+    trivy_ids: []
+    detectable_by_scanner: true
+    aliases:
+      - "http open to the world"
+      - "port 80 open to 0.0.0.0/0"
+      - "unrestricted ingress"
+      - "allow http from anywhere"
+      - "plaintext http exposed publicly"
+
+  - id: SG-UNRESTRICTED-EGRESS
+    resource: aws_security_group.open_http
+    lines: [35]
+    description: "Security group allows all outbound traffic on all protocols to 0.0.0.0/0"
+    category: network-open
+    severity_expected: medium
+    checkov_ids: [CKV_AWS_382]
+    trivy_ids: [aws-vpc-no-public-egress-sgr, AVD-AWS-0104]
+    detectable_by_scanner: true
+    aliases:
+      - "unrestricted egress"
+      - "wide egress"
+      - "all outbound traffic allowed"
+      - "egress to 0.0.0.0/0"
+      - "protocol = \"-1\""

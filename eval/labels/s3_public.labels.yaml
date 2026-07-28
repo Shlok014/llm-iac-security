@@ -1,0 +1,28 @@
+# Hand-authored ground truth. Every checkov_id / trivy_id below was copied from a real
+# scan of this fixture (checkov 3.2.489, trivy 0.68.1) -- none were written from memory.
+# See README.md in this directory for the schema and the planted-vs-incidental rule.
+#
+# This fixture is four lines long and carries exactly one planted flaw. The other seven
+# checkov findings and nine trivy findings on it (versioning, logging, KMS encryption,
+# replication, lifecycle, event notifications, public access block) are omissions of
+# controls the file never claimed to configure -- incidental, not planted, so they are
+# deliberately absent here. A one-label file is the honest answer, not an oversight.
+schema_version: 1
+fixture: samples/s3_public.tf
+framework: terraform
+labels:
+  - id: S3-BUCKET-PUBLIC-READ-ACL
+    resource: aws_s3_bucket.example
+    lines: [3]
+    description: "S3 bucket grants public READ through a public-read canned ACL"
+    category: public-exposure
+    severity_expected: critical
+    checkov_ids: [CKV_AWS_20]
+    trivy_ids: [AVD-AWS-0092]
+    detectable_by_scanner: true
+    aliases:
+      - "public-read acl"
+      - "publicly readable bucket"
+      - "public s3 bucket"
+      - "acl = \"public-read\""
+      - "bucket acl allows public access"

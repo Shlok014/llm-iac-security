@@ -1,0 +1,220 @@
+# Hand-authored ground truth. Every checkov_id / trivy_id below was copied from a real
+# scan of this fixture (checkov 3.2.489, trivy 0.68.1) -- none were written from memory.
+# See README.md in this directory for the schema and the planted-vs-incidental rule.
+schema_version: 1
+fixture: samples/vulnerable_main.tf
+framework: terraform
+labels:
+  - id: S3-BUCKET-PUBLIC-READ-ACL
+    resource: aws_s3_bucket.public_bucket
+    lines: [25]
+    description: "S3 bucket grants public READ through a public-read canned ACL"
+    category: public-exposure
+    severity_expected: critical
+    checkov_ids: [CKV_AWS_20]
+    trivy_ids: [AVD-AWS-0092]
+    detectable_by_scanner: true
+    aliases:
+      - "public-read acl"
+      - "publicly readable bucket"
+      - "public s3 bucket"
+      - "acl = \"public-read\""
+      - "bucket acl allows public access"
+
+  - id: S3-BUCKET-POLICY-PUBLIC-PRINCIPAL
+    resource: aws_s3_bucket_policy.public_policy
+    lines: [39]
+    description: "Bucket policy allows s3:GetObject for Principal \"*\", i.e. anonymous internet access"
+    category: public-exposure
+    severity_expected: critical
+    checkov_ids: [CKV_AWS_70]
+    # Trivy evaluated its S3 policy rules (AVD-AWS-0345 / AVD-AWS-0346) here and passed
+    # them, so this flaw is checkov-only despite being one of the most serious in the file.
+    trivy_ids: []
+    detectable_by_scanner: true
+    aliases:
+      - "wildcard principal"
+      - "principal = \"*\""
+      - "public bucket policy"
+      - "anonymous access to bucket"
+      - "policy allows any principal"
+
+  - id: SG-SSH-OPEN-TO-WORLD
+    resource: aws_security_group.insecure_sg
+    lines: [61]
+    description: "Security group allows inbound TCP/22 (SSH) from 0.0.0.0/0"
+    category: network-open
+    severity_expected: high
+    checkov_ids: [CKV_AWS_24]
+    trivy_ids: [AVD-AWS-0107]
+    detectable_by_scanner: true
+    aliases:
+      - "ssh open to the world"
+      - "port 22 open to 0.0.0.0/0"
+      - "unrestricted ingress"
+      - "ssh from anywhere"
+      - "cidr_blocks = [\"0.0.0.0/0\"]"
+
+  - id: SG-UNRESTRICTED-EGRESS
+    resource: aws_security_group.insecure_sg
+    lines: [68]
+    description: "Security group allows all outbound traffic on all protocols to 0.0.0.0/0"
+    category: network-open
+    severity_expected: medium
+    checkov_ids: [CKV_AWS_382]
+    # Trivy's ID field for this rule is the legacy slug, not the AVD id; both are listed
+    # because Finding.rule_id carries whatever is in ID.
+    trivy_ids: [aws-vpc-no-public-egress-sgr, AVD-AWS-0104]
+    detectable_by_scanner: true
+    aliases:
+      - "unrestricted egress"
+      - "wide egress"
+      - "all outbound traffic allowed"
+      - "egress to 0.0.0.0/0"
+      - "protocol = \"-1\""
+
+  - id: EC2-USERDATA-PLAINTEXT-SECRET
+    resource: aws_instance.bad_instance
+    lines: [82, 84]
+    description: "EC2 user_data writes a plaintext DB password to disk at boot"
+    category: secrets
+    severity_expected: high
+    # Checkov HAS a policy for this (CKV_AWS_46, "no hard-coded secrets exist in EC2 user
+    # data") and it PASSES here -- its matcher only recognises AWS-key-shaped strings, so
+    # DB_PASSWORD=... slips through. Trivy catches it: "Password literal text".
+    checkov_ids: []
+    trivy_ids: [aws-autoscaling-no-public-ip, AVD-AWS-0029]
+    detectable_by_scanner: true
+    aliases:
+      - "hardcoded secret in user_data"
+      - "plaintext password in user data"
+      - "credentials in user_data script"
+      - "DB_PASSWORD"
+      - "secret written to /etc/myapp_creds"
+
+  - id: EC2-ROOT-VOLUME-UNENCRYPTED
+    resource: aws_instance.bad_instance
+    lines: [91]
+    description: "Root EBS volume is explicitly created with encrypted = false"
+    category: encryption
+    severity_expected: medium
+    checkov_ids: [CKV_AWS_8]
+    trivy_ids: [AVD-AWS-0131]
+    detectable_by_scanner: true
+    aliases:
+      - "unencrypted root volume"
+      - "ebs not encrypted"
+      - "encrypted = false"
+      - "root_block_device not encrypted"
+      - "unencrypted block device"
+
+  - id: RDS-PUBLICLY-ACCESSIBLE
+    resource: aws_db_instance.bad_rds
+    lines: [109]
+    description: "RDS instance is reachable from the public internet"
+    category: public-exposure
+    severity_expected: critical
+    checkov_ids: [CKV_AWS_17]
+    trivy_ids: [AVD-AWS-0180]
+    detectable_by_scanner: true
+    aliases:
+      - "publicly accessible"
+      - "public database"
+      - "publicly_accessible = true"
+      - "rds exposed to internet"
+
+  - id: RDS-HARDCODED-PASSWORD
+    resource: aws_db_instance.bad_rds
+    lines: [107, 108]
+    description: "Master username and password are hardcoded in the Terraform source"
+    category: secrets
+    severity_expected: critical
+    # No policy in either scanner as this pipeline invokes them. Checkov could catch this
+    # with --framework secrets, but iac_agent runs --framework terraform only.
+    checkov_ids: []
+    trivy_ids: []
+    detectable_by_scanner: false
+    aliases:
+      - "hardcoded password"
+      - "hardcoded credentials"
+      - "password in plaintext"
+      - "password = \"Password123!\""
+      - "database password in source"
+
+  - id: IAM-POLICY-WILDCARD-ADMIN
+    resource: aws_iam_policy.over_permissive_policy
+    lines: [123, 127, 129]
+    description: "IAM policy grants Action \"*\" on Resource \"*\" (full administrative access)"
+    category: iam-overprivilege
+    severity_expected: critical
+    # Checkov fires ten distinct policies on this single planted flaw; all are listed so a
+    # match on any one of them counts as detection.
+    checkov_ids:
+      - CKV_AWS_62
+      - CKV_AWS_63
+      - CKV_AWS_355
+      - CKV_AWS_286
+      - CKV_AWS_287
+      - CKV_AWS_288
+      - CKV_AWS_289
+      - CKV_AWS_290
+      - CKV2_AWS_40
+    # Trivy ships no generic "IAM wildcard" rule for aws_iam_policy; it reported nothing on
+    # this resource.
+    trivy_ids: []
+    detectable_by_scanner: true
+    aliases:
+      - "wildcard iam policy"
+      - "action *"
+      - "resource *"
+      - "overly permissive iam"
+      - "full administrative privileges"
+      - "least privilege violation"
+
+  - id: IAM-POLICY-ATTACHED-TO-USER
+    resource: aws_iam_user_policy_attachment.attach_danger
+    lines: [135, 138]
+    description: "Policy is attached directly to an IAM user instead of a group or role"
+    category: iam-overprivilege
+    severity_expected: low
+    checkov_ids: [CKV_AWS_40]
+    # Trivy attributes its equivalent finding to aws_iam_user.danger_user, not to the
+    # attachment resource -- expect the resource string to differ between scanners.
+    trivy_ids: [AVD-AWS-0143]
+    detectable_by_scanner: true
+    aliases:
+      - "policy attached to user"
+      - "iam policy on user instead of group"
+      - "attach policies to groups or roles"
+
+  - id: TF-VARIABLE-HARDCODED-API-KEY
+    resource: var.api_key
+    lines: [145]
+    description: "An API key literal is committed as the default value of a Terraform variable"
+    category: secrets
+    severity_expected: high
+    # CKV_AWS_41 ("no hard coded AWS access key ... in provider") passes: it only inspects
+    # provider blocks, not variable defaults. Trivy has no equivalent rule.
+    checkov_ids: []
+    trivy_ids: []
+    detectable_by_scanner: false
+    aliases:
+      - "hardcoded api key"
+      - "secret in variable default"
+      - "AKIA"
+      - "credentials committed to source"
+
+  - id: TF-OUTPUT-EXPOSES-SECRET
+    resource: output.exposed_api_key
+    lines: [149, 151]
+    description: "Output returns the API key with sensitive = false, printing it in plan output, CI logs and state"
+    category: secrets
+    severity_expected: high
+    checkov_ids: []
+    trivy_ids: []
+    detectable_by_scanner: false
+    aliases:
+      - "output not marked sensitive"
+      - "sensitive = false"
+      - "secret exposed in output"
+      - "api key in terraform output"
