@@ -46,7 +46,7 @@ import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable, Sequence
+from typing import Any, Callable, Iterator, Mapping, Sequence
 
 from iac_agent.llm import LLMClient, LLMResponse, ModelConfig, TokenUsage
 from iac_agent.scanners import get_scanner
@@ -54,20 +54,9 @@ from iac_agent.types import IaCType, LLMError, ScannerError, detect_iac_type
 from iac_agent.validity import ValidityError, check_validity, compute_drift, drift_touches_flaw
 
 from . import (
-    ARTIFACT_DIR,
-    BASELINE_JSON,
-    CACHE_DIR,
-    DEFAULT_VARIANT,
-    DRIFT_DIR,
-    RESULTS_DIR,
-    RESULTS_JSON,
-    RESULTS_MD,
-    SAMPLES_DIR,
-    SCANNER_NAMES,
-    STRIPPED_DIR,
-    VARIANTS,
-    fixture_key,
-    fixture_paths,
+    ARTIFACT_DIR, BASELINE_JSON, CACHE_DIR, DEFAULT_VARIANT, DRIFT_DIR, RESULTS_DIR,
+    RESULTS_JSON, RESULTS_MD, SAMPLES_DIR, SCANNER_NAMES, STRIPPED_DIR, VARIANTS,
+    fixture_key, fixture_paths,
 )
 from . import labels_io, render, serialise, strip_comments
 from . import metrics as M
@@ -79,28 +68,21 @@ CACHE_SCHEMA_VERSION = 1
 # edit cannot casually widen it to include, say, "client_kwargs" — which is exactly how an
 # API key ends up in a committed directory.
 _CACHE_FIELDS = frozenset(
-    {
-        "schema_version",
-        "key",
-        "call_kind",
-        "model",
-        "prompt_version",
-        "temperature",
-        "seed",
-        "run_index",
-        "variant",
-        "fixture",
-        "file_sha",
-        "prompt_sha",
-        "created_utc",
-        "response",
-        "usage",
-        "system_fingerprint",
-        "completion_source",
-    }
+    "schema_version key call_kind model prompt_version temperature seed run_index variant "
+    "fixture file_sha prompt_sha created_utc response usage system_fingerprint "
+    "completion_source".split()
+)
+
+# The components of the cache key, in the order they are hashed. Reordering this line
+# renames every entry in the committed cache, so it is written down once rather than
+# re-typed at each call site.
+_KEY_COMPONENTS = (
+    "model", "prompt_version", "temperature", "seed", "run_index",
+    "call_kind", "variant", "file_sha", "prompt_sha", "completion_source",
 )
 
 CALL_KINDS = ("detect", "fix")
+LIVE_SOURCE = "openai"
 
 
 class CacheMiss(LLMError):
@@ -124,6 +106,34 @@ def sha256_text(text: str) -> str:
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def _read_json(path: Path | None) -> dict[str, Any] | None:
+    if path is None or not Path(path).is_file():
+        return None
+    return json.loads(Path(path).read_text(encoding="utf-8"))
+
+
+def write_json(path: Path, doc: Mapping[str, Any]) -> None:
+    """Every JSON artifact this module emits: `sort_keys` so a re-run diffs only real moves."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(doc, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def write_results_md(path: Path, report: Mapping[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(render.render_results_md(report), encoding="utf-8")
+
+
+def print_table(rows: Sequence[Sequence[Any]], *, label_width: int, widths: Sequence[int]) -> None:
+    """Left-aligned label column, right-aligned numerics, a rule the width of the header."""
+    for index, row in enumerate(rows):
+        line = f"{row[0]:<{label_width}} " + " ".join(
+            f"{cell:>{width}}" for cell, width in zip(row[1:], widths)
+        )
+        print(line)
+        if index == 0:
+            print("-" * len(line))
 
 
 def tool_version(binary: str) -> str:
@@ -151,20 +161,14 @@ def tool_version(binary: str) -> str:
     return first.split()[-1] if first.lower().startswith("version") else first
 
 
-LIVE_SOURCE = "openai"
+# --------------------------------------------------------------------------------------
+# the completion path
+# --------------------------------------------------------------------------------------
 
 
 def cache_key(
-    *,
-    model: str,
-    prompt_version: str,
-    temperature: float,
-    seed: int,
-    run_index: int,
-    call_kind: str,
-    variant: str,
-    file_sha: str,
-    prompt_sha: str,
+    *, model: str, prompt_version: str, temperature: float, seed: int, run_index: int,
+    call_kind: str, variant: str, file_sha: str, prompt_sha: str,
     completion_source: str = LIVE_SOURCE,
 ) -> str:
     """SHA-256 over everything that determines the response. See the module docstring.
@@ -178,20 +182,8 @@ def cache_key(
     and live completions in disjoint key spaces, so a fake entry can never be replayed as a
     real one and vice versa.
     """
-    payload = "|".join(
-        [
-            f"model={model}",
-            f"prompt_version={prompt_version}",
-            f"temperature={temperature}",
-            f"seed={seed}",
-            f"run_index={run_index}",
-            f"call_kind={call_kind}",
-            f"variant={variant}",
-            f"file_sha={file_sha}",
-            f"prompt_sha={prompt_sha}",
-            f"completion_source={completion_source}",
-        ]
-    )
+    supplied = locals()
+    payload = "|".join(f"{name}={supplied[name]}" for name in _KEY_COMPONENTS)
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
@@ -240,26 +232,17 @@ class ResponseCache:
         return path
 
 
-# --------------------------------------------------------------------------------------
-# the completion path
-# --------------------------------------------------------------------------------------
-
-
 def _accepted_optional_kwargs(fn: Callable[..., Any]) -> set[str]:
     """Which of `cfg` / `response_format` an injected completion function will accept."""
     optional = {"cfg", "response_format"}
     try:
-        sig = inspect.signature(fn)
+        params = list(inspect.signature(fn).parameters.values())
     except (TypeError, ValueError):
         return set()
-    params = list(sig.parameters.values())
     if any(p.kind is inspect.Parameter.VAR_KEYWORD for p in params):
         return optional
-    return {
-        p.name
-        for p in params
-        if p.kind in (inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect.Parameter.KEYWORD_ONLY)
-    } & optional
+    named = (inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect.Parameter.KEYWORD_ONLY)
+    return {p.name for p in params if p.kind in named} & optional
 
 
 _LIVE_CLIENT: LLMClient | None = None
@@ -290,6 +273,7 @@ class CallContext:
     run_index: int
 
 
+@dataclass(kw_only=True, eq=False)
 class CachingCompleter:
     """A `complete_fn` that answers from the committed cache and, only on `--fresh`, live.
 
@@ -299,61 +283,50 @@ class CachingCompleter:
     around it — which is what makes `report` a reproduction rather than a re-print.
     """
 
-    def __init__(
-        self,
-        *,
-        cache: ResponseCache,
-        cfg: ModelConfig,
-        call_kind: str,
-        ctx: CallContext,
-        inner: Any = None,
-        allow_network: bool = False,
-        completion_source: str = LIVE_SOURCE,
-    ) -> None:
-        if call_kind not in CALL_KINDS:
-            raise ValueError(f"unknown call kind {call_kind!r}")
-        self.cache = cache
-        self.cfg = cfg
-        self.call_kind = call_kind
-        self.ctx = ctx
-        self.inner = inner
-        self._inner_kwargs = _accepted_optional_kwargs(inner) if inner is not None else set()
-        self.allow_network = allow_network
-        self.completion_source = completion_source
-        self.calls: list[dict[str, Any]] = []
+    cache: ResponseCache
+    cfg: ModelConfig
+    call_kind: str
+    ctx: CallContext
+    inner: Any = None
+    allow_network: bool = False
+    completion_source: str = LIVE_SOURCE
+    calls: list[dict[str, Any]] = field(default_factory=list, init=False)
+    _inner_kwargs: set[str] = field(default_factory=set, init=False)
+
+    def __post_init__(self) -> None:
+        if self.call_kind not in CALL_KINDS:
+            raise ValueError(f"unknown call kind {self.call_kind!r}")
+        if self.inner is not None:
+            self._inner_kwargs = _accepted_optional_kwargs(self.inner)
+
+    def _note(self, key: str, *, hit: bool, live: bool, fingerprint: Any) -> None:
+        """The per-call audit trail `metadata.live_calls` and the cache counters read."""
+        self.calls.append(
+            {"kind": self.call_kind, "key": key, "hit": hit, "live": live,
+             "system_fingerprint": fingerprint}
+        )
 
     def __call__(
-        self,
-        messages: list[dict[str, str]],
-        cfg: ModelConfig | None = None,
+        self, messages: list[dict[str, str]], cfg: ModelConfig | None = None,
         response_format: Any = None,
     ) -> LLMResponse:
         cfg = cfg or self.cfg
         prompt_sha = sha256_text(json.dumps(messages, sort_keys=True, ensure_ascii=False))
-        key = cache_key(
-            model=cfg.model,
-            prompt_version=cfg.prompt_version,
-            temperature=cfg.temperature,
-            seed=cfg.seed,
-            run_index=self.ctx.run_index,
-            call_kind=self.call_kind,
-            variant=self.ctx.variant,
-            file_sha=self.ctx.file_sha,
-            prompt_sha=prompt_sha,
-            completion_source=self.completion_source,
-        )
+        # Built once and used twice: these are both what the key hashes and ten of the
+        # seventeen fields of the record. Deriving the record from the same dict is what
+        # stops an entry describing itself as something other than what it is filed under.
+        components = {
+            "model": cfg.model, "prompt_version": cfg.prompt_version,
+            "temperature": cfg.temperature, "seed": cfg.seed,
+            "run_index": self.ctx.run_index, "call_kind": self.call_kind,
+            "variant": self.ctx.variant, "file_sha": self.ctx.file_sha,
+            "prompt_sha": prompt_sha, "completion_source": self.completion_source,
+        }
+        key = cache_key(**components)
 
         hit = self.cache.get(key)
         if hit is not None:
-            self.calls.append(
-                {
-                    "kind": self.call_kind,
-                    "key": key,
-                    "hit": True,
-                    "live": False,
-                    "system_fingerprint": hit.get("system_fingerprint"),
-                }
-            )
+            self._note(key, hit=True, live=False, fingerprint=hit.get("system_fingerprint"))
             usage = TokenUsage(**(hit.get("usage") or {}))
             return LLMResponse(text=str(hit["response"]), usage=usage)
 
@@ -367,12 +340,10 @@ class CachingCompleter:
             )
 
         if self.inner is not None:
-            kwargs: dict[str, Any] = {}
-            if "cfg" in self._inner_kwargs:
-                kwargs["cfg"] = cfg
-            if "response_format" in self._inner_kwargs:
-                kwargs["response_format"] = response_format
-            result = self.inner(messages, **kwargs)
+            optional = {"cfg": cfg, "response_format": response_format}
+            result = self.inner(
+                messages, **{k: v for k, v in optional.items() if k in self._inner_kwargs}
+            )
             live = False
         else:
             result = _live_complete(messages, cfg, response_format)
@@ -390,36 +361,18 @@ class CachingCompleter:
 
         self.cache.put(
             {
-                "schema_version": CACHE_SCHEMA_VERSION,
-                "key": key,
-                "call_kind": self.call_kind,
-                "model": cfg.model,
-                "prompt_version": cfg.prompt_version,
-                "temperature": cfg.temperature,
-                "seed": cfg.seed,
-                "run_index": self.ctx.run_index,
-                "variant": self.ctx.variant,
-                "fixture": self.ctx.fixture,
-                "file_sha": self.ctx.file_sha,
-                "prompt_sha": prompt_sha,  # the hash, never the prompt text
-                "created_utc": _now(),
-                "response": text,
-                "usage": usage.as_dict(),
-                "system_fingerprint": fingerprint,
-                # Recorded as well as keyed, so `ls eval/cache | xargs grep` answers
-                # "was this produced by the real model?" without recomputing a hash.
-                "completion_source": self.completion_source,
-            }
-        )
-        self.calls.append(
-            {
-                "kind": self.call_kind,
-                "key": key,
-                "hit": False,
-                "live": live,
+                # `prompt_sha` rides in as the hash, never the prompt text, and
+                # `completion_source` is recorded as well as keyed so that
+                # `ls eval/cache | xargs grep` answers "was this produced by the real
+                # model?" without recomputing a hash.
+                **components,
+                "schema_version": CACHE_SCHEMA_VERSION, "key": key,
+                "fixture": self.ctx.fixture, "created_utc": _now(),
+                "response": text, "usage": usage.as_dict(),
                 "system_fingerprint": fingerprint,
             }
         )
+        self._note(key, hit=False, live=live, fingerprint=fingerprint)
         return LLMResponse(text=text, usage=usage)
 
 
@@ -433,16 +386,13 @@ def resolve_fixtures(selector: str | None, samples_dir: Path | None = None) -> l
     available = fixture_paths(samples_dir or SAMPLES_DIR)
     if not selector:
         return available
-    wanted = [s.strip() for s in selector.split(",") if s.strip()]
     chosen: list[Path] = []
-    for want in wanted:
+    for want in [s.strip() for s in selector.split(",") if s.strip()]:
         name = Path(want).name
         match = next((p for p in available if p.name == name or p.stem == Path(name).stem), None)
         if match is None:
-            raise SystemExit(
-                f"unknown fixture {want!r}; available: "
-                + ", ".join(p.name for p in available)
-            )
+            names = ", ".join(p.name for p in available)
+            raise SystemExit(f"unknown fixture {want!r}; available: {names}")
         chosen.append(match)
     return chosen
 
@@ -468,6 +418,59 @@ def ensure_stripped_corpus(fixtures: Sequence[Path], quiet: bool = False) -> Non
         print(f"regenerated stripped corpus in {STRIPPED_DIR}")
 
 
+def _variants(raw: str) -> list[str]:
+    if raw == "both":
+        return list(VARIANTS)
+    chosen = [v.strip() for v in raw.split(",") if v.strip()]
+    for v in chosen:
+        if v not in VARIANTS:
+            raise SystemExit(f"unknown variant {v!r}; expected one of {VARIANTS} or 'both'")
+    return chosen
+
+
+def _scanners(raw: str) -> tuple[str, ...]:
+    chosen = tuple(s.strip().lower() for s in raw.split(",") if s.strip())
+    for s in chosen:
+        if s not in SCANNER_NAMES:
+            raise SystemExit(f"unknown scanner {s!r}; expected some of {SCANNER_NAMES}")
+    return chosen or SCANNER_NAMES
+
+
+def corpus(args: argparse.Namespace) -> tuple[list[Path], list[str], tuple[str, ...]]:
+    """`--fixtures / --variant / --scanner`, resolved identically for `run` and `baseline`.
+
+    Shared so the two cannot disagree about what the corpus *is*: a baseline measured over
+    a different fixture set than the run it is the denominator for gives a "% resolved"
+    that compares two different populations.
+    """
+    fixtures = resolve_fixtures(args.fixtures)
+    variants = _variants(args.variant)
+    scanners = _scanners(args.scanner)
+    if "stripped" in variants:
+        ensure_stripped_corpus(fixtures)
+    return fixtures, variants, scanners
+
+
+def sweep(
+    variants: Sequence[str], fixtures: Sequence[Path], repeats: int = 1
+) -> Iterator[tuple[str, int, Path]]:
+    """Every (variant, run_index, fixture) the harness works through, in write order.
+
+    One generator rather than the same three nested loops per caller, because the order is
+    load-bearing: `results.json` is committed and `runs` is a list, so re-ordering the same
+    set of runs would diff as a change. Baseline collection is this sweep at one repeat.
+    """
+    for variant in variants:
+        for run_index in range(repeats):
+            for fixture in fixtures:
+                yield variant, run_index, fixture
+
+
+def scan_all(target: Path, kind: IaCType, scanners: Sequence[str]) -> dict[str, Any]:
+    """Serialised results for every scanner on one file, keyed by scanner name."""
+    return {n: serialise.scan_to_dict(get_scanner(n).scan(target, kind)) for n in scanners}
+
+
 # --------------------------------------------------------------------------------------
 # scanner-only baseline
 # --------------------------------------------------------------------------------------
@@ -479,18 +482,10 @@ def collect_baseline(
     scanners: Sequence[str],
 ) -> dict[str, dict[str, dict[str, Any]]]:
     """Scan every (variant, fixture, scanner). No model, no key, no network."""
-    out: dict[str, dict[str, dict[str, Any]]] = {}
-    for variant in variants:
-        per_fixture: dict[str, dict[str, Any]] = {}
-        for fixture in fixtures:
-            source = variant_source(fixture, variant)
-            kind = detect_iac_type(source)
-            per_scanner: dict[str, Any] = {}
-            for name in scanners:
-                scan = get_scanner(name).scan(source, kind)
-                per_scanner[name] = serialise.scan_to_dict(scan)
-            per_fixture[fixture_key(fixture)] = per_scanner
-        out[variant] = per_fixture
+    out: dict[str, dict[str, dict[str, Any]]] = {v: {} for v in variants}
+    for variant, _, fixture in sweep(variants, fixtures):
+        source = variant_source(fixture, variant)
+        out[variant][fixture_key(fixture)] = scan_all(source, detect_iac_type(source), scanners)
     return out
 
 
@@ -513,6 +508,19 @@ class RunConfig:
     live_calls: int = 0
     fingerprints: set[str] = field(default_factory=set)
 
+    def completer(self, call_kind: str, ctx: CallContext) -> CachingCompleter:
+        """One place the cache/network wiring lives, so detect and fix cannot drift apart.
+
+        `allow_network` above all: a build where the fix call could go live while the detect
+        call could not would spend money on half a run and record it as if both halves came
+        from the same place.
+        """
+        return CachingCompleter(
+            cache=self.cache, cfg=self.cfg, call_kind=call_kind, ctx=ctx,
+            inner=self.complete_fn, allow_network=self.allow_network,
+            completion_source=self.completion_source,
+        )
+
 
 def run_one(fixture: Path, variant: str, run_index: int, rc: RunConfig) -> dict[str, Any]:
     """Detect, fix, validate, rescan, and measure drift for one fixture.
@@ -530,44 +538,25 @@ def run_one(fixture: Path, variant: str, run_index: int, rc: RunConfig) -> dict[
     key = fixture_key(fixture)
 
     record: dict[str, Any] = {
-        "fixture": key,
+        "fixture": key, "variant": variant, "run_index": run_index,
+        "iac_type": kind.value, "file_sha": file_sha,
         # Repo-relative: committed results are read on machines that are not this one, and an
         # absolute path bakes in a home directory and a username for no benefit.
         "source": serialise.rel_path(source),
-        "variant": variant,
-        "run_index": run_index,
-        "iac_type": kind.value,
-        "file_sha": file_sha,
-        "llm_findings": [],
-        "attempts": [],
-        "remediation_valid": False,
-        "before": {},
-        "after": {},
-        "after_is_before": False,
-        "drift": None,
-        "drift_touches_flaw": [],
-        "usage": TokenUsage().as_dict(),
-        "calls": [],
-        "error": None,
+        "llm_findings": [], "attempts": [], "calls": [], "error": None,
+        "remediation_valid": False, "usage": TokenUsage().as_dict(),
+        "before": {}, "after": {}, "after_is_before": False,
+        "drift": None, "drift_touches_flaw": [],
     }
 
-    before: dict[str, Any] = {}
-    for name in rc.scanners:
-        before[name] = serialise.scan_to_dict(get_scanner(name).scan(source, kind))
+    before = scan_all(source, kind, rc.scanners)
     record["before"] = before
 
     ctx = CallContext(variant=variant, fixture=key, file_sha=file_sha, run_index=run_index)
-    detect_completer = CachingCompleter(
-        cache=rc.cache, cfg=rc.cfg, call_kind="detect", ctx=ctx,
-        inner=rc.complete_fn, allow_network=rc.allow_network,
-        completion_source=rc.completion_source,
-    )
-    fix_completer = CachingCompleter(
-        cache=rc.cache, cfg=rc.cfg, call_kind="fix", ctx=ctx,
-        inner=rc.complete_fn, allow_network=rc.allow_network,
-        completion_source=rc.completion_source,
-    )
+    detect_completer = rc.completer("detect", ctx)
+    fix_completer = rc.completer("fix", ctx)
 
+    fixed: str | None = None
     try:
         detector = LLMClient(rc.cfg, complete_fn=detect_completer)
         findings = detector.detect_vulnerabilities(text, kind)
@@ -589,14 +578,13 @@ def run_one(fixture: Path, variant: str, run_index: int, rc: RunConfig) -> dict[
         # An LLM failure is recorded as a failure, never as an empty finding list or an
         # unchanged file that scores as "nothing to fix".
         record["error"] = f"{type(exc).__name__}: {exc}"
-        record["after"] = before
-        record["after_is_before"] = True
-        record["calls"] = detect_completer.calls + fix_completer.calls
-        _account(rc, record)
-        return record
 
+    # Accounted on both paths: a failed run still made calls, and a live call that went
+    # unrecorded is money spent that the metadata does not admit to.
     record["calls"] = detect_completer.calls + fix_completer.calls
     _account(rc, record)
+    if fixed is None:
+        return _scored_against_itself(record, before)
 
     validity = check_validity(fixed, kind)
     out_dir = rc.artifact_dir / variant / f"run{run_index}" / fixture.stem
@@ -610,51 +598,44 @@ def run_one(fixture: Path, variant: str, run_index: int, rc: RunConfig) -> dict[
 
     record["attempts"] = [
         {
-            "index": 0,
-            "valid": bool(validity),
-            "reason": validity.reason,
-            "detail": validity.detail,
-            "output_sha": sha256_text(fixed),
+            "index": 0, "valid": bool(validity), "reason": validity.reason,
+            "detail": validity.detail, "output_sha": sha256_text(fixed),
         }
     ]
     record["remediation_valid"] = bool(validity)
     record["output_path"] = serialise.rel_path(out_path)
 
     if not validity:
-        # An unusable output resolved nothing. Scoring it any other way — dropping it from
-        # the corpus, or scanning a file that does not parse — flatters the delta with the
-        # runs where the model failed hardest.
-        record["after"] = before
-        record["after_is_before"] = True
-        return record
+        return _scored_against_itself(record, before)
 
-    after: dict[str, Any] = {}
-    for name in rc.scanners:
-        after[name] = serialise.scan_to_dict(get_scanner(name).scan(out_path, kind))
-    record["after"] = after
+    record["after"] = scan_all(out_path, kind, rc.scanners)
 
     flagged = {
-        f["resource"]
-        for scan in before.values()
-        for f in scan["failed"]
-        if f.get("resource")
+        f["resource"] for scan in before.values() for f in scan["failed"] if f.get("resource")
     }
     try:
         drift = compute_drift(source, fixed, kind)
     except ValidityError as exc:
-        record["drift"] = None
+        # `drift` stays None, as initialised: an unparseable output is "drift unknown",
+        # never "drift none", which would score a deletion as a clean fix.
         record["drift_error"] = str(exc)
         return record
 
-    record["drift"] = {
-        "deleted": [r.address for r in drift.deleted],
-        "added": [r.address for r in drift.added],
-        "renamed": [[b.address, a.address] for b, a in drift.renamed],
-        "type_count_drops": {k: list(v) for k, v in drift.type_count_drops.items()},
-        "drifted": drift.drifted,
-        "summary": drift.summary(),
-    }
+    record["drift"] = serialise.drift_to_dict(drift)
     record["drift_touches_flaw"] = drift_touches_flaw(drift, flagged)
+    return record
+
+
+def _scored_against_itself(record: dict[str, Any], before: dict[str, Any]) -> dict[str, Any]:
+    """A failed or unusable output resolved nothing: its `after` is its own `before`.
+
+    The one shared answer for both ways a run can produce no file — the model errored, or
+    it returned something that does not parse. Scoring either any other way, by dropping it
+    from the corpus or by scanning a file that does not parse, flatters the delta with
+    exactly the runs where the model failed hardest.
+    """
+    record["after"] = before
+    record["after_is_before"] = True
     return record
 
 
@@ -678,6 +659,7 @@ def write_drift_reports(records: Sequence[dict[str, Any]], out_dir: Path = DRIFT
         drift = record.get("drift")
         if not drift:
             continue
+        lost = record.get("drift_touches_flaw") or []
         name = f"{Path(record['fixture']).stem}.{record['variant']}.run{record['run_index']}.txt"
         lines = [
             f"fixture : {record['fixture']}",
@@ -690,9 +672,9 @@ def write_drift_reports(records: Sequence[dict[str, Any]], out_dir: Path = DRIFT
             f"count drops: {drift['type_count_drops'] or '-'}",
             "",
             "flaw-carrying resources deleted or renamed (the 'fixed it by deleting it' set):",
-            *(f"  - {r}" for r in record.get("drift_touches_flaw") or []),
+            *(f"  - {r}" for r in lost),
         ]
-        if not record.get("drift_touches_flaw"):
+        if not lost:
             lines.append("  (none)")
         (out_dir / name).write_text("\n".join(lines) + "\n", encoding="utf-8")
 
@@ -726,32 +708,33 @@ def _load_complete_fn(spec: str | None) -> Any:
     return fn
 
 
-def _metadata(args: argparse.Namespace, cfg: ModelConfig, extra: dict[str, Any]) -> dict[str, Any]:
-    meta = {
-        "timestamp": _now(),
-        "model": cfg.model,
-        "prompt_version": cfg.prompt_version,
-        "temperature": cfg.temperature,
-        "seed": cfg.seed,
-        "max_tokens": cfg.max_tokens,
-        "checkov_version": tool_version("checkov"),
-        "trivy_version": tool_version("trivy"),
-        "python_version": platform.python_version(),
-        "platform": platform.platform(),
+def document(
+    cfg: ModelConfig, kind: str, *, fixtures: Sequence[Path], variants: Sequence[str],
+    scanners: Sequence[str], **extra: Any,
+) -> dict[str, Any]:
+    """The `schema_version` + `metadata` envelope `results.json` and `baseline.json` share.
+
+    Built in one place because the two files are read back by the *same* `metrics` code: a
+    provenance field present in one and missing from the other is a report that silently
+    describes only half of what it measured.
+    """
+    meta: dict[str, Any] = {
+        "timestamp": _now(), "kind": kind,
+        "model": cfg.model, "prompt_version": cfg.prompt_version,
+        "temperature": cfg.temperature, "seed": cfg.seed, "max_tokens": cfg.max_tokens,
+        "checkov_version": tool_version("checkov"), "trivy_version": tool_version("trivy"),
+        "python_version": platform.python_version(), "platform": platform.platform(),
         "harness_schema_version": RESULTS_SCHEMA_VERSION,
+        "variants": list(variants), "scanners": list(scanners),
+        "fixtures": [fixture_key(f) for f in fixtures],
     }
     meta.update(extra)
-    return meta
+    return {"schema_version": RESULTS_SCHEMA_VERSION, "metadata": meta}
 
 
 def cmd_baseline(args: argparse.Namespace) -> int:
     """Scanner-only. Needs no API key; this is the floor everything else is measured against."""
-    fixtures = resolve_fixtures(args.fixtures)
-    variants = _variants(args.variant)
-    scanners = _scanners(args.scanner)
-    if "stripped" in variants:
-        ensure_stripped_corpus(fixtures)
-
+    fixtures, variants, scanners = corpus(args)
     try:
         baseline = collect_baseline(fixtures, variants, scanners)
     except ScannerError as exc:
@@ -759,22 +742,12 @@ def cmd_baseline(args: argparse.Namespace) -> int:
         return 2
 
     labelsets = labels_io.load_all_labels(fixtures)
-    doc = {
-        "schema_version": RESULTS_SCHEMA_VERSION,
-        "metadata": _metadata(
-            args,
-            ModelConfig(),
-            {
-                "kind": "scanner-only baseline (no model was called)",
-                "variants": variants,
-                "scanners": list(scanners),
-                "fixtures": [fixture_key(f) for f in fixtures],
-            },
-        ),
-        "baseline": baseline,
-    }
-    args.out.parent.mkdir(parents=True, exist_ok=True)
-    args.out.write_text(json.dumps(doc, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    doc = document(
+        ModelConfig(), "scanner-only baseline (no model was called)",
+        fixtures=fixtures, variants=variants, scanners=scanners,
+    )
+    doc["baseline"] = baseline
+    write_json(args.out, doc)
 
     exit_code = 0
     for variant in variants:
@@ -783,37 +756,35 @@ def cmd_baseline(args: argparse.Namespace) -> int:
             for f, per in baseline[variant].items()
         }
         summary = M.scanner_baseline(scans, labelsets)
+        labels = summary["labels"]
         print(f"\n=== scanner-only baseline: variant={variant} ===")
-        width = max(len(f) for f in scans)
-        header = f"{'fixture':<{width}} " + " ".join(f"{s:>9}" for s in scanners) + f" {'labels':>7} {'detectable':>11}"
-        print(header)
-        print("-" * len(header))
-        for fixture in sorted(scans):
-            counts = " ".join(f"{scans[fixture][s].failed_count:>9}" for s in scanners)
-            lab = labelsets[fixture]
-            print(f"{fixture:<{width}} {counts} {len(lab):>7} {len(lab.detectable):>11}")
-        totals = " ".join(
-            f"{summary['per_scanner'][s]['findings']:>9}" for s in scanners
+        rows: list[list[Any]] = [["fixture", *scanners, "labels", "detectable"]]
+        rows += [
+            [f, *(scans[f][s].failed_count for s in scanners),
+             len(labelsets[f]), len(labelsets[f].detectable)]
+            for f in sorted(scans)
+        ]
+        rows.append(
+            ["TOTAL", *(summary["per_scanner"][s]["findings"] for s in scanners),
+             labels["total"], labels["detectable_by_scanner"]]
         )
-        print(
-            f"{'TOTAL':<{width}} {totals} "
-            f"{summary['labels']['total']:>7} {summary['labels']['detectable_by_scanner']:>11}"
-        )
+        print_table(rows, label_width=max(len(f) for f in scans),
+                    widths=[9] * len(scanners) + [7, 11])
 
         print("\nrecall against planted labels (same denominator the LLM is scored on):")
         for name in (*scanners, "union"):
             s = summary["per_scanner"].get(name)
             if not s:
                 continue
+            mapped = (
+                f"   findings mapped to a label: {s['mapped_to_labels']}/{s['findings']}"
+                if "mapped_to_labels" in s
+                else ""
+            )
             print(
-                f"  {name:<8} labels detected {s['labels_detected']:>3}/{summary['labels']['total']:<3} "
+                f"  {name:<8} labels detected {s['labels_detected']:>3}/{labels['total']:<3} "
                 f"= {(s['recall_all_labels'] or 0) * 100:5.1f}%   "
-                f"(detectable subset: {(s['recall_detectable_only'] or 0) * 100:5.1f}%)"
-                + (
-                    f"   findings mapped to a label: {s['mapped_to_labels']}/{s['findings']}"
-                    if "mapped_to_labels" in s
-                    else ""
-                )
+                f"(detectable subset: {(s['recall_detectable_only'] or 0) * 100:5.1f}%){mapped}"
             )
 
         violations = labels_io.verify_label_ids(labelsets, scans)
@@ -830,53 +801,37 @@ def cmd_baseline(args: argparse.Namespace) -> int:
 
 
 def cmd_run(args: argparse.Namespace) -> int:
-    fixtures = resolve_fixtures(args.fixtures)
-    variants = _variants(args.variant)
-    scanners = _scanners(args.scanner)
-    if "stripped" in variants:
-        ensure_stripped_corpus(fixtures)
-
+    fixtures, variants, scanners = corpus(args)
     cfg = ModelConfig(
-        model=args.model or ModelConfig().model,
-        temperature=args.temperature,
-        seed=args.seed,
+        model=args.model or ModelConfig().model, temperature=args.temperature, seed=args.seed
     )
     complete_fn = _load_complete_fn(args.complete_fn)
     cache = ResponseCache(args.cache_dir)
     rc = RunConfig(
-        cfg=cfg,
-        cache=cache,
-        scanners=scanners,
+        cfg=cfg, cache=cache, scanners=scanners, complete_fn=complete_fn,
         allow_network=bool(args.fresh) and complete_fn is None,
-        complete_fn=complete_fn,
-        artifact_dir=args.artifact_dir,
-        drift_dir=args.drift_dir,
+        artifact_dir=args.artifact_dir, drift_dir=args.drift_dir,
         # Part of the cache key: an injected completion function and the live model must
         # never share a cache entry. See `cache_key`.
         completion_source=f"injected:{args.complete_fn}" if args.complete_fn else LIVE_SOURCE,
     )
     if rc.allow_network:
-        print(
-            "--fresh: cache misses WILL make live model calls and cost money.",
-            file=sys.stderr,
-        )
+        print("--fresh: cache misses WILL make live model calls and cost money.", file=sys.stderr)
 
     records: list[dict[str, Any]] = []
     started = time.time()
     try:
-        for variant in variants:
-            for run_index in range(args.seeds):
-                for fixture in fixtures:
-                    record = run_one(fixture, variant, run_index, rc)
-                    records.append(record)
-                    status = (
-                        "ERROR" if record["error"]
-                        else ("valid" if record["remediation_valid"] else "INVALID")
-                    )
-                    print(
-                        f"[{variant} run{run_index}] {record['fixture']:<32} "
-                        f"{len(record['llm_findings']):>3} findings  {status}"
-                    )
+        for variant, run_index, fixture in sweep(variants, fixtures, args.seeds):
+            record = run_one(fixture, variant, run_index, rc)
+            records.append(record)
+            status = (
+                "ERROR" if record["error"]
+                else ("valid" if record["remediation_valid"] else "INVALID")
+            )
+            print(
+                f"[{variant} run{run_index}] {record['fixture']:<32} "
+                f"{len(record['llm_findings']):>3} findings  {status}"
+            )
     except CacheMiss as exc:
         print(f"\ncache miss, and nothing was authorised to fill it:\n{exc}", file=sys.stderr)
         return 2
@@ -885,36 +840,24 @@ def cmd_run(args: argparse.Namespace) -> int:
         return 2
 
     baseline = collect_baseline(fixtures, variants, scanners)
-    doc = {
-        "schema_version": RESULTS_SCHEMA_VERSION,
-        "metadata": _metadata(
-            args,
-            cfg,
-            {
-                "kind": "full pipeline run",
-                "variants": variants,
-                "scanners": list(scanners),
-                "fixtures": [fixture_key(f) for f in fixtures],
-                "repeats": args.seeds,
-                "cache_hits": cache.hits,
-                "cache_misses": cache.misses,
-                "live_calls": rc.live_calls,
-                "completion_source": args.complete_fn or ("openai" if rc.allow_network else "cache only"),
-                "system_fingerprints": sorted(rc.fingerprints),
-                "token_usage": rc.usage.as_dict(),
-                "wall_seconds": round(time.time() - started, 1),
-                "repeats_note": (
-                    "--seeds N repeats the run N times at a FIXED model seed; it is the "
-                    "cache-key run_index that varies, not ModelConfig.seed. The question "
-                    "being asked is how much the numbers move when nothing changes."
-                ),
-            },
+    doc = document(
+        cfg, "full pipeline run",
+        fixtures=fixtures, variants=variants, scanners=scanners,
+        repeats=args.seeds,
+        cache_hits=cache.hits, cache_misses=cache.misses, live_calls=rc.live_calls,
+        completion_source=args.complete_fn or ("openai" if rc.allow_network else "cache only"),
+        system_fingerprints=sorted(rc.fingerprints),
+        token_usage=rc.usage.as_dict(),
+        wall_seconds=round(time.time() - started, 1),
+        repeats_note=(
+            "--seeds N repeats the run N times at a FIXED model seed; it is the "
+            "cache-key run_index that varies, not ModelConfig.seed. The question "
+            "being asked is how much the numbers move when nothing changes."
         ),
-        "baseline": baseline,
-        "runs": records,
-    }
-    args.out.parent.mkdir(parents=True, exist_ok=True)
-    args.out.write_text(json.dumps(doc, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    )
+    doc["baseline"] = baseline
+    doc["runs"] = records
+    write_json(args.out, doc)
     write_drift_reports(records, rc.drift_dir)
     print(
         f"\nwrote {args.out}  "
@@ -922,8 +865,7 @@ def cmd_run(args: argparse.Namespace) -> int:
     )
 
     report = M.compute_report(doc, _read_json(args.baseline_json))
-    args.results_md.parent.mkdir(parents=True, exist_ok=True)
-    args.results_md.write_text(render.render_results_md(report), encoding="utf-8")
+    write_results_md(args.results_md, report)
     print(f"wrote {args.results_md}")
 
     # A run in which the model failed is not a successful run, even though its per-record
@@ -931,12 +873,12 @@ def cmd_run(args: argparse.Namespace) -> int:
     # CI green — the exact shape of the defect this project was rebuilt to remove.
     failed = [r for r in records if r["error"]]
     if failed:
-        print(
-            f"\n{len(failed)} of {len(records)} runs failed at the model step:",
-            file=sys.stderr,
-        )
+        print(f"\n{len(failed)} of {len(records)} runs failed at the model step:", file=sys.stderr)
         for r in failed:
-            print(f"  - {r['fixture']} [{r['variant']} run{r['run_index']}]: {r['error']}", file=sys.stderr)
+            print(
+                f"  - {r['fixture']} [{r['variant']} run{r['run_index']}]: {r['error']}",
+                file=sys.stderr,
+            )
         return 3
     return 0
 
@@ -954,8 +896,7 @@ def cmd_report(args: argparse.Namespace) -> int:
         return 1
 
     report = M.compute_report(results, baseline)
-    args.out.parent.mkdir(parents=True, exist_ok=True)
-    args.out.write_text(render.render_results_md(report), encoding="utf-8")
+    write_results_md(args.out, report)
 
     if args.json:
         args.json.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -967,30 +908,6 @@ def cmd_report(args: argparse.Namespace) -> int:
         print(f"LABEL ID VIOLATION: {violation}", file=sys.stderr)
     print(f"wrote {args.out}")
     return 1 if report.get("label_id_violations") else 0
-
-
-def _read_json(path: Path | None) -> dict[str, Any] | None:
-    if path is None or not Path(path).is_file():
-        return None
-    return json.loads(Path(path).read_text(encoding="utf-8"))
-
-
-def _variants(raw: str) -> list[str]:
-    if raw == "both":
-        return list(VARIANTS)
-    chosen = [v.strip() for v in raw.split(",") if v.strip()]
-    for v in chosen:
-        if v not in VARIANTS:
-            raise SystemExit(f"unknown variant {v!r}; expected one of {VARIANTS} or 'both'")
-    return chosen
-
-
-def _scanners(raw: str) -> tuple[str, ...]:
-    chosen = tuple(s.strip().lower() for s in raw.split(",") if s.strip())
-    for s in chosen:
-        if s not in SCANNER_NAMES:
-            raise SystemExit(f"unknown scanner {s!r}; expected some of {SCANNER_NAMES}")
-    return chosen or SCANNER_NAMES
 
 
 # --------------------------------------------------------------------------------------
@@ -1009,48 +926,31 @@ def build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="command", required=True)
 
     def common(p: argparse.ArgumentParser) -> None:
-        p.add_argument(
-            "--scanner",
-            default=",".join(SCANNER_NAMES),
-            help="comma-separated scanners (default: checkov,trivy)",
-        )
-        p.add_argument(
-            "--fixtures",
-            default="",
-            help="comma-separated fixture names or stems; default is the whole corpus",
-        )
-        p.add_argument(
-            "--variant",
-            default=DEFAULT_VARIANT,
-            help="commented | stripped | both. Headline detection numbers are reported on "
-            "'stripped'; 'commented' exists to measure label leakage (default: stripped)",
-        )
+        """The corpus selectors `run` and `baseline` share, wired once."""
+        p.add_argument("--scanner", default=",".join(SCANNER_NAMES),
+                       help="comma-separated scanners (default: checkov,trivy)")
+        p.add_argument("--fixtures", default="",
+                       help="comma-separated fixture names or stems; default is the whole corpus")
+        p.add_argument("--variant", default=DEFAULT_VARIANT,
+                       help="commented | stripped | both. Headline detection numbers are reported "
+                            "on 'stripped'; 'commented' exists to measure label leakage "
+                            "(default: stripped)")
 
     p_run = sub.add_parser("run", help="execute the pipeline, honouring the cache")
     common(p_run)
-    p_run.add_argument(
-        "--seeds",
-        type=int,
-        default=1,
-        help="number of repeat runs. Repeats are reported as mean [min, max] — descriptive "
-        "statistics only; n is far too small for confidence intervals",
-    )
-    p_run.add_argument(
-        "--fresh",
-        action="store_true",
-        help="authorise LIVE model calls on a cache miss. Costs money. Without it a miss "
-        "is a hard error (fail closed)",
-    )
+    p_run.add_argument("--seeds", type=int, default=1,
+                       help="number of repeat runs. Repeats are reported as mean [min, max] — "
+                            "descriptive statistics only; n is far too small for confidence "
+                            "intervals")
+    p_run.add_argument("--fresh", action="store_true",
+                       help="authorise LIVE model calls on a cache miss. Costs money. Without it "
+                            "a miss is a hard error (fail closed)")
     p_run.add_argument("--model", default=None, help="model snapshot id (never a floating alias)")
     p_run.add_argument("--temperature", type=float, default=ModelConfig().temperature)
     p_run.add_argument("--seed", type=int, default=ModelConfig().seed)
-    p_run.add_argument(
-        "--complete-fn",
-        default=None,
-        metavar="module:attr",
-        help="inject a completion function instead of calling OpenAI. With this set, no "
-        "network call is possible",
-    )
+    p_run.add_argument("--complete-fn", default=None, metavar="module:attr",
+                       help="inject a completion function instead of calling OpenAI. With this "
+                            "set, no network call is possible")
     p_run.add_argument("--cache-dir", type=Path, default=CACHE_DIR)
     p_run.add_argument("--artifact-dir", type=Path, default=ARTIFACT_DIR)
     p_run.add_argument("--drift-dir", type=Path, default=DRIFT_DIR)

@@ -1,8 +1,6 @@
 ########################################################
-# secure_s3.tf
-#
-# Negative control. A hardened S3 data bucket plus the
-# access-log bucket it writes to.
+# Reporting data bucket, plus the access-log bucket it
+# writes to.
 ########################################################
 
 terraform {

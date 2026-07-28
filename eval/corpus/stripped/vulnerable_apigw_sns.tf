@@ -1,20 +1,8 @@
 
 
 
-
-
-
 resource "aws_api_gateway_rest_api" "notifications" {
-  name        = "notifications-api"
-  description = "Webhook intake for partner delivery events"
-
-  endpoint_configuration {
-    types = ["EDGE"]
-  }
-
-  tags = {
-    Service = "notifications"
-  }
+  name = "notifications-api"
 }
 
 resource "aws_api_gateway_resource" "events" {
@@ -64,10 +52,6 @@ resource "aws_api_gateway_method_settings" "prod_all" {
 
 resource "aws_sns_topic" "delivery_events" {
   name = "delivery-events"
-
-  tags = {
-    Service = "notifications"
-  }
 }
 
 resource "aws_sns_topic_policy" "delivery_events" {
@@ -75,15 +59,13 @@ resource "aws_sns_topic_policy" "delivery_events" {
 
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [
-      {
-        Sid       = "AllowSubscribe"
-        Effect    = "Allow"
-        Principal = "*"
-        Action    = ["SNS:Subscribe", "SNS:Receive", "SNS:Publish"]
-        Resource  = aws_sns_topic.delivery_events.arn
-      }
-    ]
+    Statement = [{
+      Sid       = "AllowSubscribe"
+      Effect    = "Allow"
+      Principal = "*"
+      Action    = ["SNS:Subscribe", "SNS:Receive", "SNS:Publish"]
+      Resource  = aws_sns_topic.delivery_events.arn
+    }]
   })
 }
 
@@ -91,11 +73,6 @@ resource "aws_sns_topic_policy" "delivery_events" {
 resource "aws_sqs_queue" "delivery_retry" {
   name                       = "delivery-retry"
   visibility_timeout_seconds = 60
-  message_retention_seconds  = 345600
-
-  tags = {
-    Service = "notifications"
-  }
 }
 
 resource "aws_sqs_queue_policy" "delivery_retry" {
@@ -103,13 +80,11 @@ resource "aws_sqs_queue_policy" "delivery_retry" {
 
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [
-      {
-        Effect    = "Allow"
-        Principal = "*"
-        Action    = "sqs:*"
-        Resource  = aws_sqs_queue.delivery_retry.arn
-      }
-    ]
+    Statement = [{
+      Effect    = "Allow"
+      Principal = "*"
+      Action    = "sqs:*"
+      Resource  = aws_sqs_queue.delivery_retry.arn
+    }]
   })
 }

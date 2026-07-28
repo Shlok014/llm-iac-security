@@ -15,7 +15,6 @@ resource "aws_iam_role" "order_worker" {
 }
 
 
-
 resource "aws_iam_role_policy" "order_worker_runtime" {
   name = "order-worker-runtime"
   role = aws_iam_role.order_worker.id
@@ -36,7 +35,6 @@ resource "aws_lambda_function" "order_processor" {
   handler       = "app.handler"
   runtime       = "python3.9"
   filename      = "build/order-processor.zip"
-  memory_size   = 512
   timeout       = 30
 
   environment {

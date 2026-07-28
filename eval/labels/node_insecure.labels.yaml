@@ -1,0 +1,160 @@
+# Hand-authored ground truth. Every checkov_id / trivy_id below was copied from a real
+# scan of this fixture (checkov 3.2.489, trivy 0.68.1) -- none were written from memory.
+# See README.md in this directory for the schema and the planted-vs-incidental rule.
+#
+# Unlike vulnerable.Dockerfile and docker_insecure.Dockerfile, this fixture carries no
+# inline comments naming its flaws, so there is no comment numbering for descriptions to
+# quote. The planted inventory is the list below and nothing else.
+#
+# Scans, run 2026-07-29:
+#   .venv/bin/checkov -f samples/node_insecure.Dockerfile -o json --compact --quiet \
+#       --framework dockerfile
+#   trivy config --quiet --format json samples/node_insecure.Dockerfile
+# checkov: 5 failed / 79 passed. trivy: 6 failed.
+# Every one of those 11 findings maps onto a label here; there are no incidental findings.
+schema_version: 1
+fixture: samples/node_insecure.Dockerfile
+framework: dockerfile
+labels:
+  - id: BASE-IMAGE-NOT-PINNED
+    resource: FROM node:latest
+    lines: [1]
+    description: "Runtime base image is the floating node:latest tag: the image contents change without any change to this file, and there is no digest to reproduce a build from"
+    category: supply-chain
+    severity_expected: medium
+    # Contrast with the label of the same id in docker_insecure.Dockerfile and
+    # vulnerable.Dockerfile, where the base is python:3.10-slim -- mutable but not
+    # 'latest', so CKV_DOCKER_7 and DS001 both PASS there and the label is
+    # detectable_by_scanner: false. Here the literal 'latest' tag makes both fire.
+    checkov_ids: [CKV_DOCKER_7]
+    trivy_ids: [DS001, AVD-DS-0001]
+    detectable_by_scanner: true
+    aliases:
+      - "latest tag"
+      - "unpinned base image"
+      - "floating tag"
+      - "pin image by digest"
+      - "non-reproducible base image"
+
+  - id: ENV-PLAINTEXT-CREDENTIALS
+    resource: ENV NPM_TOKEN
+    lines: [13, 14, 15]
+    description: "Three credentials are baked into image layers as ENV: a registry publish token, a JWT signing key, and a database URL with the password inline. All three are readable by anyone who can run docker inspect or pull the image."
+    category: secrets
+    severity_expected: critical
+    # Checkov's dockerfile framework has no hard-coded-secret rule at all; --framework
+    # secrets would catch these but iac_agent does not run it.
+    checkov_ids: []
+    # DS031 fires twice, on line 13 (NPM_TOKEN) and line 14 (JWT_SIGNING_KEY). It does NOT
+    # fire on line 15: DS031 matches on the variable *name*, and DATABASE_URL is not in its
+    # keyword list even though the value contains the password. One label covers all three
+    # because a reviewer would report them as one mistake.
+    trivy_ids: [DS031, AVD-DS-0031]
+    detectable_by_scanner: true
+    aliases:
+      - "hardcoded credentials"
+      - "secrets in ENV"
+      - "plaintext password"
+      - "npm token in image"
+      - "jwt signing key"
+      - "database url with password"
+
+  - id: NPM-INSECURE-REGISTRY-CONFIG
+    resource: RUN npm config set strict-ssl false
+    lines: [21, 22, 23]
+    description: "The npm client is reconfigured to skip TLS certificate validation and to fetch packages from a plaintext http:// registry, then runs install with --unsafe-perm. Dependencies are fetched over a channel any on-path attacker can rewrite, and install scripts run as root."
+    category: supply-chain
+    severity_expected: high
+    checkov_ids: [CKV2_DOCKER_13]
+    # Nothing in trivy's dockerfile ruleset covers npm registry configuration.
+    trivy_ids: []
+    detectable_by_scanner: true
+    aliases:
+      - "strict-ssl false"
+      - "tls verification disabled"
+      - "certificate validation disabled"
+      - "http registry"
+      - "insecure npm registry"
+      - "unsafe-perm"
+
+  - id: REMOTE-SCRIPT-PIPED-TO-SHELL
+    resource: RUN curl -fsSL https://get.northwind.net/telemetry/install.sh | bash
+    lines: [25]
+    description: "A remote script is downloaded and executed in one step during the build, with no checksum and no pinned version. Whoever controls that URL controls the image."
+    category: supply-chain
+    severity_expected: high
+    # No rule in either scanner covers curl-piped-to-shell. Checkov's CKV2_DOCKER_2 is
+    # about curl being told to skip certificate validation (curl -k), not about piping its
+    # output to a shell, and it PASSES here. Trivy's DS014 flags using wget and curl in the
+    # same image, not this, and it also PASSES.
+    checkov_ids: []
+    trivy_ids: []
+    detectable_by_scanner: false
+    aliases:
+      - "curl pipe to shell"
+      - "curl | bash"
+      - "remote code execution at build time"
+      - "unverified remote script"
+
+  - id: EXPOSE-SSH-PORT-22
+    resource: EXPOSE 3000 9229 22
+    lines: [30]
+    description: "Port 22 is declared on an image that contains no SSH server, advertising a shell-access surface on a container that should have none"
+    category: network-open
+    severity_expected: medium
+    checkov_ids: [CKV_DOCKER_1]
+    trivy_ids: [DS004, AVD-DS-0004]
+    detectable_by_scanner: true
+    aliases:
+      - "ssh port exposed"
+      - "port 22"
+      - "expose 22"
+
+  - id: NODE-DEBUGGER-EXPOSED
+    resource: CMD ["node", "--inspect=0.0.0.0:9229", "src/server.js"]
+    lines: [30, 32]
+    description: "The production entrypoint starts the V8 inspector bound to 0.0.0.0 and port 9229 is exposed. The inspector protocol is unauthenticated: reaching it is arbitrary code execution inside the container."
+    category: public-exposure
+    severity_expected: critical
+    # Neither scanner models what a CMD argument does. Checkov's CKV_DOCKER_1 covers port
+    # 22 only; trivy's DS004 likewise, and DS008 (exposed port out of range) PASSES because
+    # 9229 is a legal port number.
+    checkov_ids: []
+    trivy_ids: []
+    detectable_by_scanner: false
+    aliases:
+      - "node inspector exposed"
+      - "debug port"
+      - "--inspect bound to all interfaces"
+      - "9229"
+      - "remote debugger enabled in production"
+
+  - id: CONTAINER-RUNS-AS-ROOT
+    resource: image
+    lines: []
+    description: "No USER instruction, so the application process runs as uid 0"
+    category: container-hardening
+    severity_expected: high
+    checkov_ids: [CKV_DOCKER_3]
+    trivy_ids: [DS002, AVD-DS-0002]
+    detectable_by_scanner: true
+    aliases:
+      - "runs as root"
+      - "no USER instruction"
+      - "non-root user"
+      - "drop privileges"
+      - "root user"
+
+  - id: HEALTHCHECK-MISSING
+    resource: image
+    lines: []
+    description: "No HEALTHCHECK instruction, so the orchestrator cannot tell a wedged container from a healthy one"
+    category: container-hardening
+    severity_expected: low
+    checkov_ids: [CKV_DOCKER_2]
+    trivy_ids: [DS026, AVD-DS-0026]
+    detectable_by_scanner: true
+    aliases:
+      - "no healthcheck"
+      - "missing HEALTHCHECK"
+      - "liveness probe"

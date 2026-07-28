@@ -1,9 +1,6 @@
 
 
 
-
-
-
 resource "aws_kms_key" "billing_exports" {
   description             = "CMK for nightly billing exports"
   deletion_window_in_days = 7
@@ -11,15 +8,13 @@ resource "aws_kms_key" "billing_exports" {
 
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [
-      {
-        Sid       = "AllowAccountUse"
-        Effect    = "Allow"
-        Principal = "*"
-        Action    = ["kms:Encrypt", "kms:Decrypt", "kms:GenerateDataKey*"]
-        Resource  = "*"
-      }
-    ]
+    Statement = [{
+      Sid       = "AllowAccountUse"
+      Effect    = "Allow"
+      Principal = "*"
+      Action    = ["kms:Encrypt", "kms:Decrypt", "kms:GenerateDataKey*"]
+      Resource  = "*"
+    }]
   })
 
   tags = {
@@ -57,10 +52,6 @@ resource "aws_cloudtrail" "account_activity" {
 
 resource "aws_cloudwatch_log_group" "api_access" {
   name = "/acme/api/access"
-
-  tags = {
-    Service = "api"
-  }
 }
 
 resource "aws_cloudwatch_log_group" "worker_events" {

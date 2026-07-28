@@ -1,10 +1,6 @@
 ########################################################
-# secure_minimal.tf
-#
-# Negative control: the smallest realistic Terraform file
-# this corpus contains that has nothing wrong with it.
-# A customer-managed KMS key with rotation on, and one
-# log group encrypted with it and given a retention period.
+# Log encryption key and application log group for the
+# reporting service.
 ########################################################
 
 terraform {

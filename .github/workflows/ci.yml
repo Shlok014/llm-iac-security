@@ -14,12 +14,21 @@ on:
   pull_request:
   workflow_dispatch:
 
+# Least privilege, stated explicitly because the default `GITHUB_TOKEN` grant is much
+# broader than this job needs. All it does is read the repository and run tests: it never
+# pushes, never comments, never touches a release or a package. Anything that needs more
+# than `contents: read` here is a change worth arguing about in review.
 permissions:
   contents: read
 
+# Supersede in-flight runs of the same ref instead of queueing them: pushing three times to
+# a branch in a minute should cost one CI run, not three.
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # ...but never cancel a run on `main`. A cancelled run leaves that commit with no status,
+  # which is indistinguishable from a run that has not started, and `main` is the ref whose
+  # history is meant to still be readable months from now.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   test:
@@ -27,7 +36,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
+      # `persist-credentials: false` keeps the GITHUB_TOKEN out of `.git/config`. This job
+      # runs checkov and trivy rulesets over `samples/`, which is deliberately hostile
+      # input, and it never pushes anything — so the token has no reason to be sitting on
+      # disk where a subprocess could read it.
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       # 3.13 is the version every measured number in docs/ was produced on. `requires-python`
       # allows 3.11–3.13; the upper bound is real — checkov 3.2.489 crashes on 3.14.

@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from iac_agent.types import Finding, IaCType, ScanResult
+from iac_agent.validity import DriftReport
 
 from . import REPO_ROOT
 
@@ -106,6 +107,25 @@ def scan_to_dict(s: ScanResult) -> dict[str, Any]:
         "failed_count": s.failed_count,
         "passed_count": s.passed_count,
         "parse_errors": s.parse_errors,
+    }
+
+
+def drift_to_dict(d: DriftReport) -> dict[str, Any]:
+    """Serialise a drift report. `metrics.drift_metrics` reads back exactly these keys.
+
+    Here rather than at the call site in `run_eval.py` for the same reason `scan_to_dict`
+    is: the writer and the reader of `results.json` must not hold two spellings of the same
+    record. Drift is the block least able to survive a rename — a missing `deleted` list
+    reads as "the model deleted nothing", which is precisely the finding the drift gate
+    exists to make impossible to lose.
+    """
+    return {
+        "deleted": [r.address for r in d.deleted],
+        "added": [r.address for r in d.added],
+        "renamed": [[b.address, a.address] for b, a in d.renamed],
+        "type_count_drops": {k: list(v) for k, v in d.type_count_drops.items()},
+        "drifted": d.drifted,
+        "summary": d.summary(),
     }
 
 

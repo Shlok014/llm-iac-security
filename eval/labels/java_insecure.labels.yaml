@@ -1,0 +1,158 @@
+# Hand-authored ground truth. Every checkov_id / trivy_id below was copied from a real
+# scan of this fixture (checkov 3.2.489, trivy 0.68.1) -- none were written from memory.
+# See README.md in this directory for the schema and the planted-vs-incidental rule.
+#
+# Like node_insecure.Dockerfile, this fixture carries no inline comments naming its flaws;
+# the planted inventory is the list below and nothing else.
+#
+# This is a multi-stage build. Only the runtime stage (line 9 onwards) ships, so the
+# maven builder stage is deliberately clean -- it is there to make the file realistic and
+# to give a scanner somewhere to over-report.
+#
+# Scans, run 2026-07-29:
+#   .venv/bin/checkov -f samples/java_insecure.Dockerfile -o json --compact --quiet \
+#       --framework dockerfile
+#   trivy config --quiet --format json samples/java_insecure.Dockerfile
+# checkov: 4 failed / 76 passed. trivy: 5 failed.
+# Every one of those 9 findings maps onto a label here; there are no incidental findings.
+schema_version: 1
+fixture: samples/java_insecure.Dockerfile
+framework: dockerfile
+labels:
+  - id: BASE-IMAGE-NOT-PINNED
+    resource: FROM eclipse-temurin:latest
+    lines: [9]
+    description: "The runtime stage is built on the floating eclipse-temurin:latest tag, so the JRE underneath a released build can change without any change to this file. The builder stage on line 1 pins maven:3.9.6-eclipse-temurin-17, which makes the runtime stage the only unpinned one."
+    category: supply-chain
+    severity_expected: medium
+    # Both rules fire on line 9 (the runtime stage) and PASS on line 1 (the pinned builder
+    # stage), which is why checkov reports CKV_DOCKER_7 once rather than twice.
+    checkov_ids: [CKV_DOCKER_7]
+    trivy_ids: [DS001, AVD-DS-0001]
+    detectable_by_scanner: true
+    aliases:
+      - "latest tag"
+      - "unpinned base image"
+      - "floating tag"
+      - "pin image by digest"
+      - "non-reproducible base image"
+
+  - id: ENV-PLAINTEXT-CREDENTIALS
+    resource: ENV KEYSTORE_PASSWORD
+    lines: [15, 16]
+    description: "The TLS keystore password and the Spring datasource password are baked into image layers as ENV, readable by anyone who can docker inspect or pull the image"
+    category: secrets
+    severity_expected: critical
+    # Checkov's dockerfile framework has no hard-coded-secret rule at all; --framework
+    # secrets would catch these but iac_agent does not run it.
+    checkov_ids: []
+    # DS031 fires twice, once on line 15 and once on line 16. One label covers both
+    # because a reviewer would report them as one mistake.
+    trivy_ids: [DS031, AVD-DS-0031]
+    detectable_by_scanner: true
+    aliases:
+      - "hardcoded credentials"
+      - "secrets in ENV"
+      - "plaintext password"
+      - "keystore password"
+      - "datasource password"
+
+  - id: JMX-REMOTE-UNAUTHENTICATED
+    resource: ENV JAVA_TOOL_OPTIONS
+    lines: [17, 34]
+    description: "JAVA_TOOL_OPTIONS turns on the JMX remote agent on port 9010 with authenticate=false and ssl=false, and port 9010 is exposed. Unauthenticated JMX allows an attacker to read and write MBean attributes and, on most Spring stacks, to load a remote MLet -- remote code execution with no credential."
+    category: public-exposure
+    severity_expected: critical
+    # Neither scanner interprets the contents of a JVM options string. Checkov and trivy
+    # both only model the EXPOSE list itself (CKV_DOCKER_1 / DS004 for port 22, DS008 for
+    # out-of-range ports), and 9010 trips none of them.
+    checkov_ids: []
+    trivy_ids: []
+    detectable_by_scanner: false
+    aliases:
+      - "jmx without authentication"
+      - "jmxremote.authenticate=false"
+      - "jmx ssl disabled"
+      - "unauthenticated management interface"
+      - "port 9010"
+
+  - id: JDWP-DEBUG-AGENT-ENABLED
+    resource: ENV JAVA_TOOL_OPTIONS
+    lines: [22, 34]
+    description: "The same options string attaches the JDWP debug agent listening on all interfaces on port 5005, and port 5005 is exposed. JDWP has no authentication of any kind; anyone who can reach the port can execute arbitrary code in the JVM."
+    category: public-exposure
+    severity_expected: critical
+    # Same blind spot as JMX-REMOTE-UNAUTHENTICATED: the flaw is in the value of an ENV,
+    # and no dockerfile rule in either scanner parses it.
+    checkov_ids: []
+    trivy_ids: []
+    detectable_by_scanner: false
+    aliases:
+      - "jdwp enabled"
+      - "debug agent in production"
+      - "remote debugger enabled"
+      - "agentlib:jdwp"
+      - "port 5005"
+
+  - id: ADD-USED-FOR-REMOTE-ARCHIVE
+    resource: ADD https://artifacts.northwind.net/agents/apm-agent-4.2.1.jar
+    lines: [29]
+    description: "An APM agent jar is pulled from a remote URL with ADD at build time, with no checksum and no signature check, and then loaded into the JVM. Whoever controls that host controls code running inside the application."
+    category: supply-chain
+    severity_expected: medium
+    checkov_ids: [CKV_DOCKER_4]
+    # Trivy's DS005 ("ADD instead of COPY") PASSES here: it permits ADD when the source is
+    # a remote URL, which is exactly this case. Checkov-only detection, same as the label
+    # of this id in vulnerable.Dockerfile and docker_insecure.Dockerfile.
+    trivy_ids: []
+    detectable_by_scanner: true
+    aliases:
+      - "ADD instead of COPY"
+      - "remote artifact fetched at build time"
+      - "unverified download"
+      - "no checksum"
+
+  - id: WORLD-WRITABLE-APP-DATA-DIR
+    resource: RUN chmod -R 777 /opt/app/work /opt/app/logs
+    lines: [31, 32]
+    description: "The working and log directories are made world-writable, so any process in the container -- including one running as a different, lower-privileged user -- can rewrite application state and tamper with the audit trail"
+    category: container-hardening
+    severity_expected: medium
+    # No rule in either scanner inspects file modes set by RUN chmod.
+    checkov_ids: []
+    trivy_ids: []
+    detectable_by_scanner: false
+    aliases:
+      - "chmod 777"
+      - "world writable directory"
+      - "overly permissive file permissions"
+
+  - id: CONTAINER-RUNS-AS-ROOT
+    resource: image
+    lines: []
+    description: "No USER instruction in the runtime stage, so the JVM runs as uid 0"
+    category: container-hardening
+    severity_expected: high
+    checkov_ids: [CKV_DOCKER_3]
+    trivy_ids: [DS002, AVD-DS-0002]
+    detectable_by_scanner: true
+    aliases:
+      - "runs as root"
+      - "no USER instruction"
+      - "non-root user"
+      - "drop privileges"
+      - "root user"
+
+  - id: HEALTHCHECK-MISSING
+    resource: image
+    lines: []
+    description: "No HEALTHCHECK instruction, so the orchestrator cannot tell a wedged JVM from a healthy one"
+    category: container-hardening
+    severity_expected: low
+    checkov_ids: [CKV_DOCKER_2]
+    trivy_ids: [DS026, AVD-DS-0026]
+    detectable_by_scanner: true
+    aliases:
+      - "no healthcheck"
+      - "missing HEALTHCHECK"
+      - "liveness probe"

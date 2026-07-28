@@ -1,0 +1,88 @@
+name: Bug report
+description: The tool crashed, hung, or did something other than what it documents.
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before filing, two checks that resolve most reports in under a minute:
+
+        - `.venv/bin/python -V` must print **3.11.x, 3.12.x or 3.13.x**. On 3.14 checkov
+          3.2.489 crashes on import with
+          `AttributeError: 'wrapper_descriptor' object has no attribute '__annotate__'`.
+          On macOS a bare `python3` is usually 3.14.
+        - `python -m checkov` fails on every Python version — checkov ships no `__main__`
+          module. This project always invokes the console script.
+
+        If the tool reported a finding you believe is wrong, use the
+        **False positive** form instead; it asks for different things.
+
+  - type: textarea
+    id: command
+    attributes:
+      label: The exact command
+      description: Copy and paste it, including the interpreter path. No paraphrasing.
+      render: shell
+      placeholder: .venv/bin/iac-agent scan samples/vulnerable_main.tf --scanner both
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected, and what happened instead
+      description: >-
+        Include the **exit code** (`echo $?`). It is part of the contract: `0` clean,
+        `1` findings, `2` a scanner could not produce a trustworthy result, `3` the model
+        layer failed. An exit code outside that set is itself the bug.
+    validations:
+      required: true
+
+  - type: textarea
+    id: output
+    attributes:
+      label: Full output or traceback
+      description: >-
+        Re-run with `--traceback` if it raised. Please do not truncate the traceback to the
+        last line — the frame that matters is usually not there.
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: versions
+    attributes:
+      label: Versions
+      description: Paste the output of these four commands.
+      render: shell
+      value: |
+        .venv/bin/python -V
+        .venv/bin/python -m pip show checkov | head -2
+        trivy --version | head -1
+        uname -sm
+    validations:
+      required: true
+
+  - type: textarea
+    id: input
+    attributes:
+      label: Minimal IaC input that reproduces it
+      description: >-
+        The smallest `.tf` or `Dockerfile` that still triggers it. **Redact anything real** —
+        account ids, ARNs, bucket names, internal hostnames. If it only reproduces on a file
+        you cannot share, say so and describe its shape instead.
+      render: hcl
+
+  - type: checkboxes
+    id: no-key
+    attributes:
+      label: Does it need an API key?
+      options:
+        - label: >-
+            This reproduces on a path that makes no model call (`scan`, `make test`,
+            `make baseline`, `make report`) — i.e. it can be reproduced for free.
+        - label: >-
+            This is on the `fix` / `--fresh` path and does involve a live model call. I have
+            not pasted my API key, a prompt containing secrets, or a raw `.env` anywhere in
+            this issue.

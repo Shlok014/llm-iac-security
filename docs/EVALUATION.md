@@ -812,12 +812,25 @@ and that is what will be written.
 
 Ordered roughly by how much they should reduce confidence in the headline numbers.
 
-**T1 — Synthetic corpus.** All six fixtures were written to be vulnerable, by the people evaluating
-the tool. Flaw density is far above anything in production, the flaws are textbook cases
-over-represented in both scanner rulesets and model training data, and there are no correct files to
-generate false positives against. Results transfer to real Terraform repositories only as a very
-loose upper bound. *Mitigation: none currently. Adding hardened counterparts and a sample of
-real-world open-source Terraform is the highest-value next step.*
+**T1 — Synthetic corpus.** Every evaluated fixture was written to be vulnerable, by the people
+evaluating the tool. Flaw density is far above anything in production, and the flaws are textbook
+cases over-represented in both scanner rulesets and model training data. Results transfer to real
+Terraform repositories only as a very loose upper bound.
+
+*Partially mitigated since the published run.* Two things changed and neither is reflected in the
+numbers above:
+
+- `samples/secure/` now provides **hardened negative controls** — realistic secure IaC scoring
+  zero findings from both scanners — so false alarms on correct infrastructure become measurable
+  for the first time.
+- Six further vulnerable fixtures were added covering Lambda, EKS, KMS/CloudTrail and API
+  Gateway/SNS, and unlike the original six they carry **no flaw-naming comments and no
+  give-away resource names**, so they are uncontaminated by construction rather than by
+  post-processing.
+
+*Still outstanding, and still the highest-value next step: a sample of real-world open-source
+Terraform. Synthetic-but-uncontaminated is better than synthetic-and-annotated; it is not the
+same as organic.*
 
 **T2 — Sample size.** Six fixtures, 14 Terraform resources, two file types, 52 labels `MEASURED`.
 Every per-fixture number is effectively an anecdote, and the corpus is badly unbalanced in two

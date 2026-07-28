@@ -32,7 +32,6 @@ resource "aws_eks_cluster" "platform" {
   }
 }
 
-
 resource "aws_ecr_repository" "report_renderer" {
   name                 = "report-renderer"
   image_tag_mutability = "MUTABLE"

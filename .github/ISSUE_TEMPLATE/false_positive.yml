@@ -1,0 +1,146 @@
+name: False positive
+description: The tool flagged something that is not actually a misconfiguration.
+title: "[false-positive] "
+labels: ["false-positive"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A wrong finding is expensive in a way a crash is not: it costs a reviewer's trust,
+        and after enough of them people stop reading the output at all. So these get their
+        own form.
+
+        One thing to establish before anything else, because it decides where the fix
+        belongs: **this repository does not author scanner rules.** It runs checkov and
+        trivy, normalises their output into a common `Finding` shape, deduplicates, and
+        gates on it. So a wrong finding is one of three different bugs:
+
+        1. the **upstream rule** is wrong or too broad → belongs in checkov's or trivy's
+           tracker, though we still want to know, because we may need to document it;
+        2. **our normalisation** dropped or mangled context — wrong resource id, wrong
+           severity, a merged or duplicated finding, the wrong ruleset because the file was
+           routed by the wrong name → belongs here;
+        3. the **eval label matcher** counted a real finding as matching the wrong planted
+           flaw → belongs here, and it changes a published number.
+
+        You do not have to work out which one it is. The fields below are what lets us.
+
+  - type: input
+    id: rule-id
+    attributes:
+      label: Rule id
+      description: >-
+        **Copy this from the output — do not type it from memory.** Mis-remembered rule ids
+        are a documented defect in this project's history: `CKV_AWS_3` is EBS encryption,
+        not security groups, and `CKV_AWS_7` is CMK rotation, not IAM wildcards. Both
+        "sounded right". See ERRATA.md, E2.
+      placeholder: CKV_AWS_20   (checkov)   or   AVD-AWS-0092   (trivy)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: source
+    attributes:
+      label: What produced the finding?
+      options:
+        - checkov
+        - trivy
+        - the LLM detection step (iac-agent fix / eval, not a scanner)
+        - the drift gate (it called a genuine fix a deletion)
+        - the eval label matcher (a finding was scored against the wrong planted flaw)
+        - not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: command
+    attributes:
+      label: The exact command
+      render: shell
+      placeholder: .venv/bin/iac-agent scan path/to/main.tf --scanner both
+    validations:
+      required: true
+
+  - type: textarea
+    id: snippet
+    attributes:
+      label: The IaC that was flagged
+      description: >-
+        The smallest `.tf` or `Dockerfile` that still produces the finding — ideally
+        something we can paste into a file and run. **Redact anything real**: account ids,
+        ARNs, bucket names, internal hostnames, key material. If context outside the snippet
+        is what makes it safe (a separate `aws_s3_bucket_public_access_block`, a module
+        wrapper, a provider default), include that too — it is very often the whole answer.
+      render: hcl
+    validations:
+      required: true
+
+  - type: textarea
+    id: reported
+    attributes:
+      label: What the tool actually reported
+      description: >-
+        Paste the finding verbatim, not a summary. Include the resource id it named and the
+        line it pointed at, since "right rule, wrong resource" is a different bug from
+        "wrong rule". Note that checkov's community edition reports **no severity at all**
+        (`unknown` in our output) — severities come only from trivy, so a report of "checkov
+        said HIGH" tells us the finding was mis-attributed.
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: why-wrong
+    attributes:
+      label: Why you believe this is wrong
+      description: >-
+        The most useful thing you can write. What makes this configuration actually safe, or
+        makes the rule inapplicable? Link the provider or CIS documentation if there is any.
+        "It's a false positive" without a reason cannot be acted on, and we will not close a
+        security check on an assertion.
+      placeholder: >-
+        e.g. the bucket is private by default since AWS S3 changed the default ACL in April
+        2023, and the rule assumes the pre-2023 default — so this fires on every bucket that
+        simply omits `acl`.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What should have happened instead
+      description: >-
+        Not reported at all? Reported against a different resource? Reported at a different
+        severity? Reported, but not allowed to fail the CI gate?
+    validations:
+      required: true
+
+  - type: textarea
+    id: versions
+    attributes:
+      label: Scanner versions
+      description: >-
+        Required, because a finding is a property of a ruleset version as much as of the
+        file. Every number published in this repository was measured against checkov 3.2.489
+        and trivy 0.68.1.
+      render: shell
+      value: |
+        .venv/bin/python -m pip show checkov | head -2
+        trivy --version | head -1
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: Please confirm
+      options:
+        - label: >-
+            This is not about `samples/` or `eval/corpus/`. Everything in there is
+            deliberately insecure test-fixture IaC with fake placeholder credentials —
+            scanners flagging it is the point (see SECURITY.md).
+          required: true
+        - label: >-
+            I have redacted every real identifier, hostname and credential from the snippet
+            and the output above.
+          required: true

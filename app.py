@@ -331,18 +331,21 @@ def _render_drift_primer(compact: bool) -> None:
         """
 ### The drift gate
 
-Any tool that reports "findings went from 37 to 4" is asking you to trust that the 33 that
-vanished were *fixed*. There is a much cheaper way to get that number:
+Any tool that tells you the finding count fell is asking you to trust that the findings which
+vanished were *fixed*. There is a much cheaper way to make them vanish:
 
 ```hcl
-# before                        # after
+# the file the scanner complained about
 resource "aws_s3_bucket" "b" {
   acl = "public-read"
 }
+
+# a rewrite that scores perfectly:
+# (nothing — the resource was deleted)
 ```
 
 Delete the resource and every finding attached to it disappears. The file scans clean. The
-infrastructure it described is simply gone.
+infrastructure it described is simply gone, which is a worse outcome than the finding.
 
 **What this tool does instead.** Each candidate rewrite goes through gates, in this order:
 
@@ -782,27 +785,33 @@ def _render_fix(payload: dict) -> None:
                 )
     with tabs[2]:
         if payload["iterations"]:
+            detail = pd.DataFrame(
+                [
+                    {
+                        "iteration": record["index"],
+                        "verdict": f"{_verdict(record)[0]} {_verdict(record)[1]}",
+                        "findings": record["findings"],
+                        "drift checked": record["drift_checked"],
+                        "reason": record["reason"],
+                        "tokens": record["tokens"],
+                        "returned": record["is_best"],
+                    }
+                    for record in payload["iterations"]
+                ]
+            )
+            # An unscanned candidate has no count; a nullable integer says "no value"
+            # rather than coercing it to a number that would read as zero findings.
+            detail["findings"] = pd.to_numeric(
+                detail["findings"], errors="coerce"
+            ).astype("Int64")
             st.dataframe(
-                pd.DataFrame(
-                    [
-                        {
-                            "iteration": record["index"],
-                            "verdict": f"{_verdict(record)[0]} {_verdict(record)[1]}",
-                            "findings": pd.NA
-                            if record["findings"] is None
-                            else record["findings"],
-                            "drift checked": record["drift_checked"],
-                            "reason": record["reason"],
-                            "tokens": record["tokens"],
-                            "returned": record["is_best"],
-                        }
-                        for record in payload["iterations"]
-                    ]
-                ),
+                detail,
                 hide_index=True,
                 column_config={
                     "findings": st.column_config.NumberColumn(
-                        "findings", help="Empty means the candidate was never scanned."
+                        "findings",
+                        help="Blank means the candidate was rejected and never scanned — "
+                        "it is not a zero.",
                     ),
                     "reason": st.column_config.TextColumn("reason", width="large"),
                 },
@@ -887,12 +896,14 @@ with st.sidebar:
                 f"No usable fixtures found in `{SAMPLES_DIR.name}/`. Switch to **Upload**."
             )
         else:
-            chosen = st.selectbox(
+            by_name = {path.name: path for path in samples}
+            picked = st.selectbox(
                 "Fixture",
-                samples,
-                format_func=lambda p: p.name,
-                help="Listed from samples/ at page load, so new fixtures appear here.",
+                list(by_name),
+                help="Listed from samples/ at page load, so fixtures added to the repo "
+                "appear here without touching this file.",
             )
+            chosen = by_name[picked]
             try:
                 input_code = chosen.read_text(encoding="utf-8")
                 input_name = chosen.name
@@ -1040,7 +1051,7 @@ with tab_run:
         with st.expander(f"Input — `{input_name}`", expanded=False):
             st.code(
                 input_code,
-                language=_language(detect_iac_type(input_name).value),
+                language=_language_of(input_name),
                 line_numbers=True,
                 height=420,
             )

@@ -1,9 +1,6 @@
 ########################################################
-# secure_network.tf
-#
-# Negative control. A private VPC with flow logs, a locked
-# down default security group, and an application security
-# group whose rules are scoped to the VPC CIDR.
+# Core VPC for the reporting platform: private subnets,
+# flow logs, and the application security group.
 ########################################################
 
 terraform {

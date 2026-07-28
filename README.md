@@ -178,10 +178,15 @@ being reported as a clean scan.
 
 ## Evaluation
 
-Ground truth lives in [`eval/labels/`](eval/labels/) — 52 planted flaws across 6 fixtures, each
-mapped to the scanner rule IDs that fire on it. **Every ID was copied from live scanner output,
-never written from memory.** 24 of the 52 are invisible to both scanners; that gap is the honest
-headroom for an LLM, and the only defensible basis for claiming one adds value.
+Ground truth lives in [`eval/labels/`](eval/labels/) — planted flaws mapped to the scanner rule
+IDs that fire on them. **Every ID was copied from live scanner output, never written from
+memory.** The evaluated subset is 52 flaws across 6 fixtures, of which **24 are invisible to both
+scanners**; that gap is the honest headroom for an LLM, and the only defensible basis for
+claiming one adds value.
+
+`samples/secure/` holds the negative controls — realistic, genuinely secure IaC scoring **zero
+findings** from both scanners. Without clean files there is no way to measure false alarms on
+correct infrastructure, and "does it cry wolf?" is a fair question to ask a security tool.
 
 The fixtures annotate their own planted flaws in comments (`# <- public-read is insecure`), so
 scoring detection on them as-written is contaminated — the model can read the answer key.
@@ -196,8 +201,11 @@ Method, formulas and threats to validity: [`docs/EVALUATION.md`](docs/EVALUATION
 
 ## Limitations
 
-- **6 synthetic fixtures, hand-written to be vulnerable.** These results show the pipeline works
-  and is measurable. They say nothing about organically-written IaC.
+- **The published numbers cover 6 synthetic fixtures**, hand-written to be vulnerable. They show
+  the pipeline works and is measurable; they say nothing about organically-written IaC.
+  The corpus has since grown to 12 vulnerable fixtures plus 3 secure negative controls, but the
+  evaluation above has **not** been re-run across it — that is the obvious next step and is not
+  quietly implied to have happened. `make report` reproduces exactly what is published, no more.
 - **n = 3 seeds.** Descriptive statistics only — `mean [min, max]`. No confidence intervals, no
   significance tests, no claim that one configuration beats another. Trivy's delta in particular
   ranges 35.1%–68.4% across seeds, so treat the mean as indicative rather than as a result.

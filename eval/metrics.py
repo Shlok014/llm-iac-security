@@ -41,6 +41,7 @@ lines of markdown emission to find the next one.
 from __future__ import annotations
 
 import math
+import re
 import statistics
 from dataclasses import dataclass
 from pathlib import Path
@@ -716,6 +717,31 @@ def drift_metrics(records: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
 # --------------------------------------------------------------------------------------
 
 
+_AVD_DOCKER_ALIAS = re.compile(r"^AVD-DS-0*(\d+)$", re.IGNORECASE)
+
+
+def normalise_rule_id(rule_id: str) -> str:
+    """Canonicalise a scanner rule id so a label and a finding can be compared.
+
+    Trivy publishes two identifiers for every Dockerfile rule and emits them in different
+    fields of the same object: `ID` is `DS002`, `AVDID` is `AVD-DS-0002`. Both are real and
+    both appear in Trivy's own documentation, so a label author reading the docs and a
+    `Finding` built from `ID` can disagree while both being correct.
+
+    Left unnormalised the mismatch is *silent*: `map_scanner_findings` joins on `rule_id`,
+    so every Dockerfile label written in the AVD form scores as a miss and recall is
+    understated with nothing in the output to indicate why. That is the quiet-wrong-number
+    failure this project exists to avoid, so the join is made tolerant rather than the
+    label files being made to guess a format.
+
+    Terraform ids are unaffected — Trivy emits `AVD-AWS-0092` in the `ID` field there, so
+    the AVD form *is* canonical for those and passes through untouched.
+    """
+    text = (rule_id or "").strip()
+    match = _AVD_DOCKER_ALIAS.match(text)
+    return f"DS{int(match.group(1)):03d}" if match else text
+
+
 def map_scanner_findings(
     scan: ScanResult, labelset: LabelSet, scanner: str
 ) -> tuple[int, set[str]]:
@@ -736,8 +762,9 @@ def map_scanner_findings(
     mapped = 0
     hit: set[str] = set()
     for finding in scan.failed:
+        found = normalise_rule_id(finding.rule_id)
         for label in labelset.labels:
-            if finding.rule_id in label.scanner_ids(scanner):
+            if found in {normalise_rule_id(i) for i in label.scanner_ids(scanner)}:
                 mapped += 1
                 hit.add(label.id)
                 break
