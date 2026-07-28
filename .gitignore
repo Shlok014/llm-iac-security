@@ -19,3 +19,6 @@ temp_*
 
 # macOS
 .DS_Store
+
+# Session handoff note — local only, not part of the public repo
+HANDOFF.md
