@@ -211,9 +211,16 @@ apparent detection capability was reading the answer key:
 leakage = recall(commented) - recall(stripped)
 ```
 
-`PENDING`. A large positive gap means the headline detection number was mostly comment
-comprehension. A gap near zero means the model was finding flaws from the code. Either result is
-publishable and the second is not assumed.
+**Measured: 13.5 points** — 52.6% recall on the commented corpus against 39.1% on the stripped
+one, over 3 seeds. Roughly a quarter of the model's apparent detection ability was comprehension
+of the fixtures' own explanatory comments rather than of the code. A gap near zero would have
+meant the model was reading the code; it is not near zero. Either result was publishable and the
+favourable one was not assumed.
+
+This is a **lower bound**. Stripping removes comments, not hints: resource names like
+`insecure_sg` and string literals inside heredocs still signal the planted flaw. The fixtures
+added after this measurement avoid both, so they are uncontaminated by construction rather than
+by post-processing — see [§2.1](#21-the-corpus).
 
 **All headline detection numbers in `eval/results/RESULTS.md` are reported on the stripped
 variants.** The commented variants are run only to produce the leakage figure.
@@ -695,11 +702,21 @@ observes its own output through a scanner, decides whether to continue, and term
 explicit stop condition is the thing that makes the term meaningful, and the distinction is not
 cosmetic — it is the difference between B5 being an experiment and being a blank row.
 
-| Ablation | Iterations to converge | Findings resolved | Introduced | Drift rate | Tokens |
-|---|---:|---:|---:|---:|---:|
-| No loop (single pass) | 1 | `PENDING` | `PENDING` | `PENDING` | `PENDING` |
-| Loop, max 3 | `PENDING` | `PENDING` | `PENDING` | `PENDING` | `PENDING` |
-| Loop, max 5 | `PENDING` | `PENDING` | `PENDING` | `PENDING` | `PENDING` |
+> **Not yet run.** This is the one experiment in this document that has no numbers behind it, and
+> it is listed here as designed-but-unmeasured rather than quietly dropped.
+>
+> It is now a *real* experiment — it was vacuous while the pipeline was a straight line, because
+> removing a feedback edge that fed into nothing changed no output. With the loop implemented,
+> comparing `--max-iters 1` against `3` and `5` measures whether iteration actually buys
+> anything or merely spends tokens. Running it costs roughly one extra full evaluation
+> (~$0.50 at gpt-4o-mini rates) and needs no new code:
+>
+> ```bash
+> for n in 1 3 5; do python -m eval.run_eval run --fresh --max-iters "$n" --out "eval/results/ablation-$n.json"; done
+> ```
+>
+> The columns it would fill: iterations to converge, findings resolved, introduced, drift rate,
+> tokens. Until then, no claim is made in either direction about whether the loop helps.
 
 ---
 
