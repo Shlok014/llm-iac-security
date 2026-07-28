@@ -188,6 +188,15 @@ claiming one adds value.
 findings** from both scanners. Without clean files there is no way to measure false alarms on
 correct infrastructure, and "does it cry wolf?" is a fair question to ask a security tool.
 
+The corpus has since grown to **12 vulnerable fixtures and 100 labelled flaws** (checkov finds
+140, trivy 111; 57 of the 91 planted flaws in the labelled set are scanner-detectable). Unlike
+the original six, the newer fixtures carry **no flaw-naming comments and no give-away resource
+names**, so they are uncontaminated by construction rather than by stripping. Every rule ID in
+every label file is verified against live scanner output by
+[`tests/test_labels_integrity.py`](tests/test_labels_integrity.py) — a phantom ID fails the
+build, because a results table citing policies that don't do what it says is the exact defect
+this project was rebuilt out of ([`ERRATA.md`](ERRATA.md) E2).
+
 The fixtures annotate their own planted flaws in comments (`# <- public-read is insecure`), so
 scoring detection on them as-written is contaminated — the model can read the answer key.
 Headline detection numbers are therefore measured on a comment-stripped corpus, and the gap

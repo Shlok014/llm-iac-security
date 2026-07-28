@@ -148,6 +148,12 @@ scan: check-venv ## [free] Scan one file: make scan FILE=samples/s3_public.tf
 	  exit "$$code"
 
 baseline: check-venv ## [free] Scanner-only floor over the corpus: what checkov and trivy find with no model
+	@echo "note: this writes eval/results/baseline.json, which currently describes the SIX"
+	@echo "      fixtures the published results were measured on. Running it over the full"
+	@echo "      corpus rewrites it to cover twelve, and 'make report' will then mix a"
+	@echo "      12-fixture baseline with 6-fixture model results. Use OUT=... to write"
+	@echo "      elsewhere, or 'git checkout eval/results/baseline.json' to put it back."
+	@echo
 	$(PY) -m eval.run_eval baseline \
 	  $(if $(FIXTURES),--fixtures $(FIXTURES),) $(if $(OUT),--out $(OUT),) $(EVAL_ARGS)
 
