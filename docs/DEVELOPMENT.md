@@ -105,8 +105,8 @@ $ .venv/bin/iac-agent scan samples/s3_public.tf
 The expected result is **8 failed Checkov checks**. If you get 8, the toolchain is correct. If
 you get an error, work through [Troubleshooting](#troubleshooting) before touching any code.
 
-The full measured baseline across all six fixtures — the numbers everything else is compared
-against — is:
+The measured baseline across the **six fixtures the published results were computed on** — the
+numbers everything else is compared against — is:
 
 | Fixture | Checkov failed | Trivy findings |
 |---|---:|---:|
@@ -120,6 +120,12 @@ against — is:
 
 These are measurements, not targets. If your numbers differ, your scanner versions differ —
 say so in any result you report rather than quietly comparing against this table.
+
+The corpus has since grown to **12 vulnerable fixtures** (checkov 140, trivy 111) plus four
+secure negative controls; see [`samples/README.md`](../samples/README.md) for the per-fixture
+breakdown. `eval/results/baseline.json` still describes the original six on purpose, because
+the published model results were measured on those and a results table must not mix two
+corpora. `make baseline` warns about this before it rewrites the file.
 
 ---
 
@@ -215,8 +221,12 @@ Ground truth lives in `eval/labels/*.labels.yaml`, hand-written per fixture. One
 before you trust any detection score: **the fixtures annotate their own planted flaws inline**
 (`# <- public-read is insecure`). Scoring detection against the files as-written measures
 reading comprehension, not security reasoning. `eval/strip_comments.py` exists to remove those
-annotations before the detection prompt is built. If you add a fixture, do not add explanatory
-comments to it, and if you must, make sure the stripper removes them.
+annotations before the detection prompt is built.
+
+That applies to the **original six** fixtures. The six added later carry no flaw-naming
+comments and no give-away resource names, so they need no stripping — they are uncontaminated
+by construction. **If you add a fixture, follow that convention**: stripping can remove a
+comment, but it cannot remove a hint encoded in a resource name like `insecure_sg`.
 
 `eval/results/RESULTS.md` is **generated**. Never hand-edit it. If a number in it is wrong,
 the harness is wrong.
