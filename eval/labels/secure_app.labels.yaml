@@ -1,0 +1,91 @@
+# NEGATIVE CONTROL. THE EMPTY `labels` LIST IS THE GROUND TRUTH, NOT AN UNFINISHED FILE.
+#
+# samples/secure/secure_app.Dockerfile is a correct image build. It has no planted flaws, so
+# the set of things a reviewer should report on it is empty, and `labels: []` says exactly
+# that. Do not "fill this in" -- adding a label here would assert a flaw that is not present.
+#
+# What it is for: every other label file in this directory measures recall (did the pipeline
+# find the planted flaw?). This one measures the opposite. Any finding the pipeline emits
+# against this fixture is a false positive by construction, with no adjudication needed,
+# which is what gives the false-alarm rate a denominator. See samples/secure/README.md.
+#
+# This is the corrected counterpart of the four insecure Dockerfiles in samples/ -- it is the
+# only one of them with a USER, a HEALTHCHECK, digest-pinned bases and no secrets in any
+# layer. Those four flaws (CONTAINER-RUNS-AS-ROOT, HEALTHCHECK-MISSING, BASE-IMAGE-NOT-PINNED,
+# ENV-PLAINTEXT-CREDENTIALS) are the ones most likely to be reported here from habit.
+#
+# Scans, run 2026-07-29 -- checkov 3.2.489, trivy 0.68.1, Python 3.13:
+#   .venv/bin/checkov -f samples/secure/secure_app.Dockerfile -o json --compact --quiet \
+#       --framework dockerfile
+#   trivy config --quiet --format json samples/secure/secure_app.Dockerfile
+#
+#   checkov: 0 failed / 43 passed (26 unique rules)
+#   trivy:   0 failed / 27 rules evaluated
+#
+# The passed counts are recorded because they are the evidence the file was actually
+# analysed. A parser that silently skipped it would also report zero failures -- and for a
+# Dockerfile that is a live risk: scanned without --framework dockerfile, or under a filename
+# the scanners do not recognise as a Dockerfile, both tools apply the wrong ruleset and
+# return zero. Confirmed individually in that output: CKV_DOCKER_2 (HEALTHCHECK present),
+# CKV_DOCKER_3 (user created) and CKV_DOCKER_7 (non-latest base tag) all pass, so the rules
+# that fail on every insecure Dockerfile in this corpus did run against this one.
+schema_version: 1
+fixture: samples/secure/secure_app.Dockerfile
+framework: dockerfile
+
+# expected_clean: both static scanners return zero findings on this fixture. Consumed by
+# nothing today; it is here so a scored run can tell "clean by design" apart from "we never
+# got round to labelling this one".
+expected_clean: true
+
+labels: []
+
+# Rule ids that still fire on this file despite it being a control, each with a one-line
+# reason. Empty because nothing fires. An empty list here means "checked, none" -- it is not
+# the same as the key being absent. Format if one is ever added:
+#   - id: DS000              # scanner rule id, copied from real output
+#     scanner: trivy
+#     reason: "why this is accepted rather than fixed"
+residual_findings: []
+
+# False-positive bait: correct code in this file that a model may still report. These are
+# NOT labels and NOT residual findings -- they are the specific wrong answers this fixture
+# is shaped to catch. Each note below was checked against the scan above.
+#
+#  - USER 65532:65532, line 27: a numeric uid:gid rather than a named user. This is the
+#    distroless `nonroot` uid, and a numeric id is the more portable form -- it survives an
+#    image that has no /etc/passwd entry, which distroless deliberately does not. Reporting
+#    "no USER instruction" or "container runs as root" here is wrong; CKV_DOCKER_3 and
+#    trivy's DS002 both pass.
+#
+#  - `# syntax=docker/dockerfile:1.7`, line 1: a floating tag, so it reads like an unpinned
+#    image reference. It is the BuildKit frontend directive, not a base image. Both FROM
+#    lines (3 and 16) are pinned by sha256 digest, and CKV_DOCKER_7 and DS001 pass.
+#
+#  - ENTRYPOINT on line 34 with CMD on line 35: two process-declaring instructions looks like
+#    a conflict. It is the standard exec-form pairing where CMD supplies default arguments to
+#    ENTRYPOINT. Trivy's DS007 (multiple ENTRYPOINT) and DS016 (multiple CMD) were both
+#    evaluated and both pass -- there is one of each.
+#
+#  - EXPOSE 8080, line 29: EXPOSE is documentation and publishes nothing by itself; 8080 is
+#    not a sensitive port, and the default CMD binds 127.0.0.1. The port rules in both
+#    scanners (CKV_DOCKER_1, DS004) cover port 22 only, and DS008 (port out of range) passes.
+#
+#  - Two build stages with a COPY --from, lines 3-25: this is a multi-stage build, so the Go
+#    toolchain in the builder stage never ships. Findings about the compiler, the module cache
+#    or `go mod download` describe a stage that is discarded.
+#
+#  - No apt/apk cleanup instructions: the runtime base is distroless and has no package
+#    manager to clean up after. DS015, DS019, DS020, DS025, DS027 and DS029 were all
+#    evaluated and all pass.
+#
+#  - The two sha256 digests, lines 3 and 16, are illustrative placeholders that were never
+#    resolved against a registry (samples/secure/README.md records this). Neither scanner
+#    verifies that a digest exists, only that one is present. That is a real caveat before
+#    building the image, but it is not a finding against this file, and a model has no way to
+#    tell a stale digest from a current one by reading the text.
+#
+# Not currently scored: eval.fixture_paths() enumerates samples/ with iterdir() and keeps
+# only files, so samples/secure/ is skipped and this file is not loaded by eval/run_eval.py
+# yet. Note before wiring it in: eval.fixture_key() flattens to samples/<basename>, so this
+# fixture would key as samples/secure_app.Dockerfile.

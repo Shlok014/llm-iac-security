@@ -1,0 +1,91 @@
+# NEGATIVE CONTROL. THE EMPTY `labels` LIST IS THE GROUND TRUTH, NOT AN UNFINISHED FILE.
+#
+# samples/secure/secure_s3.tf is correct infrastructure. It has no planted flaws, so the set
+# of things a reviewer should report on it is empty, and `labels: []` says exactly that.
+# Do not "fill this in" -- adding a label here would assert a flaw that is not in the file.
+#
+# What it is for: every other label file in this directory measures recall (did the pipeline
+# find the planted flaw?). This one measures the opposite. Any finding the pipeline emits
+# against this fixture is a false positive by construction, with no adjudication needed,
+# which is what gives the false-alarm rate a denominator. See samples/secure/README.md.
+#
+# This is the corrected counterpart of samples/s3_public.tf, whose entire content is a
+# public-read bucket. A model that pattern-matches "aws_s3_bucket => check for public access"
+# without reading the access-block resources will produce a finding here.
+#
+# Scans, run 2026-07-29 -- checkov 3.2.489, trivy 0.68.1, Python 3.13:
+#   .venv/bin/checkov -f samples/secure/secure_s3.tf -o json --compact --quiet \
+#       --framework terraform
+#   trivy config --quiet --format json samples/secure/secure_s3.tf
+#
+#   checkov: 0 failed / 46 passed (27 unique rules)
+#   trivy:   0 failed / 50 rules evaluated
+#
+# The passed counts are recorded because they are the evidence the file was actually
+# analysed. A parser that silently skipped it would also report zero failures. Confirmed
+# individually in that output: CKV2_AWS_6 (public access block), CKV_AWS_144 (cross-region
+# replication) and CKV2_AWS_62 (event notifications) all pass twice, once per bucket -- the
+# multi-resource graph checks ran against both buckets and were satisfied.
+schema_version: 1
+fixture: samples/secure/secure_s3.tf
+framework: terraform
+
+# expected_clean: both static scanners return zero findings on this fixture. Consumed by
+# nothing today; it is here so a scored run can tell "clean by design" apart from "we never
+# got round to labelling this one".
+expected_clean: true
+
+labels: []
+
+# Rule ids that still fire on this file despite it being a control, each with a one-line
+# reason. Empty because nothing fires. An empty list here means "checked, none" -- it is not
+# the same as the key being absent. Format if one is ever added:
+#   - id: CKV_AWS_000        # scanner rule id, copied from real output
+#     scanner: checkov
+#     reason: "why this is accepted rather than fixed"
+residual_findings: []
+
+# False-positive bait: correct code in this file that a model may still report. These are
+# NOT labels and NOT residual findings -- they are the specific wrong answers this fixture
+# is shaped to catch. Each note below was checked against the scan above. The first is the
+# strongest trap in the whole control set.
+#
+#  - aws_s3_bucket_policy.logs line 292 and aws_s3_bucket_policy.reports line 447:
+#    `Principal = "*"`. In isolation this is the signature of a world-readable bucket policy,
+#    and it is the single most likely false positive on this file. Read the statement: the
+#    Effect is **Deny**, and the Condition is `aws:SecureTransport = false`. `Principal: "*"`
+#    with Deny is the only correct way to spell "no one may reach this bucket over plaintext
+#    HTTP" -- narrowing the principal would weaken the guardrail, not strengthen it. Both
+#    buckets have a full public access block (block_public_acls, block_public_policy,
+#    ignore_public_acls, restrict_public_buckets all true) and CKV_AWS_53, CKV_AWS_54,
+#    CKV_AWS_55, CKV_AWS_56 and CKV2_AWS_6 pass on both. CKV_AWS_93 ("bucket policy does not
+#    lockout all but root user") passes four times.
+#
+#  - aws_s3_bucket_logging.logs, lines 207-212: the access-log bucket targets itself. This
+#    looks like a misconfiguration or an infinite loop and is neither -- self-logging is the
+#    normal way to retain the log bucket's own access records without a third bucket, and
+#    S3 does not recurse on it. CKV_AWS_18 (access logging enabled) passes on both buckets.
+#
+#  - locals.dr_kms_key_arn, line 69: a KMS key ARN containing a UUID is an identifier, not
+#    key material. Reporting it as a hardcoded secret or an exposed credential is a false
+#    positive. Same for the two dr_*_bucket_arn values and for account id 111122223333, which
+#    is the AWS documentation placeholder.
+#
+#  - aws_iam_role_policy.replication, lines 96-153: the `/*` suffixes on bucket ARNs are
+#    object-level scoping, which is how S3 object permissions must be written -- they are not
+#    resource wildcards. Every statement names explicit actions on explicit buckets, and the
+#    KMS statements split Decrypt on the source key from Encrypt/GenerateDataKey on the replica
+#    key. CKV_AWS_62, CKV_AWS_63, CKV_AWS_60 and CKV_AWS_61 all pass.
+#
+#  - aws_kms_key.reports, lines 26-47: `Action = "kms:*"` on `Resource = "*"` is the AWS
+#    default key policy; `Resource = "*"` in a resource-based key policy means "this key".
+#    CKV_AWS_33 passes. Same bait as secure_minimal and secure_network.
+#
+#  - Missing MFA delete: neither scanner has a rule for it and it cannot be set through the
+#    Terraform AWS provider without a root-credential API call, so its absence is not a
+#    defect in this file. It is a legitimate hardening observation, not a finding.
+#
+# Not currently scored: eval.fixture_paths() enumerates samples/ with iterdir() and keeps
+# only files, so samples/secure/ is skipped and this file is not loaded by eval/run_eval.py
+# yet. Note before wiring it in: eval.fixture_key() flattens to samples/<basename>, so this
+# fixture would key as samples/secure_s3.tf.

@@ -17,9 +17,9 @@ labels:
     severity_expected: medium
     checkov_ids: [CKV_AWS_130]
     # Trivy's ID field here is the slug aws-vpc-no-public-ingress-sgr, which describes a
-    # different rule than the one that fired (AVD-AWS-0164, subnet public IP). Both strings
+    # different rule than the one that fired (aws-vpc-no-public-ingress-sgr, subnet public IP). Both strings
     # are listed because Finding.rule_id carries whatever is in ID.
-    trivy_ids: [aws-vpc-no-public-ingress-sgr, AVD-AWS-0164]
+    trivy_ids: [aws-vpc-no-public-ingress-sgr, aws-vpc-no-public-ingress-sgr]
     detectable_by_scanner: true
     aliases:
       - "map_public_ip_on_launch"
@@ -52,7 +52,7 @@ labels:
     category: network-open
     severity_expected: medium
     checkov_ids: [CKV_AWS_382]
-    trivy_ids: [aws-vpc-no-public-egress-sgr, AVD-AWS-0104]
+    trivy_ids: [aws-vpc-no-public-egress-sgr, aws-vpc-no-public-egress-sgr]
     detectable_by_scanner: true
     aliases:
       - "unrestricted egress"

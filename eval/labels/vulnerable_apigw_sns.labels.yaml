@@ -1,0 +1,126 @@
+# Hand-authored ground truth. Every checkov_id / trivy_id below was copied from a real
+# scan of this fixture (checkov 3.2.489, trivy 0.68.1) -- none were written from memory.
+# See README.md in this directory for the schema and the planted-vs-incidental rule.
+#
+# Scans, run 2026-07-29:
+#   .venv/bin/checkov -f samples/vulnerable_apigw_sns.tf -o json --compact --quiet \
+#       --framework terraform
+#   trivy config --quiet --format json samples/vulnerable_apigw_sns.tf
+# checkov: 14 failed / 10 passed. trivy: 7 failed.
+# 4 of the 14 checkov findings and 2 of the 7 trivy findings map onto a label here.
+#
+# Planted = an explicit insecure choice in the code. Incidental omissions, not labelled:
+#   CKV_AWS_26  / AVD-AWS-0095  SNS topic not encrypted at rest
+#   CKV_AWS_27  / AVD-AWS-0096  SQS queue not encrypted at rest
+#   CKV_AWS_76  / AVD-AWS-0001  no access logging on the stage
+#   CKV_AWS_225 / AVD-AWS-0190  method-level response caching not enabled
+#   CKV2_AWS_29 / CKV2_AWS_51 / CKV2_AWS_53   no WAF, no client certificate, no request
+#                                             validator
+#   CKV_AWS_237 / CKV_AWS_217   no create_before_destroy lifecycle
+#
+# `logging_level = "ERROR"` (line 47) is NOT labelled: CKV2_AWS_4 ("API Gateway stage have
+# logging level defined as appropriate") is in passed_checks, so checkov accepts ERROR and
+# there is no flaw here to label.
+#
+# `xray_tracing_enabled = false` (line 31, CKV_AWS_73 / AVD-AWS-0003) is an explicit
+# insecure literal but is left unlabelled for the reason recorded on
+# vulnerable_kms_logging.labels.yaml: `category` has no class covering monitoring coverage,
+# and forcing it into one of the seven would corrupt the by-category breakdown.
+schema_version: 1
+fixture: samples/vulnerable_apigw_sns.tf
+framework: terraform
+labels:
+  - id: APIGW-METHOD-NO-AUTH
+    resource: aws_api_gateway_method.post_event
+    lines: [18, 19]
+    description: "The POST /events method sets authorization = \"NONE\" and api_key_required = false, so the partner webhook endpoint accepts events from anyone who finds the URL and there is nothing to attribute a request to"
+    category: public-exposure
+    severity_expected: critical
+    # Checkov's other rule for this, CKV2_AWS_70 ("API gateway method has authorization or
+    # API key set"), PASSES. Its source (APIGatewayMethodWOAuth.py) short-circuits on
+    #   conf["authorization"][0] != 'NONE' or conf["api_key_required"][0] or
+    #   conf["http_method"][0] != "OPTIONS"
+    # -- the third clause is true for POST, so the whole OR is true and the check returns
+    # PASSED before it looks at anything. It can only ever fail an OPTIONS method.
+    # CKV_AWS_59 does fire, so the flaw is still detected.
+    checkov_ids: [CKV_AWS_59]
+    trivy_ids: [AVD-AWS-0004]
+    detectable_by_scanner: true
+    aliases:
+      - "authorization = \"NONE\""
+      - "no authorization"
+      - "unauthenticated api endpoint"
+      - "api_key_required = false"
+      - "open access to backend"
+      - "anyone can post events"
+
+  - id: APIGW-CACHE-DATA-UNENCRYPTED
+    resource: aws_api_gateway_method_settings.prod_all
+    lines: [48]
+    description: "The stage runs a response cache (cache_cluster_enabled on the stage) while method settings set cache_data_encrypted = false, so partner webhook responses sit unencrypted in the managed cache"
+    category: encryption
+    severity_expected: medium
+    # Checkov has a policy for exactly this -- CKV_AWS_308, "Ensure API Gateway method
+    # setting caching is set to encrypted" -- and it PASSES. Its source
+    # (APIGatewayMethodSettingsCacheEncrypted.py) reads settings.caching_enabled first and
+    # returns PASSED unless that is truthy. This fixture enables caching on the *stage*
+    # (cache_cluster_enabled, line 32) and never sets settings.caching_enabled, so the
+    # encryption test is never reached.
+    checkov_ids: []
+    # Trivy's AVD-AWS-0190 does fail on this resource, but its message is "Cache data is not
+    # enabled" -- it is the caching-enabled rule, the counterpart of CKV_AWS_225, not an
+    # encryption rule. AVD-AWS-0002 ("API Gateway must have cache enabled") PASSES. Neither
+    # covers cache_data_encrypted, so listing either here would be the ERRATA E2 defect.
+    trivy_ids: []
+    detectable_by_scanner: false
+    aliases:
+      - "cache_data_encrypted = false"
+      - "unencrypted cache"
+      - "cached responses not encrypted"
+      - "api gateway cache encryption"
+      - "response cache in plaintext"
+
+  - id: SNS-TOPIC-POLICY-PUBLIC-PRINCIPAL
+    resource: aws_sns_topic_policy.delivery_events
+    lines: [65, 66]
+    description: "The topic policy allows SNS:Subscribe, SNS:Receive and SNS:Publish for Principal \"*\", so anyone can subscribe an endpoint to the delivery-event stream and anyone can inject forged events into it"
+    category: public-exposure
+    severity_expected: critical
+    checkov_ids: [CKV_AWS_169]
+    # CKV_AWS_385 ("SNS topic policies do not allow cross-account access") PASSES on the
+    # same resource, and trivy has no aws_sns_topic_policy rule at all -- nothing appeared
+    # for it in the failing or the non-failing output.
+    trivy_ids: []
+    detectable_by_scanner: true
+    aliases:
+      - "principal = \"*\""
+      - "wildcard principal"
+      - "public sns topic policy"
+      - "anyone can subscribe"
+      - "anyone can publish to the topic"
+
+  - id: SQS-POLICY-PUBLIC-WILDCARD
+    resource: aws_sqs_queue_policy.delivery_retry
+    lines: [85, 86]
+    description: "The queue policy allows Action \"sqs:*\" for Principal \"*\", so any principal can read, purge or flood the retry queue that the notifications worker drains"
+    category: public-exposure
+    severity_expected: critical
+    # Both halves of this statement are labelled together, as IAM-POLICY-WILDCARD-ADMIN in
+    # vulnerable_main.tf treats Action "*" on Resource "*" as one flaw. The scanners split
+    # it: CKV_AWS_168 and CKV_AWS_387 fire on the wildcard *principal* (verified in
+    # SQSOverlyPermissive.py, which requires Principal == "*" with no Condition), while
+    # trivy's AVD-AWS-0097 fires on the wildcard *action* ("Queue policy does not restrict
+    # actions to a known set").
+    checkov_ids: [CKV_AWS_168, CKV_AWS_387]
+    # Checkov's own wildcard-action rule, CKV_AWS_72, PASSES: SQSPolicy.py compares
+    # statement['Action'] == '*' by exact equality and the fixture says "sqs:*". Trivy
+    # catches what checkov misses; checkov catches the principal that trivy does not name.
+    trivy_ids: [AVD-AWS-0097]
+    detectable_by_scanner: true
+    aliases:
+      - "principal = \"*\""
+      - "sqs:*"
+      - "wildcard action"
+      - "public queue policy"
+      - "anyone can read the queue"
+      - "open sqs policy"

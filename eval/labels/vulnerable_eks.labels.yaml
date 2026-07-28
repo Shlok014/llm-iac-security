@@ -1,0 +1,197 @@
+# Hand-authored ground truth. Every checkov_id / trivy_id below was copied from a real
+# scan of this fixture (checkov 3.2.489, trivy 0.68.1) -- none were written from memory.
+# See README.md in this directory for the schema and the planted-vs-incidental rule.
+#
+# Scans, run 2026-07-29:
+#   .venv/bin/checkov -f samples/vulnerable_eks.tf -o json --compact --quiet \
+#       --framework terraform
+#   trivy config --quiet --format json samples/vulnerable_eks.tf
+# checkov: 10 failed / 11 passed. trivy: 13 failed (9 distinct ids; AVD-AWS-0038 is raised
+# five times, once per missing EKS control-plane log type).
+# 5 of the 10 checkov findings and 5 of the 13 trivy findings map onto a label here.
+#
+# Planted = an explicit insecure choice in the code. Findings that are omissions of a
+# control the file never mentions are incidental and are not labelled:
+#   CKV_AWS_58  / AVD-AWS-0039  EKS secrets not encrypted with a KMS key (no
+#                               encryption_config block exists to make insecure)
+#   CKV_AWS_37  / AVD-AWS-0038  no EKS control-plane log types enabled
+#   CKV_AWS_136 / AVD-AWS-0033  ECR repository not encrypted with a CMK
+#   CKV_AWS_336                 container root filesystem not set read-only
+# This is the strict reading: a control that can only be *omitted*, never explicitly
+# disabled, can never be "planted" under this rule. Both EKS omissions are real findings
+# and a reviewer would report them; under the README's precision rule they are excluded
+# from both credit and penalty rather than counted as ground truth.
+#
+# `version = "1.27"` on the cluster is NOT labelled: CKV_AWS_339 ("EKS clusters run on a
+# supported Kubernetes version") is in passed_checks, so no flaw is present to label.
+# `containerInsights = "disabled"` (line 49, CKV_AWS_65 / AVD-AWS-0034) is an explicit
+# insecure literal but has no honest home in `category` -- none of the seven values covers
+# monitoring coverage -- so it is recorded here rather than filed under an ill-fitting one.
+schema_version: 1
+fixture: samples/vulnerable_eks.tf
+framework: terraform
+labels:
+  - id: EKS-PUBLIC-ENDPOINT
+    resource: aws_eks_cluster.platform
+    lines: [24, 25]
+    description: "The cluster's Kubernetes API endpoint is published to the internet and private access is switched off, so all control-plane traffic including kubectl auth attempts crosses the public network"
+    category: public-exposure
+    severity_expected: high
+    checkov_ids: [CKV_AWS_39]
+    trivy_ids: [AVD-AWS-0040]
+    detectable_by_scanner: true
+    aliases:
+      - "endpoint_public_access = true"
+      - "public eks endpoint"
+      - "control plane exposed to the internet"
+      - "endpoint_private_access = false"
+      - "kubernetes api publicly reachable"
+
+  - id: EKS-ENDPOINT-OPEN-CIDR
+    resource: aws_eks_cluster.platform
+    lines: [26]
+    description: "public_access_cidrs is 0.0.0.0/0, so the Kubernetes API accepts connections from every address on the internet rather than from the office or CI ranges"
+    category: network-open
+    severity_expected: critical
+    checkov_ids: [CKV_AWS_38]
+    trivy_ids: [AVD-AWS-0041]
+    detectable_by_scanner: true
+    aliases:
+      - "public_access_cidrs = [\"0.0.0.0/0\"]"
+      - "open cidr range"
+      - "api server open to the world"
+      - "unrestricted access to eks endpoint"
+      - "0.0.0.0/0"
+
+  - id: ECR-TAGS-MUTABLE
+    resource: aws_ecr_repository.report_renderer
+    lines: [37]
+    description: "Image tags are mutable, so a pushed tag can be repointed at different image content after review and the tag a deployment references stops being a stable identity"
+    category: supply-chain
+    severity_expected: medium
+    checkov_ids: [CKV_AWS_51]
+    trivy_ids: [AVD-AWS-0031]
+    detectable_by_scanner: true
+    aliases:
+      - "image_tag_mutability = \"MUTABLE\""
+      - "mutable image tags"
+      - "tag immutability"
+      - "tags can be overwritten"
+
+  - id: ECR-SCAN-ON-PUSH-DISABLED
+    resource: aws_ecr_repository.report_renderer
+    lines: [40]
+    description: "scan_on_push is explicitly false, so images enter the registry without ever being checked for known CVEs"
+    category: supply-chain
+    severity_expected: medium
+    checkov_ids: [CKV_AWS_163]
+    trivy_ids: [AVD-AWS-0030]
+    detectable_by_scanner: true
+    aliases:
+      - "scan_on_push = false"
+      - "image scanning disabled"
+      - "no vulnerability scanning"
+      - "ecr scan on push"
+
+  - id: ECS-CONTAINER-PRIVILEGED
+    resource: aws_ecs_task_definition.report_renderer
+    lines: [66]
+    description: "The renderer container runs privileged, which hands it the host's full capability set and makes a ghostscript exploit a host compromise rather than a container one"
+    category: container-hardening
+    severity_expected: critical
+    # Checkov has a policy for exactly this -- CKV_AWS_334, "Ensure ECS containers should
+    # run as non-privileged" -- and it PASSES. Its source
+    # (terraform/checks/resource/aws/ECSContainerPrivilege.py) reads
+    # container.get("privilege"); the ECS container-definition key is "privileged", so the
+    # lookup always returns None and the check returns PASSED. A rule bug, not a fixture
+    # quirk -- and the reason this critical flaw is invisible to static analysis here.
+    checkov_ids: []
+    # Trivy has no ECS privileged-container rule: it appears in neither the failing nor the
+    # --include-non-failures output for this file.
+    trivy_ids: []
+    detectable_by_scanner: false
+    aliases:
+      - "privileged = true"
+      - "privileged container"
+      - "container escape"
+      - "runs with full host capabilities"
+      - "should not run privileged"
+
+  - id: ECS-CONTAINER-RUNS-AS-ROOT
+    resource: aws_ecs_task_definition.report_renderer
+    lines: [67]
+    description: "The container definition sets user = \"root\", so the PDF renderer processes untrusted report input as uid 0"
+    category: container-hardening
+    severity_expected: high
+    # Neither scanner has an ECS run-as-root rule. The Dockerfile equivalents do exist --
+    # CKV_DOCKER_3 and DS002, both verified on samples/docker_insecure.Dockerfile and
+    # recorded on CONTAINER-RUNS-AS-ROOT there -- but they belong to the dockerfile
+    # framework and cannot see a task definition's container_definitions JSON. Nothing
+    # fired on line 67 in either scanner's output for this file.
+    checkov_ids: []
+    trivy_ids: []
+    detectable_by_scanner: false
+    aliases:
+      - "user = \"root\""
+      - "runs as root"
+      - "container running as uid 0"
+      - "no non-root user"
+      - "drop root privileges"
+
+  - id: ECS-IMAGE-MUTABLE-TAG
+    resource: aws_ecs_task_definition.report_renderer
+    lines: [65]
+    description: "The task pulls report-renderer:latest, so what the service actually runs depends on whatever was pushed last and cannot be reproduced from this file"
+    category: supply-chain
+    severity_expected: medium
+    # Both scanners flag mutable tags on the *registry* (ECR-TAGS-MUTABLE above) but neither
+    # inspects the image reference inside container_definitions. Nothing fired on line 65.
+    checkov_ids: []
+    trivy_ids: []
+    detectable_by_scanner: false
+    aliases:
+      - "latest tag"
+      - "image not pinned"
+      - "unpinned container image"
+      - "pin image by digest"
+      - "report-renderer:latest"
+
+  - id: ECS-TASK-PLAINTEXT-SECRET
+    resource: aws_ecs_task_definition.report_renderer
+    lines: [69]
+    description: "The SMTP password is a literal in the task definition's environment array instead of a secrets reference, so it is in the Terraform source, in state, and in every ecs:DescribeTaskDefinition response"
+    category: secrets
+    severity_expected: critical
+    # Checkov's hard-coded-secret policies are per-resource-type (CKV_AWS_45 is Lambda,
+    # CKV_AWS_46 is EC2 user data); it has none for aws_ecs_task_definition, and none
+    # appeared in either failed_checks or passed_checks for this resource.
+    checkov_ids: []
+    # AVD-AWS-0036 fires CRITICAL: "Container definition contains a potentially sensitive in
+    # environment variable name ... SMTP_PASSWORD". It matched on the variable *name*, not
+    # on the value.
+    trivy_ids: [AVD-AWS-0036]
+    detectable_by_scanner: true
+    aliases:
+      - "sensitive environment variable"
+      - "hardcoded password"
+      - "smtp_password"
+      - "plaintext credential in task definition"
+      - "should use secrets manager or ssm"
+
+  - id: ECS-SERVICE-PUBLIC-IP
+    resource: aws_ecs_service.report_renderer
+    lines: [88]
+    description: "assign_public_ip is true, so every renderer task gets a routable address and the batch worker is reachable from the internet instead of only from inside the VPC"
+    category: public-exposure
+    severity_expected: high
+    checkov_ids: [CKV_AWS_333]
+    # Trivy has aws_instance and launch-configuration public-IP rules but none for
+    # aws_ecs_service; it reported nothing on this resource.
+    trivy_ids: []
+    detectable_by_scanner: true
+    aliases:
+      - "assign_public_ip = true"
+      - "public ip address"
+      - "task exposed to the internet"
+      - "internet facing service"
+      - "should run in a private subnet"

@@ -1,0 +1,162 @@
+# Hand-authored ground truth. Every checkov_id / trivy_id below was copied from a real
+# scan of this fixture (checkov 3.2.489, trivy 0.68.1) -- none were written from memory.
+# See README.md in this directory for the schema and the planted-vs-incidental rule.
+#
+# Scans, run 2026-07-29:
+#   .venv/bin/checkov -f samples/vulnerable_lambda.tf -o json --compact --quiet \
+#       --framework terraform
+#   trivy config --quiet --format json samples/vulnerable_lambda.tf
+# checkov: 16 failed / 11 passed. trivy: 4 failed.
+# 8 of the 16 checkov findings and 1 of the 4 trivy findings map onto a label here.
+#
+# This fixture carries no inline "# <- insecure" annotations, so the planted inventory is
+# the list below and nothing else. The rule applied throughout the four new Terraform
+# fixtures: a flaw is planted when the code makes an explicit insecure *choice* -- a literal
+# NONE, a "*", a committed credential, a deprecated runtime. A finding that is the omission
+# of a control the file never mentions is incidental (README, "Planted vs incidental") and
+# is not labelled. Incidental here:
+#   CKV_AWS_50 / AVD-AWS-0066  no X-Ray tracing
+#   CKV_AWS_117                not attached to a VPC
+#   CKV_AWS_116                no dead-letter queue
+#   CKV_AWS_173                no KMS key for environment variables
+#   CKV_AWS_272                no code-signing configuration
+#   CKV_AWS_115                no reserved concurrency limit
+#   CKV_AWS_119 / AVD-AWS-0025 DynamoDB not using a customer-managed CMK
+#
+# One explicit insecure literal is deliberately left unlabelled: the table sets
+# `point_in_time_recovery { enabled = false }` and both scanners fire (CKV_AWS_28,
+# AVD-AWS-0024). It has no honest home in `category` -- the seven values in the corpus are
+# confidentiality/integrity classes and none covers backup and durability -- and filing it
+# under an ill-fitting one would corrupt the by-category breakdown. Recorded here rather
+# than silently dropped; a second annotator may reasonably add a category and label it.
+schema_version: 1
+fixture: samples/vulnerable_lambda.tf
+framework: terraform
+labels:
+  - id: LAMBDA-IAM-WILDCARD-SERVICE-ACTIONS
+    resource: aws_iam_role_policy.order_worker_runtime
+    lines: [26, 27]
+    description: "The function's execution role grants s3:*, dynamodb:*, secretsmanager:* and logs:* on Resource \"*\", so one compromised handler can read every bucket and every secret in the account"
+    category: iam-overprivilege
+    severity_expected: critical
+    # Contrast with IAM-POLICY-WILDCARD-ADMIN in vulnerable_main.tf, where Action is a bare
+    # "*" and ten checkov policies fire. Here the actions are service-scoped wildcards, so
+    # the coarse "full administrative privileges" checks PASS -- CKV_AWS_62, CKV_AWS_63,
+    # CKV_AWS_286, CKV_AWS_287 and CKV2_AWS_40 are all in passed_checks -- and only these
+    # four finer-grained policies fail.
+    checkov_ids: [CKV_AWS_355, CKV_AWS_288, CKV_AWS_289, CKV_AWS_290]
+    # Trivy reported nothing on the equivalent aws_iam_policy in vulnerable_main.tf, but
+    # AVD-AWS-0345 does fire here, with the message "IAM role uses a policy that allows
+    # 's3:*' action". It matched only the s3:* half of the statement; secretsmanager:* on
+    # Resource "*" is not what it saw.
+    trivy_ids: [AVD-AWS-0345]
+    detectable_by_scanner: true
+    aliases:
+      - "wildcard iam policy"
+      - "s3:*"
+      - "secretsmanager:*"
+      - "resource *"
+      - "overly permissive execution role"
+      - "least privilege violation"
+      - "lambda role can read all secrets"
+
+  - id: LAMBDA-ENV-PLAINTEXT-SECRETS
+    resource: aws_lambda_function.order_processor
+    lines: [42, 43]
+    description: "A live-mode Stripe secret key and a database password are committed as Lambda environment variables: readable in the Terraform source, in state, and by anyone holding lambda:GetFunctionConfiguration"
+    category: secrets
+    severity_expected: critical
+    # Checkov has a policy for exactly this -- CKV_AWS_45, "Ensure no hard-coded secrets
+    # exist in lambda environment" -- and it PASSES. Its source
+    # (terraform/checks/resource/aws/LambdaEnvironmentCredentials.py) calls
+    # string_has_secrets(value, AWS, GENERAL), which recognises AWS-key-shaped strings;
+    # neither "sk_live_..." nor "Password123!" matches. The same failure mode as CKV_AWS_46
+    # on EC2-USERDATA-PLAINTEXT-SECRET in vulnerable_main.tf.
+    # CKV_AWS_173 does fail on this resource, but it asks for a KMS key to encrypt the
+    # variables at rest. It is not a detection of the credential literal, so listing it here
+    # would be the ERRATA E2 defect -- an id whose policy describes something else.
+    checkov_ids: []
+    # Trivy has an ECS equivalent (AVD-AWS-0036, which fires on samples/vulnerable_eks.tf)
+    # but no Lambda equivalent: it reported nothing on this resource.
+    trivy_ids: []
+    detectable_by_scanner: false
+    aliases:
+      - "hardcoded secret in environment variables"
+      - "stripe secret key"
+      - "sk_live"
+      - "plaintext password in lambda environment"
+      - "db_password"
+      - "credentials committed to source"
+      - "secrets should come from secrets manager"
+
+  - id: LAMBDA-URL-NO-AUTH
+    resource: aws_lambda_function_url.checkout_callback
+    lines: [58]
+    description: "The function URL is published with authorization_type = \"NONE\", so the order processor is invokable by anyone on the internet with no signature or credential"
+    category: public-exposure
+    severity_expected: critical
+    checkov_ids: [CKV_AWS_258]
+    # Trivy ships no aws_lambda_function_url rule; it reported nothing on this resource in
+    # either the failing or the --include-non-failures output.
+    trivy_ids: []
+    detectable_by_scanner: true
+    aliases:
+      - "authorization_type = \"NONE\""
+      - "unauthenticated function url"
+      - "public lambda url"
+      - "no auth on lambda function url"
+      - "anyone can invoke the function"
+
+  - id: LAMBDA-URL-WILDCARD-CORS
+    resource: aws_lambda_function_url.checkout_callback
+    lines: [61, 62]
+    description: "The function URL's CORS block allows every origin and every method, so any page a logged-in user visits can drive the checkout callback from their browser"
+    category: public-exposure
+    severity_expected: high
+    # Checkov attributes CKV2_AWS_75 to aws_lambda_function.order_processor, not to the
+    # aws_lambda_function_url resource that actually contains the cors block -- the same
+    # scanner-reports-it-elsewhere case as IAM-POLICY-ATTACHED-TO-USER in vulnerable_main.tf.
+    # `resource` below is the planted address, not checkov's.
+    checkov_ids: [CKV2_AWS_75]
+    trivy_ids: []
+    detectable_by_scanner: true
+    aliases:
+      - "open cors policy"
+      - "allow_origins = [\"*\"]"
+      - "wildcard cors"
+      - "cors allows any origin"
+      - "allow_methods = [\"*\"]"
+
+  - id: LAMBDA-PERMISSION-WILDCARD-PRINCIPAL
+    resource: aws_lambda_permission.storefront_invoke
+    lines: [70]
+    description: "The resource policy grants lambda:InvokeFunction to Principal \"*\" with no source ARN condition, so every AWS account can invoke the function"
+    category: public-exposure
+    severity_expected: critical
+    checkov_ids: [CKV_AWS_301]
+    # Trivy's AVD-AWS-0067 ("lambda function permission has a source arn specified") exists
+    # and PASSES on this resource -- it is in the --include-non-failures output as PASS.
+    trivy_ids: []
+    detectable_by_scanner: true
+    aliases:
+      - "principal = \"*\""
+      - "wildcard principal"
+      - "publicly invokable lambda"
+      - "lambda permission allows any principal"
+      - "no source_arn restriction"
+
+  - id: LAMBDA-RUNTIME-DEPRECATED
+    resource: aws_lambda_function.order_processor
+    lines: [36]
+    description: "The function is pinned to the python3.9 runtime, which AWS has deprecated: the interpreter and its bundled libraries stop receiving security patches"
+    category: supply-chain
+    severity_expected: medium
+    checkov_ids: [CKV_AWS_363]
+    trivy_ids: []
+    detectable_by_scanner: true
+    aliases:
+      - "deprecated runtime"
+      - "python3.9"
+      - "unsupported lambda runtime"
+      - "end of life runtime"
+      - "runtime no longer receives patches"

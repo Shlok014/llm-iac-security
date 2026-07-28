@@ -1,0 +1,64 @@
+# NEGATIVE CONTROL. THE EMPTY `labels` LIST IS THE GROUND TRUTH, NOT AN UNFINISHED FILE.
+#
+# samples/secure/secure_minimal.tf is correct infrastructure. It has no planted flaws, so the
+# set of things a reviewer should report on it is empty, and `labels: []` says exactly that.
+# Do not "fill this in" -- adding a label here would assert a flaw that is not in the file.
+#
+# What it is for: every other label file in this directory measures recall (did the pipeline
+# find the planted flaw?). This one measures the opposite. Any finding the pipeline emits
+# against this fixture is a false positive by construction, with no adjudication needed,
+# which is what gives the false-alarm rate a denominator. See samples/secure/README.md.
+#
+# Scans, run 2026-07-29 -- checkov 3.2.489, trivy 0.68.1, Python 3.13:
+#   .venv/bin/checkov -f samples/secure/secure_minimal.tf -o json --compact --quiet \
+#       --framework terraform
+#   trivy config --quiet --format json samples/secure/secure_minimal.tf
+#
+#   checkov: 0 failed / 7 passed (7 unique rules)
+#   trivy:   0 failed / 40 rules evaluated
+#
+# The passed counts are recorded because they are the evidence the file was actually
+# analysed. A parser that silently skipped it would also report zero failures.
+schema_version: 1
+fixture: samples/secure/secure_minimal.tf
+framework: terraform
+
+# expected_clean: both static scanners return zero findings on this fixture. Consumed by
+# nothing today; it is here so a scored run can tell "clean by design" apart from "we never
+# got round to labelling this one".
+expected_clean: true
+
+labels: []
+
+# Rule ids that still fire on this file despite it being a control, each with a one-line
+# reason. Empty because nothing fires. An empty list here means "checked, none" -- it is not
+# the same as the key being absent. Format if one is ever added:
+#   - id: CKV_AWS_000        # scanner rule id, copied from real output
+#     scanner: checkov
+#     reason: "why this is accepted rather than fixed"
+residual_findings: []
+
+# False-positive bait: correct code in this file that a model may still report. These are
+# NOT labels and NOT residual findings -- they are the specific wrong answers this fixture
+# is shaped to catch. Each note below was checked against the scan above.
+#
+#  - aws_kms_key.logs, lines 26-46: the key policy grants `Action = "kms:*"` on
+#    `Resource = "*"`. This reads like unbounded IAM privilege and is not. It is the AWS
+#    default key policy: `Resource = "*"` inside a *resource*-based key policy means "this
+#    key", not "every key in the account", and the root-account statement is what keeps the
+#    key manageable -- omit it and the key can become permanently unadministrable. The
+#    Principal is a single account root ARN, not a wildcard; checkov's CKV_AWS_33 ("Ensure
+#    KMS key policy does not contain wildcard (*) principal") passes.
+#
+#  - arn:aws:iam::111122223333:root, line 28: 111122223333 is the AWS documentation
+#    placeholder account id, not a leaked account number. Reporting it as an exposed
+#    identifier is a false positive.
+#
+#  - The key is rotated (CKV_AWS_7 passes) and the log group is CMK-encrypted with a
+#    365-day retention (CKV_AWS_158, CKV_AWS_66, CKV_AWS_338 all pass). "No rotation",
+#    "unencrypted log group" and "no retention configured" are all wrong on this file.
+#
+# Not currently scored: eval.fixture_paths() enumerates samples/ with iterdir() and keeps
+# only files, so samples/secure/ is skipped and this file is not loaded by eval/run_eval.py
+# yet. Note before wiring it in: eval.fixture_key() flattens to samples/<basename>, so this
+# fixture would key as samples/secure_minimal.tf.

@@ -1,0 +1,124 @@
+# Hand-authored ground truth. Every checkov_id / trivy_id below was copied from a real
+# scan of this fixture (checkov 3.2.489, trivy 0.68.1) -- none were written from memory.
+# See README.md in this directory for the schema and the planted-vs-incidental rule.
+#
+# Scans, run 2026-07-29:
+#   .venv/bin/checkov -f samples/vulnerable_kms_logging.tf -o json --compact --quiet \
+#       --framework terraform
+#   trivy config --quiet --format json samples/vulnerable_kms_logging.tf
+# checkov: 21 failed / 10 passed. trivy: 19 failed (18 distinct ids; AVD-AWS-0017 fires once
+# per log group).
+# 4 of the 21 checkov findings and 3 of the 19 trivy findings map onto a label here. This is
+# by far the widest gap between findings and planted flaws in the corpus, and the reason is
+# aws_s3_bucket.audit_trail: an eight-line bucket declaration that plants nothing produces
+# 8 checkov and 9 trivy findings on its own, all of them omissions. Compare s3_public.tf,
+# where the same effect is documented at four lines and one label.
+#
+# Planted = an explicit insecure choice in the code. Incidental omissions, not labelled:
+#   CKV_AWS_35  / AVD-AWS-0015  trail not encrypted with a CMK
+#   CKV_AWS_252                 trail has no SNS topic
+#   CKV2_AWS_10 / AVD-AWS-0162  trail not integrated with CloudWatch Logs
+#   CKV_AWS_18  / AVD-AWS-0163  no access logging on the trail's bucket
+#   CKV_AWS_21  / AVD-AWS-0090  no bucket versioning
+#   CKV_AWS_145 / AVD-AWS-0088, AVD-AWS-0132   bucket not encrypted / not with a CMK
+#   CKV2_AWS_6  / AVD-AWS-0086, AVD-AWS-0087, AVD-AWS-0091, AVD-AWS-0093, AVD-AWS-0094
+#                               no public access block on the bucket
+#   CKV_AWS_144 / CKV2_AWS_61 / CKV2_AWS_62    no replication, lifecycle or notifications
+#   CKV_AWS_66  / CKV_AWS_338 / CKV_AWS_158 / AVD-AWS-0017  log-group retention and CMK
+#   CKV_AWS_189 / AVD-AWS-0027  EBS volume not using a customer-managed key (distinct from
+#                               EBS-VOLUME-UNENCRYPTED below, which is the encrypted=false
+#                               literal; the CMK rules are a separate, omitted control)
+#
+# Two explicit insecure literals are deliberately NOT labelled, for the reason given on
+# vulnerable_lambda.labels.yaml: `category` has seven values, all confidentiality or
+# integrity classes, and none of them covers audit and monitoring *coverage*. Filing these
+# under an ill-fitting class would corrupt the by-category breakdown, and inventing an
+# eighth value is a schema change this file should not make unilaterally:
+#   is_multi_region_trail = false + include_global_service_events = false (lines 43-44) --
+#     CKV_AWS_67 / AVD-AWS-0014 fire on the first; nothing fires on the second
+#   aws_config_configuration_recorder all_supported = false (lines 83-84) -- CKV2_AWS_48
+# Both are real, both are planted, and a second annotator adding an `audit-logging`
+# category should label them; they are listed here so nothing is silently lost.
+#
+# `retention_in_days = 0` on aws_cloudwatch_log_group.worker_events (line 59) is NOT a flaw
+# and gets no label. Checkov's CKV_AWS_338 source says so explicitly -- "If you select 0,
+# the events in the log group are always retained and never expire" -- and both CKV_AWS_66
+# and CKV_AWS_338 PASS on that resource. Creating a label for it would be inventing ground
+# truth to match an assumption, the failure mode README point 4 warns about.
+schema_version: 1
+fixture: samples/vulnerable_kms_logging.tf
+framework: terraform
+labels:
+  - id: KMS-KEY-ROTATION-DISABLED
+    resource: aws_kms_key.billing_exports
+    lines: [7]
+    description: "Automatic annual rotation is explicitly disabled on the CMK that wraps every nightly billing export, so one key protects the whole archive indefinitely"
+    category: encryption
+    severity_expected: medium
+    checkov_ids: [CKV_AWS_7]
+    trivy_ids: [AVD-AWS-0065]
+    detectable_by_scanner: true
+    aliases:
+      - "enable_key_rotation = false"
+      - "key rotation disabled"
+      - "cmk rotation"
+      - "no automatic key rotation"
+
+  - id: KMS-KEY-POLICY-WILDCARD-PRINCIPAL
+    resource: aws_kms_key.billing_exports
+    lines: [14]
+    description: "The key policy allows kms:Encrypt, kms:Decrypt and kms:GenerateDataKey* for Principal \"*\" with no condition, so the control protecting the billing archive grants use of itself to any principal that can reach the key"
+    category: public-exposure
+    severity_expected: critical
+    checkov_ids: [CKV_AWS_33]
+    # Trivy's only aws_kms_key rule is AVD-AWS-0065 (rotation, above). It has no key-policy
+    # rule: nothing appeared for this resource in the failing or the non-failing output.
+    trivy_ids: []
+    detectable_by_scanner: true
+    aliases:
+      - "principal = \"*\""
+      - "wildcard principal"
+      - "kms key policy allows anyone"
+      - "open key policy"
+      - "no condition on key policy"
+
+  - id: CLOUDTRAIL-LOG-VALIDATION-DISABLED
+    resource: aws_cloudtrail.account_activity
+    lines: [45]
+    description: "Log file validation is explicitly off, so CloudTrail writes no signed digest files and an attacker who reaches the audit bucket can edit or delete their own activity without leaving evidence"
+    category: encryption
+    # Categorised `encryption` because log file validation *is* the cryptographic control
+    # here -- SHA-256 digests signed with a CloudTrail private key -- and the seven-value
+    # `category` enum has no integrity or audit class. The stretch is recorded rather than
+    # hidden.
+    severity_expected: high
+    checkov_ids: [CKV_AWS_36]
+    trivy_ids: [AVD-AWS-0016]
+    detectable_by_scanner: true
+    aliases:
+      - "enable_log_file_validation = false"
+      - "log file validation"
+      - "audit log tampering"
+      - "logs can be modified undetected"
+      - "no integrity check on trail"
+
+  - id: EBS-VOLUME-UNENCRYPTED
+    resource: aws_ebs_volume.billing_scratch
+    lines: [71]
+    description: "The 100 GB scratch volume that the nightly billing export is written to is created with encrypted = false, so the data sits unencrypted at rest and in every snapshot taken from it"
+    category: encryption
+    severity_expected: high
+    checkov_ids: [CKV_AWS_3]
+    # Trivy's emitted ID field here is the legacy slug, not the AVD id; both strings are
+    # listed because Finding.rule_id carries whatever is in ID. The neighbouring
+    # aws-ebs-encryption-customer-key / AVD-AWS-0027 finding is a different control (CMK vs
+    # default key) and is treated as incidental, matching how EC2-ROOT-VOLUME-UNENCRYPTED is
+    # labelled in vulnerable_main.tf.
+    trivy_ids: [aws-ebs-enable-volume-encryption]
+    detectable_by_scanner: true
+    aliases:
+      - "encrypted = false"
+      - "unencrypted ebs volume"
+      - "volume not encrypted at rest"
+      - "ebs encryption"
+      - "unencrypted block device"

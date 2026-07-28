@@ -35,7 +35,7 @@ labels:
     # Not annotated with an inline comment, but written as an insecure literal on purpose
     # (identical construct to the annotated one in vulnerable_main.tf), so it is planted.
     checkov_ids: [CKV_AWS_382]
-    trivy_ids: [aws-vpc-no-public-egress-sgr, AVD-AWS-0104]
+    trivy_ids: [aws-vpc-no-public-egress-sgr, aws-vpc-no-public-egress-sgr]
     detectable_by_scanner: true
     aliases:
       - "unrestricted egress"

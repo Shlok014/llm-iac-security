@@ -226,9 +226,8 @@ class ResponseCache:
                 f"refusing to write cache fields {sorted(extra)}: the cache is committed "
                 "to the repository and its field set is an allowlist"
             )
-        self.root.mkdir(parents=True, exist_ok=True)
         path = self.path_for(record["key"])
-        path.write_text(json.dumps(record, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        write_json(path, record)  # same sorted, newline-ended spelling as the results files
         return path
 
 
@@ -899,6 +898,8 @@ def cmd_report(args: argparse.Namespace) -> int:
     write_results_md(args.out, report)
 
     if args.json:
+        # Not `write_json`: that creates the parent directory, and `--json` pointing into a
+        # directory that does not exist has always been an error rather than a mkdir.
         args.json.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
         print(f"wrote {args.json}")
 
@@ -924,6 +925,11 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     sub = parser.add_subparsers(dest="command", required=True)
+
+    def paths(p: argparse.ArgumentParser, **defaults: Path) -> None:
+        """`--out` and friends, wired once: `type=Path` in every subcommand that has one."""
+        for name, default in defaults.items():
+            p.add_argument(f"--{name.replace('_', '-')}", type=Path, default=default)
 
     def common(p: argparse.ArgumentParser) -> None:
         """The corpus selectors `run` and `baseline` share, wired once."""
@@ -951,12 +957,10 @@ def build_parser() -> argparse.ArgumentParser:
     p_run.add_argument("--complete-fn", default=None, metavar="module:attr",
                        help="inject a completion function instead of calling OpenAI. With this "
                             "set, no network call is possible")
-    p_run.add_argument("--cache-dir", type=Path, default=CACHE_DIR)
-    p_run.add_argument("--artifact-dir", type=Path, default=ARTIFACT_DIR)
-    p_run.add_argument("--drift-dir", type=Path, default=DRIFT_DIR)
-    p_run.add_argument("--out", type=Path, default=RESULTS_JSON)
-    p_run.add_argument("--baseline-json", type=Path, default=BASELINE_JSON)
-    p_run.add_argument("--results-md", type=Path, default=RESULTS_MD)
+    paths(
+        p_run, cache_dir=CACHE_DIR, artifact_dir=ARTIFACT_DIR, drift_dir=DRIFT_DIR,
+        out=RESULTS_JSON, baseline_json=BASELINE_JSON, results_md=RESULTS_MD,
+    )
     p_run.set_defaults(func=cmd_run)
 
     p_base = sub.add_parser(
@@ -964,15 +968,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="scanner-only floor: what checkov and trivy find with no LLM (no API key needed)",
     )
     common(p_base)
-    p_base.add_argument("--out", type=Path, default=BASELINE_JSON)
+    paths(p_base, out=BASELINE_JSON)
     p_base.set_defaults(func=cmd_baseline)
 
     p_report = sub.add_parser(
         "report", help="regenerate RESULTS.md from stored results and the committed cache"
     )
-    p_report.add_argument("--results", type=Path, default=RESULTS_JSON)
-    p_report.add_argument("--baseline-json", type=Path, default=BASELINE_JSON)
-    p_report.add_argument("--out", type=Path, default=RESULTS_MD)
+    paths(p_report, results=RESULTS_JSON, baseline_json=BASELINE_JSON, out=RESULTS_MD)
     p_report.add_argument(
         "--json", type=Path, default=None, help="also dump the computed report as JSON"
     )

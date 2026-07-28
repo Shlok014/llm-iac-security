@@ -64,7 +64,7 @@ labels:
     checkov_ids: [CKV_AWS_382]
     # Trivy's ID field for this rule is the legacy slug, not the AVD id; both are listed
     # because Finding.rule_id carries whatever is in ID.
-    trivy_ids: [aws-vpc-no-public-egress-sgr, AVD-AWS-0104]
+    trivy_ids: [aws-vpc-no-public-egress-sgr, aws-vpc-no-public-egress-sgr]
     detectable_by_scanner: true
     aliases:
       - "unrestricted egress"
@@ -83,7 +83,7 @@ labels:
     # data") and it PASSES here -- its matcher only recognises AWS-key-shaped strings, so
     # DB_PASSWORD=... slips through. Trivy catches it: "Password literal text".
     checkov_ids: []
-    trivy_ids: [aws-autoscaling-no-public-ip, AVD-AWS-0029]
+    trivy_ids: [aws-autoscaling-no-public-ip]
     detectable_by_scanner: true
     aliases:
       - "hardcoded secret in user_data"
