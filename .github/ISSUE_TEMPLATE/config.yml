@@ -6,21 +6,21 @@ blank_issues_enabled: false
 
 contact_links:
   - name: A real vulnerability in the tool itself
-    url: https://github.com/shlok-sylox/llm-iac-security/blob/main/SECURITY.md
+    url: https://github.com/Shlok014/llm-iac-security/blob/main/SECURITY.md
     about: >-
       Read SECURITY.md first. Note that everything under samples/ is deliberately
       insecure test-fixture IaC with fake placeholder credentials — a secret scanner
       flagging it is expected behaviour and is not a finding.
 
   - name: A number in RESULTS.md does not reproduce
-    url: https://github.com/shlok-sylox/llm-iac-security/blob/main/eval/results/RESULTS.md
+    url: https://github.com/Shlok014/llm-iac-security/blob/main/eval/results/RESULTS.md
     about: >-
       Run `make report` first — it regenerates every published figure offline from the
       committed response cache, with no API key and no network. If your output differs,
       that is a bug report worth filing, and please include your scanner versions.
 
   - name: Setup, cost and troubleshooting questions
-    url: https://github.com/shlok-sylox/llm-iac-security/blob/main/docs/DEVELOPMENT.md
+    url: https://github.com/Shlok014/llm-iac-security/blob/main/docs/DEVELOPMENT.md
     about: >-
       The development guide has a troubleshooting table covering the failures that
       actually happen — Python 3.14 breaking checkov, `python -m checkov`, trivy's first
