@@ -77,8 +77,8 @@ dev = [
 iac-agent = "iac_agent.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/shlok-sylox/llm-iac-security"
-Documentation = "https://github.com/shlok-sylox/llm-iac-security/tree/main/docs"
+Homepage = "https://github.com/Shlok014/llm-iac-security"
+Documentation = "https://github.com/Shlok014/llm-iac-security/tree/main/docs"
 
 [tool.setuptools]
 # Explicit, not auto-discovered: `eval/`, `tests/`, `samples/` and `docs/` are part of the
