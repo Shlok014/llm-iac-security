@@ -64,7 +64,7 @@ class LabelSet:
 
     @property
     def detectable(self) -> tuple[Label, ...]:
-        return tuple(l for l in self.labels if l.detectable_by_scanner)
+        return tuple(label for label in self.labels if label.detectable_by_scanner)
 
 
 class LabelError(Exception):
