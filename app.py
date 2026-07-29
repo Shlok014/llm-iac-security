@@ -7,6 +7,11 @@ implemented here, and no measured number is typed into this file: the evaluation
 read from `eval/results/RESULTS.md` at runtime, and the sample list is the contents of
 `samples/` at runtime.
 
+Presentation lives in `ui_theme.py` and `.streamlit/config.toml`; the reasoning behind both —
+the palette, the type pairing, and why the gate rail is drawn the way it is — is in
+`docs/UI_DESIGN.md`. The rule worth knowing before editing this file: **amber plus a dashed
+border means "not verified"**, and nothing else may use it.
+
 It previously imported `detect_vulnerabilities`, `generate_fix` and `validate_with_checkov`
 from a top-level `main.py` that also owned the orchestration, the prompts and a second,
 divergent copy of the JSON parser. That module has been removed; the submitted version of it
@@ -18,6 +23,7 @@ Run with:  streamlit run app.py
 from __future__ import annotations
 
 import difflib
+import html
 import importlib.util
 import inspect
 import json
@@ -30,6 +36,7 @@ from typing import Any
 import pandas as pd
 import streamlit as st
 
+import ui_theme as ui
 from iac_agent import __version__
 from iac_agent.llm import LLMClient, ModelConfig
 from iac_agent.loop import StopReason, run_loop
@@ -42,35 +49,24 @@ RESULTS_MD = REPO_ROOT / "eval" / "results" / "RESULTS.md"
 
 st.set_page_config(
     page_title="IaC security — detect, fix, verify",
-    page_icon="🔒",
+    page_icon="◤",
     layout="wide",
     initial_sidebar_state="expanded",
 )
+ui.inject()
 
 # --------------------------------------------------------------------------------------
 # presentation tables (labels and colours only — no analysis lives in this file)
 # --------------------------------------------------------------------------------------
 
-# Severity is shown with an emoji rather than a CSS background colour: the previous
-# hardcoded light-mode palette was unreadable in Streamlit's dark theme, and emoji plus
-# Streamlit's own semantic badge colours render correctly in both.
-SEVERITY_ICON = {
-    "critical": "🔴",
-    "high": "🟠",
-    "medium": "🟡",
-    "low": "🔵",
-    "info": "⚪",
-    "unknown": "⚪",
-}
-SEVERITY_BADGE = {
-    "critical": "red",
-    "high": "orange",
-    "medium": "yellow",
-    "low": "blue",
-    "info": "gray",
-    "unknown": "gray",
-}
-SEVERITY_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4, "unknown": 5}
+INK = "var(--ix-ink)"
+MUTED = "var(--ix-muted)"
+SIGNAL = "var(--ix-signal)"
+BLOCKED = "var(--ix-blocked)"
+
+# Station indices into `ui_theme.STATIONS`: input=1, model=2, parse=3, drift=4, rescan=5,
+# returned=6.
+ST_INPUT, ST_MODEL, ST_PARSE, ST_DRIFT, ST_RESCAN, ST_RETURNED = range(1, 7)
 
 STOP_REASONS: dict[str, tuple[str, str]] = {
     "CONVERGED": (
@@ -96,14 +92,16 @@ STOP_REASONS: dict[str, tuple[str, str]] = {
     ),
 }
 
-# How a rejection is shown. The mapping is over the reason prefixes `iac_agent.loop` writes
-# into `IterationRecord.rejected_because`; the classification itself is the package's.
-REJECTION_KINDS: tuple[tuple[str, str, str, str], ...] = (
-    ("drift:", "🚫", "rejected — deleted a resource", "red"),
-    ("drift_unmeasurable:", "🚫", "rejected — drift could not be verified", "red"),
-    ("invalid:", "✋", "rejected — did not parse", "orange"),
-    ("llm_error:", "⚠️", "model call failed", "gray"),
-    ("scan_failed:", "❗", "scanner failed — candidate unverified", "violet"),
+# Where on the rail a rejected candidate came to rest, and how that stop is drawn. The mapping
+# is over the reason prefixes `iac_agent.loop` writes into `IterationRecord.rejected_because`;
+# the classification itself is the package's. `unverified` switches the pip to the dashed amber
+# treatment that means "we could not establish this", as opposed to "this failed".
+REJECTION_KINDS: tuple[tuple[str, int, str, str, bool], ...] = (
+    ("drift:", ST_DRIFT, "rejected — deleted a resource", BLOCKED, False),
+    ("drift_unmeasurable:", ST_DRIFT, "rejected — drift unverifiable", SIGNAL, True),
+    ("invalid:", ST_PARSE, "rejected — did not parse", BLOCKED, False),
+    ("llm_error:", ST_MODEL, "the model call failed", MUTED, False),
+    ("scan_failed:", ST_RESCAN, "scanner failed — unverified", SIGNAL, True),
 )
 
 TOKEN_BUDGET_DEFAULT = inspect.signature(run_loop).parameters["token_budget"].default
@@ -190,20 +188,34 @@ def _finding_rows(findings: list[Any]) -> list[dict]:
     ]
 
 
-def _verdict(record: dict) -> tuple[str, str, str]:
-    """(icon, label, badge colour) for one iteration."""
+def _station(record: dict) -> tuple[int, str, str, bool]:
+    """(station reached, label, tone, unverified) for one iteration."""
+    # `record.accepted` means "cleared every gate and was scanned". It does *not* mean the
+    # candidate was kept: `LoopResult.accepted_any` is a different question, answered by
+    # whether the best record is still the baseline. The page must not use one word for both.
     if record["accepted"]:
-        return ("✅", "accepted — scanned", "green")
+        return (ST_RESCAN, "cleared the gates — scanned", INK, False)
     reason = record["reason"] or ""
-    for prefix, icon, label, colour in REJECTION_KINDS:
+    for prefix, station, label, tone, unverified in REJECTION_KINDS:
         if reason.startswith(prefix):
-            return (icon, label, colour)
-    return ("•", "rejected", "gray")
+            return (station, label, tone, unverified)
+    # An unrecognised reason must not be drawn as having reached the scanner: "we do not know
+    # where this stopped" fails to the earliest station it could have stopped at, not the latest.
+    return (ST_MODEL, "rejected — reason unrecognised", SIGNAL, True)
 
 
 def _truncate(text: str, limit: int = 110) -> str:
     text = " ".join(str(text).split())
     return text if len(text) <= limit else text[: limit - 1] + "…"
+
+
+def _esc(value: object) -> str:
+    return html.escape(str(value), quote=True)
+
+
+def _mono(value: object) -> str:
+    """A filename, rule or resource, marked as the literal string it is."""
+    return f"<b>{_esc(value)}</b>"
 
 
 # --------------------------------------------------------------------------------------
@@ -215,28 +227,26 @@ def _render_severity_summary(rows: list[dict], scanner: str) -> None:
     counts: dict[str, int] = {}
     for row in rows:
         counts[row["severity"]] = counts.get(row["severity"], 0) + 1
-    bar = st.container(horizontal=True)
-    for severity, count in sorted(
-        counts.items(), key=lambda kv: (SEVERITY_ORDER.get(kv[0], 9), kv[0])
-    ):
-        bar.badge(
-            f"{SEVERITY_ICON.get(severity, '⚪')} {severity} · {count}",
-            color=SEVERITY_BADGE.get(severity, "gray"),
-        )
+    ui.chips(
+        [
+            (f"{severity} · {count}", severity, severity == "unknown")
+            for severity, count in sorted(
+                counts.items(), key=lambda kv: (ui.SEVERITY_ORDER.get(kv[0], 9), kv[0])
+            )
+        ]
+    )
     if "unknown" in counts and scanner == "checkov":
         st.caption(
             "`unknown` is what Checkov's community build reports for most checks: the "
-            "scanner supplied no severity. It does not mean the finding is minor."
+            "scanner supplied no severity. It is drawn dashed, like everything else this page "
+            "could not establish — it does not mean the finding is minor."
         )
 
 
 def _render_findings_table(rows: list[dict]) -> None:
     frame = pd.DataFrame(rows)
-    frame["_rank"] = frame["severity"].map(lambda s: SEVERITY_ORDER.get(s, 9))
+    frame["_rank"] = frame["severity"].map(lambda s: ui.SEVERITY_ORDER.get(s, 9))
     frame = frame.sort_values(["_rank", "rule"]).drop(columns=["_rank"])
-    frame["severity"] = frame["severity"].map(
-        lambda s: f"{SEVERITY_ICON.get(s, '⚪')} {s}"
-    )
     # A scanner may report no line number; a nullable integer keeps the column numeric
     # instead of falling back to object dtype, which the column config cannot format.
     frame["line"] = pd.to_numeric(frame["line"], errors="coerce").astype("Int64")
@@ -245,7 +255,7 @@ def _render_findings_table(rows: list[dict]) -> None:
         hide_index=True,
         column_config={
             "severity": st.column_config.TextColumn("severity", width="small"),
-            "rule": st.column_config.TextColumn("rule", width="small"),
+            "rule": st.column_config.TextColumn("rule", width="medium"),
             "resource": st.column_config.TextColumn("resource", width="medium"),
             "finding": st.column_config.TextColumn("finding", width="large"),
             "line": st.column_config.NumberColumn("line", width="small", format="%d"),
@@ -288,16 +298,14 @@ def _render_diff(before: str, after: str, from_name: str, to_name: str, language
     )
     if not lines:
         st.info(
-            "The returned file is byte-identical to the input — nothing was accepted, so "
-            "the original is what you get back."
+            "The returned file is byte-identical to the input — nothing beat the baseline, "
+            "so the original is what you get back."
         )
         return
     body = lines[2:]
     added = sum(1 for line in body if line.startswith("+"))
     removed = sum(1 for line in body if line.startswith("-"))
-    bar = st.container(horizontal=True)
-    bar.badge(f"+{added} added", color="green")
-    bar.badge(f"−{removed} removed", color="red")
+    ui.chips([(f"+{added} added", "low", False), (f"−{removed} removed", "critical", False)])
     st.code("\n".join(lines), language="diff", height=min(680, 40 + 21 * len(lines)))
     with st.expander("Full files, side by side"):
         left, right = st.columns(2)
@@ -307,30 +315,10 @@ def _render_diff(before: str, after: str, from_name: str, to_name: str, language
         right.code(after, language=language, height=520, line_numbers=True)
 
 
-def _render_drift_primer(compact: bool) -> None:
-    """The project's differentiating idea, stated before any result is on screen."""
-    if compact:
-        with st.container(border=True):
-            st.markdown(
-                "#### Why a falling finding count is not a result\n"
-                "**Deleting the offending resource makes its findings disappear.** A rewrite "
-                "that drops the public S3 bucket scores zero and has secured nothing. So "
-                "every candidate is first compared against the *original's* resource set: if "
-                "a resource that carried a finding is gone, the candidate is **rejected "
-                "before it is ever scanned**, and cannot score at all."
-            )
-            st.caption(
-                "In the measured evaluation the model deleted "
-                "`aws_s3_bucket_policy.public_policy` instead of restricting it in 5 of 6 "
-                "runs — see the *Measured results* tab. Rejections are reported here, not "
-                "hidden."
-            )
-        return
-
+def _render_drift_primer() -> None:
+    """The project's differentiating idea, stated once, in the tab named after it."""
     st.markdown(
         """
-### The drift gate
-
 Any tool that tells you the finding count fell is asking you to trust that the findings which
 vanished were *fixed*. There is a much cheaper way to make them vanish:
 
@@ -358,8 +346,10 @@ infrastructure it described is simply gone, which is a worse outcome than the fi
    can its number count.
 
 A rejected candidate is **never scanned**, so a deletion can never be recorded as an
-improvement. The name of the deleted resource is fed back to the model as the next turn's
-instruction, which is why a rejection is often followed by a real fix.
+improvement. That ordering is what the rail on the *analyse* tab draws: a rejected candidate
+comes to rest to the left of `rescan`, and there is no position on the rail where a deleted
+resource could have produced a count. The name of the deleted resource is fed back to the model
+as the next turn's instruction, which is why a rejection is often followed by a real fix.
 
 **What it does not cover, stated plainly:**
 
@@ -370,13 +360,16 @@ instruction, which is why a rejection is often followed by a real fix.
   displayed as "no drift".
 - The gate compares resource sets. A resource that survives with its meaning gutted is a
   weaker signal than one that was deleted, and this catches the deletion.
+
+This is not a hypothetical failure mode. On the bundled fixtures the model reaches for deletion
+rather than restriction often enough that the gate fires on ordinary runs; the *measured results*
+tab carries the rate, read from the evaluation harness rather than written down here.
         """
     )
 
 
 def _render_results_page() -> None:
     """Render `eval/results/RESULTS.md` from disk. Nothing here is duplicated into the UI."""
-    st.markdown("### Measured results")
     if not RESULTS_MD.is_file():
         st.warning(
             f"**`{RESULTS_MD.relative_to(REPO_ROOT)}` is not present in this checkout**, so "
@@ -412,40 +405,36 @@ def _render_results_page() -> None:
 def _render_how_it_works() -> None:
     cfg = ModelConfig()
     st.markdown(
-        f"""
-### The pipeline
+        """
+The loop runs `baseline scan → detect → rewrite → parse gate → drift gate → rescan` and repeats
+until one of four stop conditions fires. The rail on the *analyse* tab is that sequence drawn to
+scale, with every candidate placed at the station it reached.
 
-```
-input file ──▶ scanner (baseline) ──▶ model: what is wrong? ──▶ model: rewrite it
-                                                                      │
-        ◀── best candidate ◀── rescan ◀── drift gate ◀── parse gate ◀──┘
-```
-
-The loop repeats until one of four stop conditions fires. Everything above happens inside
-`iac_agent.run_loop`; this page only shows what it returned.
+Everything above happens inside `iac_agent.run_loop`; this page only shows what it returned.
 
 **Fail closed, always.** A scanner that crashes, times out, produces no output, or reports a
-fatal condition raises an error. It is never converted into an empty finding list — an
-absence of analysis is not a passing result, and this page renders the two differently and
-loudly.
+fatal condition raises an error. It is never converted into an empty finding list — an absence
+of analysis is not a passing result, and this page renders the two differently and loudly.
 
 **Filenames are load-bearing.** Both Checkov and Trivy select their Dockerfile rules by
 *filename*, so a Dockerfile saved as `.tf` scans clean and reports a false pass. Anything you
 upload here is written under a name that implies its type before a scanner sees it.
-
-### Why the loop stops
         """
     )
-    for reason in StopReason:
-        title, explanation = STOP_REASONS.get(reason.name, (reason.name, ""))
-        with st.container(border=True):
-            st.markdown(f"**`{reason.name}` — {title}**")
-            st.caption(explanation)
 
+    ui.eyebrow("why the loop stops")
+    st.markdown(
+        "| stop reason | means | \n| --- | --- |\n"
+        + "\n".join(
+            f"| `{reason.name}` | **{STOP_REASONS.get(reason.name, (reason.name, ''))[0]}.** "
+            f"{STOP_REASONS.get(reason.name, ('', ''))[1]} |"
+            for reason in StopReason
+        )
+    )
+
+    ui.eyebrow("run configuration")
     st.markdown(
         f"""
-### Run configuration
-
 | setting | value |
 | --- | --- |
 | model | `{cfg.model}` |
@@ -459,7 +448,8 @@ Read from `iac_agent` at page load, not written down here.
 
 **This UI is a view, not a second implementation.** The supported interface is the CLI
 (`python -m iac_agent.cli`); everything this page can do, that can do, and the evaluation
-harness in `eval/` is what produces the numbers in *Measured results*.
+harness in `eval/` is what produces the numbers in *measured results*. The design brief for this
+page — and the rules it is held to — are in `docs/UI_DESIGN.md`.
         """
     )
 
@@ -564,7 +554,7 @@ def _render_failure(failure: dict) -> None:
     """A failure is never allowed to look like a clean result."""
     if failure["kind"] == "scanner":
         st.error(
-            "### 🛑 The scanner did not run\n"
+            "### The scanner did not run\n"
             "**This file has not been checked.** An absent analysis is not a passing "
             "analysis, so no finding count is shown for it."
         )
@@ -579,79 +569,69 @@ def _render_failure(failure: dict) -> None:
 
 
 def _render_scan(payload: dict) -> None:
-    st.markdown(f"#### `{payload['scanner']}` on `{payload['name']}`")
-    left, right = st.columns([1, 3], vertical_alignment="center")
-    left.metric("Failed checks", len(payload["findings"]))
-    right.caption(
-        f"Scanned as `{payload['scanned_as']}` ({payload['iac_type']}) so the scanner "
-        f"selects the right ruleset · {payload['passed']} checks passed · "
-        "no model was called."
+    count = len(payload["findings"])
+    ui.verdict(
+        str(count),
+        "failed checks" if count != 1 else "failed check",
+        f"{_mono(payload['scanner'])} on {_mono(payload['name'])} · "
+        f"{payload['passed']} checks passed · <i>no model was called</i><br>"
+        f"scanned as {_mono(payload['scanned_as'])} ({_esc(payload['iac_type'])}), so the "
+        f"scanner selects the right ruleset",
+        tone="blocked" if count else "verified",
     )
+    ui.eyebrow("findings")
     _render_scan_outcome(
         payload["findings"], payload["scanner"], payload["passed"], payload["parse_errors"]
     )
     st.caption(
-        "This is the baseline the LLM has to beat. On the six original fixtures the "
-        "scanners find more than the model does on its own — the *Measured results* tab has "
-        "the recall numbers."
+        "This is the baseline the LLM has to beat. On the original fixtures the scanners find "
+        "more than the model does on its own — the *measured results* tab has the recall "
+        "numbers."
     )
 
 
-def _render_trail(payload: dict) -> None:
-    """The loop's progression, one card per step, plus a one-line textual trail."""
+def _render_rail(payload: dict) -> None:
+    """The loop's progression, drawn against the gates each candidate had to survive."""
     before = payload["before"]
-    steps: list[dict] = [
+    rows: list[dict] = [
         {
-            "label": "Baseline",
-            "value": str(before),
-            "delta": None,
-            "icon": "📋",
-            "verdict": "the file as given",
-            "colour": "gray",
-            "note": f"`{payload['scanner']}` on the input",
-            "best": not payload["accepted_any"],
+            "iteration": "baseline",
+            "reached": ST_INPUT,
+            "tone": MUTED,
+            "unverified": False,
+            "finished": not payload["accepted_any"],
+            "outcome": (
+                f"the file as given · <b>{before}</b> failed"
+                + ("" if payload["accepted_any"] else " · <i>this is what was returned</i>")
+            ),
         }
     ]
-    parts = [f"baseline **{before}**"]
     for record in payload["iterations"]:
-        icon, verdict, colour = _verdict(record)
+        station, label, tone, unverified = _station(record)
         findings = record["findings"]
-        steps.append(
+        detail = f"<b>{findings}</b> failed" if findings is not None else "never scanned"
+        reason = _truncate(record["reason"], 62)
+        rows.append(
             {
-                "label": f"Iteration {record['index']}",
-                "value": str(findings) if findings is not None else "—",
-                "delta": (findings - before) if findings is not None else None,
-                "icon": icon,
-                "verdict": verdict,
-                "colour": colour,
-                "note": _truncate(record["reason"], 90)
-                or f"{record['tokens']} tokens · scanned",
-                "best": record["is_best"],
+                "iteration": f"iter {record['index']}",
+                "reached": ST_RETURNED if record["is_best"] else station,
+                "tone": tone,
+                "unverified": unverified,
+                "finished": record["is_best"],
+                "outcome": (
+                    f"{_esc(label)} · {detail}"
+                    f"<br><i>{_esc(reason) + ' · ' if reason else ''}"
+                    f"{record['tokens']} tokens</i>"
+                ),
             }
         )
-        if findings is None:
-            parts.append(f"iter {record['index']} *{verdict}*")
-        else:
-            parts.append(f"iter {record['index']} **{findings}** ({verdict.split('—')[0].strip()})")
 
-    st.markdown("**Trail** · " + "  →  ".join(parts))
-    columns = st.columns(len(steps), gap="small")
-    for column, step in zip(columns, steps):
-        with column.container(border=True):
-            st.caption(step["label"] + (" · returned" if step["best"] else ""))
-            st.metric(
-                "failed checks",
-                step["value"],
-                delta=step["delta"],
-                delta_color="inverse",
-                label_visibility="collapsed",
-            )
-            st.badge(f"{step['icon']} {step['verdict']}", color=step["colour"])
-            st.caption(step["note"])
-    st.caption(
-        "A rejected iteration is a result, not noise: it is never scanned and never written, "
-        "so it cannot lower the count. Its reason is fed back to the model as the next "
-        "turn's instruction."
+    ui.gate_rail(
+        rows,
+        "A candidate that comes to rest before <b>rescan</b> was never written to disk and "
+        "never scanned, so it cannot post a count — a deletion has no way to be recorded as an "
+        "improvement. Its reason is fed back to the model as the next turn's instruction, which "
+        "is why a rejection is often followed by a real fix.",
     )
 
 
@@ -662,22 +642,16 @@ def _render_drift_verdict(payload: dict) -> None:
         if (record["reason"] or "").startswith("drift")
     ]
     if rejections:
-        with st.container(border=True):
-            st.markdown("### 🚫 The drift gate fired")
-            st.error(
-                f"**{len(rejections)} proposed fix(es) were rejected for removing a resource "
-                "that carried a finding.** Deleting a resource makes its findings vanish "
-                "without securing anything, so the candidate was thrown away *before it was "
-                "scanned* — it never got a number."
-            )
-            for record in rejections:
-                st.markdown(f"- **Iteration {record['index']}** — `{record['reason']}`")
-                if record["drift_summary"]:
-                    st.caption(f"  resource diff: {record['drift_summary']}")
-            st.caption(
-                "This is the finding this project exists to produce. Without the gate, each "
-                "of these would have been reported as an improvement."
-            )
+        st.error(
+            f"**The drift gate fired — {len(rejections)} proposed fix(es) were rejected for "
+            "removing a resource that carried a finding.** Deleting a resource makes its "
+            "findings vanish without securing anything, so the candidate was thrown away "
+            "*before it was scanned*. Without the gate, each of these would have been reported "
+            "as an improvement."
+        )
+        for record in rejections:
+            summary = f" · resource diff: {record['drift_summary']}" if record["drift_summary"] else ""
+            st.caption(f"Iteration {record['index']} — `{record['reason']}`{summary}")
         return
 
     if payload["drift_note"]:
@@ -708,61 +682,73 @@ def _render_drift_verdict(payload: dict) -> None:
 
 def _render_fix(payload: dict) -> None:
     before, after = payload["before"], payload["after"]
-    st.markdown(f"#### `{payload['scanner']}` loop on `{payload['name']}`")
-
-    cols = st.columns(5)
-    cols[0].metric("Findings before", before)
-    cols[1].metric(
-        "Findings after",
-        after if after is not None else "—",
-        delta=(after - before) if after is not None else None,
-        delta_color="inverse",
-    )
-    cols[2].metric("Resolved", payload["resolved"], help="Present at baseline, absent now.")
-    cols[3].metric(
-        "Introduced",
-        payload["introduced"],
-        delta=payload["introduced"] or None,
-        delta_color="inverse",
-        help="Findings the rewrite created. Never subtracted from 'resolved'.",
-    )
-    cols[4].metric("Tokens", payload["tokens"], help=f"Budget: {TOKEN_BUDGET_DEFAULT}")
-
     title, explanation = STOP_REASONS.get(
         payload["stop_reason"], (payload["stop_reason"], "")
     )
-    st.markdown(f"**Stopped: {title}** (`{payload['stop_reason']}`)")
-    st.caption(explanation)
+
+    if after is None:
+        ui.verdict(
+            "—",
+            "failed checks after",
+            f"{_mono(payload['scanner'])} loop on {_mono(payload['name'])} · the returned "
+            f"candidate was <b>never scanned</b>, so there is no count. This is not a clean "
+            f"result · was {before} at baseline",
+            tone="signal",
+        )
+    else:
+        delta = after - before
+        tone_word = "verified" if delta < 0 else ("blocked" if delta > 0 else "muted")
+        movement = (
+            f'<span class="ix-delta" data-tone="{tone_word}">'
+            f"{'+' if delta > 0 else ''}{delta} vs baseline</span>"
+        )
+        ui.verdict(
+            str(after),
+            "failed checks after",
+            f"{movement} &nbsp; {_mono(payload['scanner'])} loop on {_mono(payload['name'])} · "
+            f"was {before} at baseline · stopped: <b>{_esc(title)}</b><br>"
+            f"{payload['resolved']} resolved · {payload['introduced']} introduced · "
+            f"{payload['tokens']} tokens of {TOKEN_BUDGET_DEFAULT}",
+            tone="verified" if after == 0 else "blocked",
+        )
+    st.caption(
+        f"`{payload['stop_reason']}` — {explanation} "
+        "*Introduced* findings are the ones the rewrite created; they are never subtracted "
+        "from *resolved*."
+    )
 
     if payload["aborted"]:
         st.warning(f"**The run ended on an error, not a planned stop:** {payload['aborted']}")
 
-    # Drift verdict sits above the diff on purpose: a run that lowered the count by deleting
-    # the offending resource looks like a success in every other number on this page.
+    # The drift verdict sits above everything else on purpose: a run that lowered the count by
+    # deleting the offending resource looks like a success in every other number on this page.
     _render_drift_verdict(payload)
 
     if not payload["accepted_any"]:
-        st.info(
-            "**No candidate was accepted**, so the original file is returned unchanged. "
-            "The count did not move because nothing was allowed to move it."
-        )
+        scanned = sum(1 for record in payload["iterations"] if record["accepted"])
+        if scanned:
+            st.info(
+                f"**No candidate beat the baseline.** {scanned} candidate(s) cleared every "
+                "gate and were scanned, but none scored better than the file you started "
+                "with, so the original is returned unchanged."
+            )
+        else:
+            st.info(
+                "**No candidate cleared the gates**, so the original file is returned "
+                "unchanged. The count did not move because nothing was allowed to move it."
+            )
 
-    st.divider()
-    _render_trail(payload)
-    st.divider()
+    ui.eyebrow("how that number was reached")
+    _render_rail(payload)
 
-    tabs = st.tabs(
-        ["Diff", "Findings", "Per-iteration detail", "What the model claimed", "Download"]
+    ui.eyebrow("evidence")
+    view = st.segmented_control(
+        "Evidence",
+        ["diff", "findings", "what the model claimed"],
+        default="diff",
+        label_visibility="collapsed",
     )
-    with tabs[0]:
-        _render_diff(
-            payload["code"],
-            payload["fixed_code"],
-            payload["name"],
-            payload["output_name"],
-            _language(payload["iac_type"]),
-        )
-    with tabs[1]:
+    if view == "findings":
         left, right = st.columns(2)
         with left:
             st.markdown(f"**Before — {before} failed**")
@@ -783,100 +769,67 @@ def _render_fix(payload: dict) -> None:
                     payload["final_passed"],
                     payload["final_parse_errors"],
                 )
-    with tabs[2]:
-        if payload["iterations"]:
-            detail = pd.DataFrame(
-                [
-                    {
-                        "iteration": record["index"],
-                        "verdict": f"{_verdict(record)[0]} {_verdict(record)[1]}",
-                        "findings": record["findings"],
-                        "drift checked": record["drift_checked"],
-                        "reason": record["reason"],
-                        "tokens": record["tokens"],
-                        "returned": record["is_best"],
-                    }
-                    for record in payload["iterations"]
-                ]
-            )
-            # An unscanned candidate has no count; a nullable integer says "no value"
-            # rather than coercing it to a number that would read as zero findings.
-            detail["findings"] = pd.to_numeric(
-                detail["findings"], errors="coerce"
-            ).astype("Int64")
-            st.dataframe(
-                detail,
-                hide_index=True,
-                column_config={
-                    "findings": st.column_config.NumberColumn(
-                        "findings",
-                        help="Blank means the candidate was rejected and never scanned — "
-                        "it is not a zero.",
-                    ),
-                    "reason": st.column_config.TextColumn("reason", width="large"),
-                },
-            )
-        else:
-            st.info("The baseline was already clean, so the model was never called.")
-        st.code(payload["summary"], language="text", wrap_lines=True)
-    with tabs[3]:
+    elif view == "what the model claimed":
         st.caption(
             f"The model's own detection pass ({payload['detect_tokens']} tokens). It is "
             "shown because it is *not* what the count above is based on — the scanners are. "
             "Measured on the fixtures, the model's detection recall is worse than Checkov "
-            "alone; the *Measured results* tab has both numbers."
+            "alone; the *measured results* tab has both numbers."
         )
         if payload["issues"]:
             st.dataframe(pd.DataFrame(payload["issues"]), hide_index=True)
         else:
             st.info("The model reported nothing, or was never asked.")
-    with tabs[4]:
-        st.download_button(
-            "Remediated file",
-            data=payload["fixed_code"],
-            file_name=payload["output_name"],
-            mime="text/plain",
-            width="stretch",
+    else:
+        _render_diff(
+            payload["code"],
+            payload["fixed_code"],
+            payload["name"],
+            payload["output_name"],
+            _language(payload["iac_type"]),
         )
-        st.download_button(
-            "JSON report",
-            data=json.dumps(
-                {
-                    key: payload[key]
-                    for key in (
-                        "name", "iac_type", "scanner", "max_iters", "before", "after",
-                        "resolved", "introduced", "accepted_any", "stop_reason", "tokens",
-                        "aborted", "drift_note", "iterations", "summary",
-                    )
-                },
-                indent=2,
-            ),
-            file_name="iac_security_report.json",
-            mime="application/json",
-            width="stretch",
-        )
+
+    bar = st.container(horizontal=True)
+    bar.download_button(
+        "Remediated file",
+        data=payload["fixed_code"],
+        file_name=payload["output_name"],
+        mime="text/plain",
+    )
+    bar.download_button(
+        "JSON report",
+        data=json.dumps(
+            {
+                key: payload[key]
+                for key in (
+                    "name", "iac_type", "scanner", "max_iters", "before", "after",
+                    "resolved", "introduced", "accepted_any", "stop_reason", "tokens",
+                    "aborted", "drift_note", "iterations", "summary",
+                )
+            },
+            indent=2,
+        ),
+        file_name="iac_security_report.json",
+        mime="application/json",
+    )
+    with st.expander("Run summary, as the package prints it"):
+        st.code(payload["summary"], language="text", wrap_lines=True)
 
 
 # --------------------------------------------------------------------------------------
 # page
 # --------------------------------------------------------------------------------------
 
-st.title("🔒 Infrastructure-as-Code security — detect, fix, verify")
-st.markdown(
-    "Static scanners find misconfigurations in Terraform and Dockerfiles, a language model "
-    "rewrites the file, and the scanners run again to check the rewrite actually fixed "
-    "something.  \n"
-    "Every candidate must survive a parse gate and a **drift gate** before its number "
-    "counts — and a scanner that fails to run is reported as a failure, never as a clean pass."
-)
-
-_render_drift_primer(compact=True)
-
 samples = _list_samples()
 fix_enabled, fix_reason = _fix_availability()
 
+ui.masthead(
+    "static scanners detect · a model rewrites · the scanners <b>verify</b>",
+    f"iac_agent {__version__} · {ModelConfig().model}",
+)
+
 with st.sidebar:
-    st.subheader("Input")
+    ui.eyebrow("source")
     modes = ["Bundled sample", "Upload"]
     mode = st.radio(
         "Source",
@@ -900,8 +853,10 @@ with st.sidebar:
             picked = st.selectbox(
                 "Fixture",
                 list(by_name),
-                help="Listed from samples/ at page load, so fixtures added to the repo "
-                "appear here without touching this file.",
+                label_visibility="collapsed",
+                help="Listed from `samples/` at page load, so fixtures added to the repo "
+                "appear here without touching `app.py`. Every one of them is deliberately "
+                "vulnerable.",
             )
             chosen = by_name[picked]
             try:
@@ -910,15 +865,13 @@ with st.sidebar:
             except OSError as exc:
                 input_error = f"Could not read `{chosen}`: {exc}"
             else:
-                st.caption(
-                    f"`samples/{chosen.name}` · {len(input_code.splitlines())} lines · "
-                    "deliberately vulnerable"
-                )
+                st.caption(f"{len(input_code.splitlines())} lines · deliberately vulnerable")
     else:
         uploaded = st.file_uploader(
             "Terraform or Dockerfile",
-            help="Accepted: *.tf, Dockerfile, *.Dockerfile. Nothing leaves this machine "
-            "unless you press the fix button.",
+            label_visibility="collapsed",
+            help="Accepted: `*.tf`, `Dockerfile`, `*.Dockerfile`. Nothing leaves this machine "
+            "unless you press **Scan, fix and verify**.",
         )
         if uploaded is None:
             input_error = "Choose a file, or switch to **Bundled sample** to try it now."
@@ -934,43 +887,54 @@ with st.sidebar:
                 except IaCAgentError as exc:
                     input_error, input_name, input_code = str(exc), None, None
 
-    st.subheader("Settings")
-    scanner_name = st.selectbox("Scanner", sorted(SCANNERS))
-    st.caption(
-        "The tool must be installed. If it cannot run, this page says so — it never "
-        "reports a missing scanner as a clean file."
+    ui.eyebrow("scanner")
+    scanner_name = st.selectbox(
+        "Scanner",
+        sorted(SCANNERS),
+        label_visibility="collapsed",
+        help="The tool must be installed. If it cannot run, this page says so — it never "
+        "reports a missing scanner as a clean file.",
     )
-    max_iters = st.slider("Max iterations", 1, 5, 3)
+    max_iters = st.slider(
+        "Max iterations",
+        1,
+        5,
+        3,
+        help="How many rewrites the loop may attempt before returning the best candidate "
+        "it has seen.",
+    )
 
-    st.subheader("Run")
+    ui.eyebrow("run")
     ready = input_name is not None and input_code is not None
     scan_clicked = st.button(
-        "Scan only", icon="🔍", width="stretch", disabled=not ready,
+        "Scan only",
+        width="stretch",
+        disabled=not ready,
         help="Runs the scanner. No API key, no model, no cost.",
     )
     fix_clicked = st.button(
         "Scan, fix and verify",
-        icon="🛠️",
         type="primary",
         width="stretch",
         disabled=not (ready and fix_enabled),
         help=fix_reason if not fix_enabled else "Calls the model. This one costs money.",
     )
-    if fix_enabled:
-        st.caption(f"✅ {fix_reason}")
-    else:
-        st.caption(f"🔒 **Fixing is unavailable.** {fix_reason}")
     if input_error:
-        st.caption(f"⚠️ {input_error}")
+        st.caption(f"⚠︎ {input_error}")
+    with st.popover(
+        "Fixing is available" if fix_enabled else "Fixing is unavailable",
+        width="stretch",
+    ):
+        st.markdown(fix_reason)
 
-    st.divider()
+with st.sidebar:
     st.caption(
-        f"`iac_agent` {__version__} · model `{ModelConfig().model}` · the supported "
-        "interface is the CLI; this page is a view over the same package."
+        "The supported interface is the CLI (`python -m iac_agent.cli`); this page is a view "
+        "over the same package."
     )
 
 tab_run, tab_drift, tab_results, tab_how = st.tabs(
-    ["▶ Analyse", "🚫 Drift gate", "📊 Measured results", "❓ How it works"]
+    ["analyse", "drift gate", "measured results", "method"]
 )
 
 with tab_run:
@@ -998,10 +962,6 @@ with tab_run:
                     st.write(
                         f"**3.** Parse gate → drift gate → rescan, up to {max_iters} "
                         "time(s), keeping the best candidate."
-                    )
-                    st.caption(
-                        "One blocking call into `iac_agent.run_loop`; the trail below shows "
-                        "what actually happened, including rejected attempts."
                     )
                     st.session_state["outcome"] = _do_fix(
                         input_name, input_code, scanner_name, max_iters
@@ -1041,14 +1001,15 @@ with tab_run:
         else:
             _render_fix(outcome)
     else:
-        st.info(
-            "**Nothing has been run yet.** A fixture from `samples/` is already selected in "
-            "the sidebar — press **Scan only** for a real result with no API key and no "
-            "cost, or upload your own file."
+        ui.empty(
+            "nothing has been run",
+            "A fixture from <b>samples/</b> is already selected. Press <b>Scan only</b> for a "
+            "real result — no API key, no model, no cost. <b>Scan, fix and verify</b> adds the "
+            "model and the gates, and calls a paid API.",
         )
 
     if input_code and input_name:
-        with st.expander(f"Input — `{input_name}`", expanded=False):
+        with st.expander(f"Input — {input_name}", expanded=False):
             st.code(
                 input_code,
                 language=_language_of(input_name),
@@ -1057,7 +1018,7 @@ with tab_run:
             )
 
 with tab_drift:
-    _render_drift_primer(compact=False)
+    _render_drift_primer()
 
 with tab_results:
     _render_results_page()

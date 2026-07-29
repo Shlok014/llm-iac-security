@@ -92,7 +92,12 @@ version = { attr = "iac_agent.__version__" }
 [tool.ruff]
 line-length = 100
 target-version = "py311"
-extend-exclude = ["main.py", "app.py"]  # the original submission, kept verbatim as provenance
+# `main.py` was the original submission and is gone from the tree; the entry stays so a
+# checkout of an older commit still lints. `app.py` is excluded because it is a Streamlit
+# script, not a module: its top level is the page, so import-time side effects and the
+# `st.*` call sequence are the point rather than a smell. `ui_theme.py` is a normal module
+# and is linted.
+extend-exclude = ["main.py", "app.py"]
 
 [tool.ruff.lint]
 # Ruff's default rules (pyflakes + the pycodestyle error subset). Deliberately not extended:
