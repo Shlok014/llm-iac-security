@@ -150,6 +150,33 @@ The LLM finds *fewer* real flaws than Checkov does for free, at 59.3% strict pre
 original project claimed contextual understanding as the LLM's advantage; measured, it is behind
 the free tool at detection. Its value is remediation — scanners cannot rewrite anything at all.
 
+> ⚠️ **This comparison is under question. The gap may be an artifact of how findings are matched
+> to labels, not a property of the model.**
+>
+> `matching.semantic_matches` scores a model finding as correct only when a label alias appears as
+> a verbatim **substring** of the model's prose, so a paraphrase reads as a miss — and a miss costs
+> twice, once as a false negative on the label and once as a false positive on the finding. On
+> `ec2_open.tf` the model wrote *"SSH access is open to the world (0.0.0.0/0)"* against the alias
+> *"ssh open to the world"*, with the resource address matching exactly, and scored zero.
+>
+> Re-scoring the **same cached responses** with order-independent token matching moves recall from
+> 40.7% to **65.9%** and strict precision from 48.5% to **85.3%**:
+>
+> ```bash
+> .venv/bin/python scripts/rescore_matcher.py   # reads the committed cache, no API calls, no cost
+> ```
+>
+> **This does not overturn the table above, and the two sets of figures are not directly
+> comparable.** The re-score covers 12 fixtures and 91 labels at a single seed; the published rows
+> are 6 fixtures and 52 labels averaged over three. The token matcher is also more permissive by
+> construction and has not been through the adjudication pass. Settling it requires a full re-run
+> under a matcher fixed *before* its results are seen — this repo's own rule, in
+> [EVALUATION §5.2](docs/EVALUATION.md) — and that re-run has not been done.
+>
+> Until it is, read *"the LLM detects worse than Checkov"* as **unresolved**, not as a result. The
+> published numbers are left exactly as they were rather than quietly restated, because a matcher
+> revised after seeing its own misses is not evidence.
+
 **Label leakage — how much of that was reading the answer key**
 
 The fixtures annotate their own planted flaws in comments (`# <- public-read is insecure`). Run
@@ -282,6 +309,12 @@ Method, formulas and threats to validity: [`docs/EVALUATION.md`](docs/EVALUATION
   The corpus has since grown to 12 vulnerable fixtures plus 3 secure negative controls, but the
   evaluation above has **not** been re-run across it — that is the obvious next step and is not
   quietly implied to have happened. `make report` reproduces exactly what is published, no more.
+- **The detection comparison is unresolved.** The substring matcher that produces the LLM's recall
+  and precision figures may be measuring itself rather than the model — re-scoring the committed
+  cache with token matching roughly doubles both. Nothing above has been restated on the strength
+  of that, because the fix needs a full re-run under a matcher frozen in advance. Detail, numbers
+  and the reproduce command are [above](#measured-results); the mechanism is
+  [EVALUATION §5.2](docs/EVALUATION.md) and threat T8.
 - **n = 3 seeds.** Descriptive statistics only — `mean [min, max]`. No confidence intervals, no
   significance tests, no claim that one configuration beats another. Trivy's delta in particular
   ranges 35.1%–68.4% across seeds, so treat the mean as indicative rather than as a result.

@@ -896,6 +896,46 @@ are not commensurable and are not presented as such.
    the same deliberate trade — the key excludes line numbers so it survives a rewrite.
 3. Alias substring matching will miss correctly-phrased findings, which costs twice — once as a
    false negative, once as a false positive ([§5.2](#52-metric-2--detection-precision-and-recall)).
+   **This one turned out to be much larger than assumed, and it may invalidate the headline
+   detection comparison.** `MEASURED`, and the reason the detection numbers should be read as
+   provisional:
+
+   | Matcher | Recall | Strict precision |
+   |---|---:|---:|
+   | Substring (what the published numbers use) | 40.7% (37/91) | 48.5% (33/68) |
+   | Token-subset, order-independent | **65.9%** (60/91) | **85.3%** (58/68) |
+
+   Both rows score the **same cached model responses** — no new API calls, no new generations —
+   over 12 fixtures and 91 labels at `run_index=0`, stripped variant. Reproduce with:
+
+   ```bash
+   .venv/bin/python scripts/rescore_matcher.py
+   ```
+
+   The clearest single case: on `ec2_open.tf` the model wrote *"SSH access is open to the world
+   (0.0.0.0/0)"* against the alias *"ssh open to the world"* with the resource address matching
+   exactly. The two intervening words `access is` break the substring test, so a correct finding
+   was scored as both a miss and a hallucination. That fixture has 2 labels, the model reported
+   exactly 2 correct findings, and it scored 0% recall with 2 false positives.
+
+   **What this does and does not license.** It does *not* license restating the published figures.
+   Three reasons, all of which have to be cleared first:
+
+   - **The denominators differ.** The re-score is 12 fixtures / 91 labels at one seed. The
+     published detection table is 6 fixtures / 52 labels averaged over three seeds, and the scanner
+     baselines it compares against (checkov 46.2%, trivy 40.4%, union 53.8%) are computed on that
+     smaller subset. Reading 65.9% against 46.2% crosses denominators and is not a valid comparison.
+   - **The replacement matcher is unvalidated.** Token-subset is strictly more permissive than
+     substring, so some of the gain is mechanical. Precision rising rather than falling is
+     evidence against pure over-matching, but no adjudication pass has been run on it.
+   - **[§5.2](#52-metric-2--detection-precision-and-recall) forbids it.** A vocabulary or matcher
+     amended after seeing its own misses must trigger a full rerun, "so that no result is ever
+     produced by a vocabulary that was tuned against it". The same rule binds a matcher revised
+     after seeing the misses *it* caused.
+
+   Until that re-run happens under a matcher frozen in advance, the honest status of "the LLM
+   detects worse than Checkov" is **unresolved**. The published numbers stand as measured, with
+   this threat attached, rather than being silently replaced by more flattering ones.
 
 **T9 — Adjudication is performed by the system's author.** `precision_adjudicated` requires a human
 to decide whether an unmatched finding is a real unlabelled flaw or a hallucination, and that human
