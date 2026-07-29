@@ -15,8 +15,6 @@ import json
 import tempfile
 from pathlib import Path
 
-import pytest
-
 from iac_agent.llm import LLMClient, LLMResponse, ModelConfig, TokenUsage
 from iac_agent.loop import StopReason, run_loop
 

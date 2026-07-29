@@ -538,7 +538,7 @@ def detection_metrics(
         hallucinated=hallucinated,
         matched_label_ids=tuple(sorted(matched_labels)),
         missed_label_ids=tuple(
-            sorted(l.id for l in labelset.labels if l.id not in matched_labels)
+            sorted(label.id for label in labelset.labels if label.id not in matched_labels)
         ),
         unmatched_findings=tuple(unmatched),
         pairs=tuple(pairs),
@@ -835,7 +835,10 @@ def scanner_baseline(
         detectable_hits = sum(
             1
             for f, lid in hits
-            if any(l.id == lid and l.detectable_by_scanner for l in labelsets[f].labels)
+            if any(
+                label.id == lid and label.detectable_by_scanner
+                for label in labelsets[f].labels
+            )
         )
         out["per_scanner"][scanner] = {
             "findings": total,
