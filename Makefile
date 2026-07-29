@@ -173,7 +173,7 @@ report: check-venv ## [free] Regenerate eval/results/RESULTS.md offline from the
 ##@ Extras
 # ---------------------------------------------------------------------------------------
 
-ui: check-venv ## [free to start] Launch the legacy Streamlit app (its Fix button is a paid path)
+ui: check-venv ## [free to start] Launch the Streamlit view (Scan is free; Scan-fix-verify is paid)
 	@test -x "$(STREAMLIT)" || { echo "no streamlit at $(STREAMLIT). Run: make setup"; exit 2; }
 	$(STREAMLIT) run app.py
 

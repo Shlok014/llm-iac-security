@@ -12,6 +12,7 @@ detail behind those claims.
 | 4 | [THREAT_MODEL.md](THREAT_MODEL.md) | What does it cost you to run this? Your IaC leaves your machine — what else can go wrong, and what risk is left over? | Anyone thinking about pointing this at real infrastructure. |
 | 5 | [DEVELOPMENT.md](DEVELOPMENT.md) | How do I install it, run it, test it, and avoid spending money doing so? | A contributor — or the author, six months from now. |
 | 6 | [LLD.md](LLD.md) | What is going on inside one specific module, and which lines are load-bearing? | Someone about to edit `iac_agent/`. Reference material — open the section you need, do not read it end to end. |
+| 7 | [UI_DESIGN.md](UI_DESIGN.md) | Why does the Streamlit page look like that, and what is it allowed to say? | Anyone about to change `app.py`, `ui_theme.py` or `.streamlit/config.toml` — the colours carry meaning, and `tests/test_app_contract.py` enforces the half of it that is mechanical. |
 
 Two related documents live outside this directory:
 

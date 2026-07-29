@@ -1,0 +1,113 @@
+# Streamlit theme for the IaC security view.
+#
+# Checked in deliberately. The page's colours carry meaning — amber-and-dashed means "not
+# verified" everywhere it appears — and a developer's personal Streamlit theme could otherwise
+# render an unmeasured drift gate in green. See docs/UI_DESIGN.md §3 for the token table and
+# §7 for what this costs.
+#
+# Only tokens Streamlit understands live here. Layout, the gate rail and anything with
+# structure are in `ui_theme.py`.
+
+[theme]
+base = "light"
+
+# Monospace is the display face, not just the code face: every artifact this tool handles —
+# HCL, Dockerfiles, diffs, rule IDs, scanner output — is already monospaced, so the page stops
+# changing register every time it shows a piece of the thing it is describing. Both stacks fall
+# back to system faces, because the scanner path has to work with no network.
+font = "IBM Plex Sans, ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif"
+headingFont = "IBM Plex Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
+codeFont = "IBM Plex Mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
+baseFontSize = 15
+headingFontWeights = [600, 600, 600, 500, 500, 500]
+
+baseRadius = "0.25rem"
+buttonRadius = "0.25rem"
+showWidgetBorder = true
+showSidebarBorder = true
+
+[theme.light]
+backgroundColor = "#F6F7F9"          # paper
+secondaryBackgroundColor = "#FFFFFF" # surface
+textColor = "#15171F"                # ink
+primaryColor = "#15171F"             # ink — see UI_DESIGN.md §3 "the risk taken"
+borderColor = "#D8DBE2"              # rule
+linkColor = "#15171F"
+linkUnderline = true
+codeBackgroundColor = "#F0F2F5"
+codeTextColor = "#15171F"
+dataframeHeaderBackgroundColor = "#F0F2F5"
+dataframeBorderColor = "#D8DBE2"
+
+# Semantic families. Streamlit maps these onto st.badge, st.success, st.error, st.warning and
+# st.info, so setting them here is what keeps those components inside the palette.
+redColor = "#B42318"                 # blocked — a gate rejection, top of the severity ramp
+redTextColor = "#8A1C12"
+redBackgroundColor = "#FDECEA"
+greenColor = "#15803D"               # verified — a scanner ran and reported zero failures
+greenTextColor = "#136B34"
+greenBackgroundColor = "#EAF6EE"
+orangeColor = "#B45309"              # signal — reserved for absence of knowledge
+orangeTextColor = "#8F4207"
+orangeBackgroundColor = "#FDF3E3"
+yellowColor = "#A16207"              # severity: medium
+yellowTextColor = "#845108"
+yellowBackgroundColor = "#FBF3DF"
+# Blue is a slate rather than a blue: st.info carries neutral asides on this page, and a bright
+# blue box competes with the amber that is supposed to be the loudest thing on screen.
+blueColor = "#475569"
+blueTextColor = "#334155"
+blueBackgroundColor = "#EEF0F4"
+grayColor = "#64748B"
+grayTextColor = "#475569"
+grayBackgroundColor = "#F0F2F5"
+violetColor = "#6D28D9"              # scanner failure during a run
+violetTextColor = "#5B21B6"
+violetBackgroundColor = "#F1ECFD"
+
+[theme.light.sidebar]
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F6F7F9"
+borderColor = "#E4E7EC"
+codeBackgroundColor = "#F0F2F5"
+
+[theme.dark]
+backgroundColor = "#0F1117"
+secondaryBackgroundColor = "#171A22"
+textColor = "#E8EAF0"
+primaryColor = "#E8EAF0"
+borderColor = "#2A2E3A"
+linkColor = "#E8EAF0"
+linkUnderline = true
+codeBackgroundColor = "#171A22"
+codeTextColor = "#E8EAF0"
+dataframeHeaderBackgroundColor = "#1D212B"
+dataframeBorderColor = "#2A2E3A"
+
+redColor = "#F27B72"
+redTextColor = "#F8A9A2"
+redBackgroundColor = "#2E1512"
+greenColor = "#5FBE7D"
+greenTextColor = "#8FD5A4"
+greenBackgroundColor = "#12251A"
+orangeColor = "#E9A23B"
+orangeTextColor = "#F2C078"
+orangeBackgroundColor = "#2B1E0B"
+yellowColor = "#D9B04A"
+yellowTextColor = "#E8C978"
+yellowBackgroundColor = "#26200C"
+blueColor = "#8B97AB"
+blueTextColor = "#AAB4C4"
+blueBackgroundColor = "#1B1F29"
+grayColor = "#8B93A3"
+grayTextColor = "#A7AEBC"
+grayBackgroundColor = "#1B1F29"
+violetColor = "#A78BFA"
+violetTextColor = "#C4B2FD"
+violetBackgroundColor = "#1F1830"
+
+[theme.dark.sidebar]
+backgroundColor = "#12141B"
+secondaryBackgroundColor = "#1B1F29"
+borderColor = "#262A35"
+codeBackgroundColor = "#1B1F29"
