@@ -1,27 +1,39 @@
+<div align="center">
+
 # llm-iac-security
+
+**Static scanners find the misconfiguration. A model rewrites the file. The scanners check whether the rewrite actually fixed anything.**
 
 [![ci](https://github.com/Shlok014/llm-iac-security/actions/workflows/ci.yml/badge.svg)](https://github.com/Shlok014/llm-iac-security/actions/workflows/ci.yml)
 [![python](https://img.shields.io/badge/python-3.11--3.13-blue)](pyproject.toml)
 [![licence](https://img.shields.io/badge/licence-MIT-green)](LICENSE)
 [![results](https://img.shields.io/badge/results-reproducible%20offline-brightgreen)](eval/results/RESULTS.md)
 
-An LLM + static-analysis pipeline that finds misconfigurations in Terraform and Dockerfiles,
-rewrites them, and then **checks whether the rewrite actually fixed anything** — including
-whether the model "fixed" a problem by quietly deleting the resource it was about.
+</div>
 
-That last check is the point of the project. Making findings go down is easy. Making
-infrastructure safer is not the same thing, and almost nothing measures the difference.
+<div align="center">
+  <img src="docs/assets/scan-light.png" alt="The analyse tab: Checkov reporting 8 failed checks on a bundled Terraform fixture, with the findings table below" width="900">
+  <p><em>The free path — Checkov on a bundled fixture. No API key, no model call, no cost.</em></p>
+</div>
 
-### Try it in 30 seconds — no API key, no cost
+---
 
-```bash
-make setup                 # venv on python3.11-3.13 + editable install
-make baseline              # scan the whole corpus with Checkov + Trivy
-make report                # regenerate every published number from the committed cache
-```
+Making findings go down is easy. Making infrastructure safer is not the same thing, and almost
+nothing measures the difference.
 
-`make report` reproduces this repo's results **offline**, from cached model responses. If the
-numbers below don't match what you get, that's a bug worth an issue.
+The cheapest way to clear a finding is to **delete the resource it was about**. That scores a
+perfect delta, passes a syntax check, and silently strips the resource off your infrastructure at
+the next `terraform apply`. This project exists because that failure mode is invisible to every
+metric a remediation tool normally reports.
+
+## What it does
+
+| | |
+|---|---|
+| **Detects** | Checkov and Trivy scan Terraform and Dockerfiles for the baseline. An LLM detection pass runs alongside — and is measured against them, not trusted over them. |
+| **Remediates** | The model rewrites the file. Every candidate must survive a **parse gate** and a **drift gate** before it is allowed near a scanner. |
+| **Verifies** | Only a surviving candidate is written to disk and rescanned. The loop returns the **best candidate it saw**, never the last one — and the original file if nothing beat it. |
+| **Refuses to guess** | A scanner that crashes, times out or emits an empty report raises an error. An absent analysis is never rendered as a clean pass. |
 
 ---
 
@@ -37,6 +49,71 @@ infrastructure. Nothing was secured.
 
 This is not a fluke of one sample — it is a reproducible behaviour, and the drift metric is the
 only signal in the pipeline that can tell it apart from a real fix.
+
+<div align="center">
+  <img src="docs/assets/fix-light.png" alt="A remediation run: 16 failed checks after, down 21 from baseline, with the gate rail showing three candidates that cleared every gate" width="900">
+</div>
+
+> **One live run** on `samples/vulnerable_main.tf` — 37 findings down to 16, 21 resolved, 0
+> introduced. All three candidates cleared every gate, and the drift gate confirmed that none of
+> them got there by deleting a resource. This is a single run for illustration, **not** a measured
+> average; the measured figures are [below](#measured-results).
+
+The rail is the point. Stations run `input → model → parse → drift → rescan → returned`, and each
+candidate is drawn at the station that stopped it. A rejected candidate comes to rest **to the
+left of `rescan`** — there is no position on the rail where a deleted resource could have produced
+a count.
+
+---
+
+## Try it in 30 seconds — no API key, no cost
+
+```bash
+make setup                 # venv on python3.11-3.13 + editable install
+make baseline              # scan the whole corpus with Checkov + Trivy
+make report                # regenerate every published number from the committed cache
+make ui                    # launch the Streamlit view (Scan is free; fixing is the paid path)
+```
+
+`make report` reproduces this repo's results **offline**, from cached model responses. If the
+numbers below don't match what you get, that's a bug worth an issue.
+
+### Two interfaces
+
+The CLI is the supported one. The Streamlit page is a view over the same package — it implements
+no policy of its own.
+
+```bash
+.venv/bin/python -m iac_agent.cli scan samples/vulnerable_main.tf   # no API key needed
+cp .env.example .env                                               # add a key for `fix`
+.venv/bin/python -m iac_agent.cli fix samples/s3_public.tf
+```
+
+`scan` never constructs a model client, needs no key and costs nothing. It is also what the
+GitHub Action runs.
+
+<details>
+<summary><b>The page follows your system theme</b> — light and dark are both first-class</summary>
+<br>
+<div align="center">
+  <img src="docs/assets/scan-dark.png" alt="The same scan result rendered in dark mode" width="900">
+</div>
+</details>
+
+---
+
+## At a glance
+
+| | |
+|---|---|
+| **Runtime** | Python 3.11–3.13. **Not 3.14** — checkov's `networkx` dependency crashes there. |
+| **Scanners** | Checkov and Trivy, reported per-scanner and never merged into one total |
+| **Targets** | AWS Terraform and Dockerfiles. No Azure, GCP, Kubernetes or CloudFormation. |
+| **Model** | `gpt-4o-mini-2024-07-18`, `temperature=0`, fixed seed, pinned prompt version |
+| **Evaluation** | 72 model calls — 6 fixtures × 2 corpus variants × 3 seeds |
+| **Reproducibility** | Every published figure regenerates offline from a committed response cache |
+| **Tests** | 355, passing with `OPENAI_API_KEY` unset |
+| **Licence** | MIT |
 
 ---
 
@@ -98,25 +175,9 @@ overstating its result — including, necessarily, the original version of this 
 Every one of those five events is the same thing: `aws_s3_bucket_policy.public_policy` deleted
 rather than restricted.
 
-⚠️ Descriptive statistics over 3 seeds on **6 synthetic fixtures**. n is far too small for
-confidence intervals or significance claims. They show the pipeline works and is measurable;
-they do not generalise. See [Limitations](#limitations).
-
----
-
-## Quickstart
-
-Requires Python 3.11–3.13. **Not 3.14** — checkov's `networkx` dependency crashes there.
-
-```bash
-python3.13 -m venv .venv && .venv/bin/pip install -e .
-.venv/bin/python -m iac_agent.cli scan samples/vulnerable_main.tf   # no API key needed
-cp .env.example .env                                                # add a key for `fix`
-.venv/bin/python -m iac_agent.cli fix samples/s3_public.tf
-```
-
-`scan` never constructs a model client, needs no key and costs nothing. It is also what the
-GitHub Action runs.
+> ⚠️ Descriptive statistics over 3 seeds on **6 synthetic fixtures**. n is far too small for
+> confidence intervals or significance claims. They show the pipeline works and is measurable;
+> they do not generalise. See [Limitations](#limitations).
 
 ---
 
@@ -173,6 +234,12 @@ logs an error, **exits 0**, and prints a well-formed empty report — byte-ident
 legitimately resource-less file produces. It cannot be caught from the report's shape, so the
 guard keys on stderr. Verified: `samples/vulnerable.Dockerfile` has five genuine findings and was
 being reported as a clean scan.
+
+The same rule governs the UI. Amber plus a dashed border means **"not verified"** everywhere it
+appears — drift that could not be measured, a candidate rejected before it was scanned, a severity
+Checkov declined to supply. "Not checked" is never drawn as "no drift". The rules the page is held
+to, and the tests that enforce them, are in [`docs/UI_DESIGN.md`](docs/UI_DESIGN.md) and
+[`tests/test_app_contract.py`](tests/test_app_contract.py).
 
 ---
 
@@ -253,9 +320,11 @@ evaluation: committed ground truth, a reproducible offline harness, and failure-
 
 [`docs/`](docs/) — [architecture](docs/ARCHITECTURE.md), [low-level design](docs/LLD.md),
 [evaluation method](docs/EVALUATION.md), [threat model](docs/THREAT_MODEL.md),
-[decision records](docs/DECISIONS.md), [development guide](docs/DEVELOPMENT.md).
+[decision records](docs/DECISIONS.md), [development guide](docs/DEVELOPMENT.md),
+[UI design](docs/UI_DESIGN.md).
 
-⚠️ `samples/` contains **deliberately vulnerable** IaC used as test fixtures. See
-[`SECURITY.md`](SECURITY.md). Do not deploy it.
+> ⚠️ `samples/` contains **deliberately vulnerable** IaC used as test fixtures, including fake
+> placeholder credentials. A secret scanner flagging them is expected behaviour, not a finding.
+> See [`SECURITY.md`](SECURITY.md). Do not deploy it.
 
 MIT licensed.
