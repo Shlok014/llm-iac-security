@@ -6,7 +6,8 @@ view, the design principles and the historical narrative; this document owns sig
 sharp edges and the handful of invariants that are not obvious from the source.
 
 Most non-obvious decisions here are scar tissue from defects in the original submitted code
-(`main.py`, `app.py`, still at the repository root; `ERRATA.md` is the record). Those are the
+(`main.py` and the `app.py` that imported from it — retired in `7e79ac9`, and readable in git
+history at the import commit, which is what `ERRATA.md` cites). Those are the
 passages worth your time. **Every number below was measured on this machine with the pinned
 toolchain (§11.4)** using the exact argv the scanners construct; nothing came from a model call,
 and end-to-end accuracy lives in the generated `eval/results/RESULTS.md` (§11.5).

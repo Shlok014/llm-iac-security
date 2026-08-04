@@ -79,9 +79,9 @@ cd llm-iac-security
 
 # 2. Editable install, with the development extras (pytest and friends).
 .venv/bin/pip install -U pip
-.venv/bin/pip install -e ".[dev]"
-# If the [dev] extra is not yet declared in the packaging metadata:
-#   .venv/bin/pip install -e . && .venv/bin/pip install pytest
+.venv/bin/pip install -e ".[dev]"    # [dev] pulls in [ui], so this also installs
+                                     # streamlit and pandas — tests/test_app_contract.py
+                                     # imports app.py and needs them.
 
 # 3. Environment file. Required only for the LLM paths.
 cp .env.example .env
@@ -138,7 +138,7 @@ should be able to reproduce the scanner-side claims without an account, a key, o
 flowchart LR
     subgraph free ["No API key · no cost"]
         A["iac-agent scan FILE"]
-        B["eval/run_eval.py baseline"]
+        B["python -m eval.run_eval baseline"]
         T["pytest"]
     end
     subgraph paid ["Requires OPENAI_API_KEY · spends money"]
@@ -195,26 +195,33 @@ well-meaning refactor.
 .venv/bin/streamlit run app.py
 ```
 
-`app.py` is the **original submitted UI**, kept because it is what the college submission
-demonstrated. Check the import line at the top of the file to know what you are looking at:
+`app.py` **is** the current UI. It was the original submitted one for a while, importing
+`validate_with_checkov` and friends from a `main.py` whose Checkov invocation never executed;
+that module was retired in `7e79ac9` and the page now calls `run_loop` and the scanner registry
+directly. Presentation lives in `ui_theme.py` and `.streamlit/config.toml`; the design brief and
+the rules the page is held to are in [`UI_DESIGN.md`](UI_DESIGN.md).
 
-- `from main import ...` → it is still wired to the original `main.py`, including
-  `validate_with_checkov`, whose Checkov invocation never executes (see below). Treat it as a
-  historical demo, not a supported entry point.
-- an import from `iac_agent` → it has been rewired onto the rebuilt package.
-
-The supported interface is the CLI. Do not add features to `app.py` that do not exist in
-`iac_agent/`; the UI is a view, not a second implementation.
+The supported interface is still the CLI. Do not add features to `app.py` that do not exist in
+`iac_agent/`; the UI is a view, not a second implementation. `tests/test_app_contract.py`
+enforces the parts of that which are mechanically checkable — no measured number typed into the
+page, no absent analysis rendered as a passing one.
 
 ### The evaluation harness
 
 ```bash
-# Free. Scanners only, no model, no key. This regenerates the baseline table above.
-.venv/bin/python eval/run_eval.py baseline
+# Run it as a module, not as a script: `eval/` is a package and `run_eval.py` uses relative
+# imports, so `python eval/run_eval.py` dies with "attempted relative import with no known
+# parent package" before it parses a single argument.
+.venv/bin/python -m eval.run_eval --help
+
+# Free. Scanners only, no model, no key. NOTE: with no --out this rewrites
+# eval/results/baseline.json, which describes the six fixtures the published numbers were
+# measured on — see the warning `make baseline` prints.
+.venv/bin/python -m eval.run_eval baseline --out /tmp/baseline.json
 
 # The LLM sweep. Replays eval/cache/ by default (free); --fresh ignores the cache and
-# calls the model for real (paid). Check --help for the current subcommand name.
-.venv/bin/python eval/run_eval.py --help
+# calls the model for real (paid).
+.venv/bin/python -m eval.run_eval run --help
 ```
 
 Ground truth lives in `eval/labels/*.labels.yaml`, hand-written per fixture. One thing to know
@@ -243,8 +250,10 @@ the harness is wrong.
 
 There is exactly one marker, `slow`, and `pytest.ini` deselects it by default via
 `addopts = -m "not slow"`. So the bare `pytest` you run a hundred times a day is the *fast*
-suite, and getting the full suite takes the deliberate `-m ""`. Note the consequence: **CI must
-opt in to `-m ""`**, or the end-to-end scanner checks silently never run.
+suite, and getting the full suite takes the deliberate `-m ""`. Note the consequence: CI runs `-m "not slow"`, so the
+end-to-end scanner checks do **not** run there. What covers that gap is the exit-code contract
+step in `.github/workflows/ci.yml`, which invokes the real Checkov binary directly and asserts
+1 / 0 / 2 for findings / clean / could-not-look.
 
 The split is about subprocesses, not about the network. `slow` means "invokes the real Checkov
 or Trivy binary", which costs seconds per file. Nothing in the suite calls a model, at either
@@ -381,7 +390,7 @@ bookkeeping.
 |---|---|
 | `iac-agent scan` | **Free.** No model call, no key read. |
 | `pytest`, at any marker selection | **Free.** No model call. |
-| `eval/run_eval.py baseline` | **Free.** Scanners only. |
+| `python -m eval.run_eval baseline` | **Free.** Scanners only. |
 | Eval sweep, cached (default) | **Free.** Replays `eval/cache/`. |
 | Eval sweep, `--fresh` | **Paid.** Every fixture, every iteration, live. |
 | `iac-agent fix` | **Paid.** One loop over one file. |
@@ -428,18 +437,19 @@ Three habits that keep the bill near zero:
 | `AttributeError: 'wrapper_descriptor' object has no attribute '__annotate__'` | Checkov 3.2.489 on Python 3.14 (networkx dataclass slots). | Rebuild the venv from 3.11–3.13. Not fixable in this repo. |
 | `No module named checkov.__main__; 'checkov' is a package and cannot be directly executed` | You ran `python -m checkov`. Checkov ships **no** `__main__` module, on any Python version. | Use the console script: `.venv/bin/checkov`. See the note below — this is the original bug. |
 | First `trivy config` run hangs or fails offline | Trivy downloads its Rego checks bundle (`mirror.gcr.io/aquasec/trivy-checks:1`) into `~/Library/Caches/trivy` on first use. | Run it once with network access. Afterwards `--skip-check-update` keeps it offline and fast. |
-| `ModuleNotFoundError: No module named 'pandas'` when starting the Streamlit app | `app.py` imports pandas, which was historically absent from `requirements.txt`. | Install via the packaging metadata (`pip install -e ".[dev]"`), which is the source of truth. `requirements.txt` is legacy. |
+| `ModuleNotFoundError: No module named 'pandas'` when starting the Streamlit app | `app.py` imports pandas, which was historically absent from `requirements.txt`. | Install via the packaging metadata (`pip install -e ".[dev]"`), which is the source of truth. `requirements.txt` was deleted in `7e79ac9`; the extras in `pyproject.toml` are the only source of truth, and `[dev]` now pulls in `[ui]` so a `.[dev]` install can run the app-contract tests. |
 | `iac-agent: command not found` | Editable install not done, or you are outside the venv. | `.venv/bin/pip install -e ".[dev]"`, then call `.venv/bin/iac-agent`. |
 | `ScannerError: 'trivy' not found` | Trivy is a Go binary; pip will never provide it. | `brew install trivy` (or any install that puts it on `PATH`). |
 | `ScannerError: checkov produced no output` | Checkov ran but returned nothing. | **Do not catch this.** It is the fail-closed guard doing its job. Reproduce the raw command by hand and find out why. |
 | `UnsupportedFileError: Cannot determine IaC type` | Routing is by filename. | Terraform must end `.tf`; Dockerfiles must be named `Dockerfile` or `*.Dockerfile`. This mirrors how the scanners themselves select rulesets. |
 | Remediated Dockerfile scans clean and you do not believe it | You are right not to. A Dockerfile written to a `.tf` filename gets Terraform rules applied and finds nothing. | Use `IaCType.output_name` ([ADR-005](DECISIONS.md#adr-005-filename-driven-output-for-remediated-files)). Measured: identical Dockerfile content yields **0** findings named `.tf` and **6** named `Dockerfile`. |
 | `openai.RateLimitError` / HTTP 429 | Too many requests, or a spent quota. | Back off and retry; prefer the cache; check billing before assuming it is a code bug. Never "handle" it by returning an empty finding list. |
-| Streamlit app reports a clean pass on an obviously broken file | The legacy `main.py` path. | See below. |
+| Streamlit app reports a clean pass on an obviously broken file | This was the original `main.py` path, retired in `7e79ac9`. | Should be impossible now — `app.py` renders a scanner failure and a clean scan differently and loudly, and `tests/test_app_contract.py` guards it. If you see it, that is a bug worth an issue. See below for what the original did. |
 
 ### The bug the whole rebuild is organised around
 
-The original `main.py` validated fixes like this:
+The original `main.py` — in git history at the import commit, not in the tree — validated
+fixes like this:
 
 ```python
 cmd = ["python3", "-m", "checkov", "-f", file_path, "-o", "json"]
@@ -480,20 +490,23 @@ llm-iac-security/
 │   ├── cache/            #   Committed model responses so metrics regenerate offline.
 │   ├── strip_comments.py #   Removes the fixtures' inline answer key before detection.
 │   └── results/          #   RESULTS.md — GENERATED. Never hand-edit.
-├── samples/              # Six deliberately vulnerable fixtures: 4 Terraform, 2 Dockerfile.
+├── samples/              # 12 deliberately vulnerable fixtures: 8 Terraform, 4 Dockerfile,
+│                         #   plus secure/ — 4 negative controls. The published numbers cover
+│                         #   six of them; see EVALUATION.md for which.
 ├── tests/                # pytest suite. Must pass with OPENAI_API_KEY unset.
 ├── pytest.ini            # Test contract: one `slow` marker, deselected by default.
 ├── docs/                 # Committed design documentation. You are here.
 ├── .github/workflows/    # CI. Runs the free paths only.
-├── app.py                # Legacy Streamlit UI from the original submission.
-├── main.py               # Legacy pipeline from the original submission. Kept as evidence.
+├── app.py                # The Streamlit view over the package. Not part of it.
+├── ui_theme.py           # Its presentation layer: CSS and the gate rail. See UI_DESIGN.md.
 ├── ERRATA.md             # Corrections to the submitted report. Never edit the submission itself.
 └── outputs/              # Gitignored run artifacts.
 ```
 
-`main.py` and `app.py` are retained rather than deleted on purpose. `ERRATA.md` makes claims
-about what the original code did; deleting the original code would make those claims
-unverifiable.
+`main.py` was retired in `7e79ac9` once `iac_agent` replaced it, and `app.py` was rewired onto
+the package in the same commit. `ERRATA.md` makes claims about what the original code did, and
+those stay verifiable because the module is still in git history at the import commit — which
+is what the errata cite. Deleting history, not deleting the file, is what would break them.
 
 For what is inside any one of those modules — the invariants, the ordering constraints, the
 lines that look arbitrary and are not — see [LLD.md](LLD.md).

@@ -72,13 +72,20 @@ a count.
 
 ```bash
 make setup                 # venv on python3.11-3.13 + editable install
-make baseline              # scan the whole corpus with Checkov + Trivy
 make report                # regenerate every published number from the committed cache
 make ui                    # launch the Streamlit view (Scan is free; fixing is the paid path)
 ```
 
 `make report` reproduces this repo's results **offline**, from cached model responses. If the
 numbers below don't match what you get, that's a bug worth an issue.
+
+> `make baseline` is deliberately **not** in that list. It rewrites
+> `eval/results/baseline.json`, which currently describes the six fixtures the published
+> results were measured on — so running it over the full twelve-fixture corpus and then
+> running `make report` mixes a twelve-fixture baseline with six-fixture model results, and
+> the numbers stop matching for a reason that is not a bug. Scan the corpus with
+> `make baseline OUT=/tmp/baseline.json`, or put the file back with
+> `git checkout eval/results/baseline.json`.
 
 ### Two interfaces
 
@@ -308,7 +315,7 @@ Method, formulas and threats to validity: [`docs/EVALUATION.md`](docs/EVALUATION
 
 - **The published numbers cover 6 synthetic fixtures**, hand-written to be vulnerable. They show
   the pipeline works and is measurable; they say nothing about organically-written IaC.
-  The corpus has since grown to 12 vulnerable fixtures plus 3 secure negative controls, but the
+  The corpus has since grown to 12 vulnerable fixtures plus 4 secure negative controls, but the
   evaluation above has **not** been re-run across it — that is the obvious next step and is not
   quietly implied to have happened. `make report` reproduces exactly what is published, no more.
 - **The detection comparison is unresolved.** The substring matcher that produces the LLM's recall

@@ -245,6 +245,74 @@ def test_only_paths_inside_the_run_directory_are_shortened(app):
     assert app._display_resource("", workdir) == ""
 
 
+# --------------------------------------------------------------------------------------
+# the design doc is a specification, so it has to still be true
+# --------------------------------------------------------------------------------------
+
+
+def _hex_pairs(pattern: str, text: str) -> dict[str, tuple[str, str]]:
+    return {
+        m.group(1): (m.group(2).upper(), m.group(3).upper())
+        for m in re.finditer(pattern, text, re.M)
+    }
+
+
+def test_the_documented_palette_is_the_palette_in_the_code():
+    """`docs/UI_DESIGN.md` §3 is a token table, not prose about one: a reader is entitled to
+    copy a hex out of it. It drifted twice — `paper` was documented as a colour that appears
+    nowhere in the repository, and two severity values outlived a change made in the same
+    commit that documented the change. Cheaper to check than to notice."""
+    ui = (REPO_ROOT / "ui_theme.py").read_text(encoding="utf-8")
+    doc = (REPO_ROOT / "docs" / "UI_DESIGN.md").read_text(encoding="utf-8")
+    cfg = (REPO_ROOT / ".streamlit" / "config.toml").read_text(encoding="utf-8")
+
+    documented = _hex_pairs(
+        r"^\|\s*`([a-z-]+)`\s*\|\s*`(#[0-9A-Fa-f]{6})`\s*\|\s*`(#[0-9A-Fa-f]{6})`", doc
+    )
+    assert documented, "§3's token table did not parse — has its shape changed?"
+
+    for token, (light, dark) in documented.items():
+        if token == "paper":
+            # The page ground is Streamlit's, not ours: it lives in the theme file.
+            actual = re.search(r'backgroundColor\s*=\s*"(#[0-9A-Fa-f]{6})"', cfg)
+            assert actual, "no backgroundColor in .streamlit/config.toml"
+            assert actual.group(1).upper() == light, (
+                f"§3 documents paper as {light}, but config.toml sets {actual.group(1)}"
+            )
+            continue
+        found = re.search(
+            rf"^\s*--ix-{re.escape(token)}\s*:\s*light-dark\((#[0-9A-Fa-f]{{6}}),\s*"
+            rf"(#[0-9A-Fa-f]{{6}})\)",
+            ui,
+            re.M,
+        )
+        assert found, f"§3 documents a `{token}` token that ui_theme.py does not define"
+        assert (found.group(1).upper(), found.group(2).upper()) == (light, dark), (
+            f"§3 documents `{token}` as {light}/{dark}; ui_theme.py has "
+            f"{found.group(1)}/{found.group(2)}"
+        )
+
+
+def test_the_documented_severity_ramp_is_the_ramp_in_the_code():
+    import ui_theme
+
+    doc = (REPO_ROOT / "docs" / "UI_DESIGN.md").read_text(encoding="utf-8")
+    ramp = re.search(
+        r"`critical (#[0-9A-Fa-f]{6})` → `high (#[0-9A-Fa-f]{6})` → "
+        r"`medium (#[0-9A-Fa-f]{6})` → `low (#[0-9A-Fa-f]{6})` → `info (#[0-9A-Fa-f]{6})`",
+        doc,
+    )
+    assert ramp, "§3's severity ramp sentence did not parse"
+    for index, severity in enumerate(("critical", "high", "medium", "low", "info"), start=1):
+        actual = re.search(
+            r"light-dark\((#[0-9A-Fa-f]{6})", ui_theme.SEVERITY_TONE[severity][0]
+        )
+        assert actual and actual.group(1).upper() == ramp.group(index).upper(), (
+            f"§3 documents `{severity}` as {ramp.group(index)}; SEVERITY_TONE has "
+            f"{actual.group(1) if actual else '?'}"
+        )
+
+
 def test_the_api_key_is_never_read_into_the_page(app_source: str):
     """`_fix_availability` reports whether a key is *available*; it must never put the value on
     screen. Only the presence check may touch the environment variable."""

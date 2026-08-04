@@ -42,8 +42,10 @@ review: every output is a *candidate patch* that a human is expected to read.
 ## 2. Design principles
 
 Each principle exists because of a specific failure, most of them failures in this project's
-own first implementation. The original submitted code is preserved at the repository root
-(`main.py`, `app.py`) as the historical artifact that the errata describe.
+own first implementation. That implementation — `main.py` and the `app.py` that imported from
+it — is no longer in the tree: it was retired in `7e79ac9` once the package replaced it. It is
+preserved in git history at the import commit, which is what `ERRATA.md` points at, and the
+quotations below are from there rather than from a file you can open.
 
 ### 2.1 Fail closed — the load-bearing rule
 
@@ -263,7 +265,7 @@ between "calls an LLM" and "acts on feedback".
 flowchart TD
     subgraph entry["Entry points"]
         CLI["cli.py<br/>iac-agent scan, iac-agent fix"]
-        UI["app.py<br/>Streamlit UI, legacy"]
+        UI["app.py + ui_theme.py<br/>Streamlit view"]
     end
 
     subgraph orch["Orchestration"]
@@ -290,7 +292,8 @@ flowchart TD
 
     CLI --> LOOP
     CLI --> SCAN
-    UI -. planned rewire .-> LOOP
+    UI --> LOOP
+    UI --> SCAN
     LOOP --> LLM
     LOOP --> SCAN
     LOOP --> VAL
@@ -316,11 +319,14 @@ package; the core layers import only shared contracts; only `loop.py` knows abou
 core layers. There is no path from `scanners.py` to `llm.py` — the scanner layer has no idea
 a model exists, which is what makes `iac-agent scan` runnable with no API key at all.
 
-**The Streamlit edge is dashed on purpose** **[frozen observation]**. At `HEAD`, `app.py`
-imports `detect_vulnerabilities`, `generate_fix`, and `validate_with_checkov` from the
-original `main.py`, so the UI still routes through the fail-open path described in §2.1.
-`app.py` and `main.py` are retained as the historical submission and are **not** part of the
-`iac_agent` package. Rewiring the UI onto `run_loop()` is planned, not done **[intent]**.
+**The Streamlit edge is solid** **[implemented]**. It was dashed for a while: `app.py` used to
+import `detect_vulnerabilities`, `generate_fix` and `validate_with_checkov` from the original
+`main.py` and so routed through the fail-open path described in §2.1. That was fixed in
+`7e79ac9` — `main.py` is deleted, and `app.py` now calls `run_loop` and the scanner registry
+directly, which is why the fail-closed behaviour §2.1 describes is the behaviour the page
+shows. `app.py` and `ui_theme.py` are still **not** part of the `iac_agent` package: the UI is a
+view over it and is not importable from it. The old module is in git history at the import
+commit, and `ERRATA.md` is what points at it.
 
 ---
 
@@ -454,7 +460,7 @@ files failed to converge, not just how many did.
 | `iac_agent/loop.py` | Orchestration and every policy decision: gate order, convergence, budget, best-so-far. | `run_loop()`, `StopReason` (`CONVERGED`, `MAX_ITERS`, `NO_PROGRESS`, `TOKEN_BUDGET`) | Catch `ScannerError` and continue with an empty finding list; let a rescan failure make a candidate eligible to become `best`; scan a candidate that failed the validity gate; return the last attempt instead of the best. | **[implemented]** |
 | `iac_agent/cli.py` | Argument parsing, file routing, exit codes, human-readable output. | `iac-agent scan`, `iac-agent fix` | Collapse a `ScannerError` into the same exit code as "findings found"; require an API key for `scan`. | **[spec]** |
 | `eval/` | Ground truth, offline reproduction, metric computation. | `run_eval.py`, `metrics.py`, `labels/*.labels.yaml`, `cache/`, `strip_comments.py`, `results/RESULTS.md` (generated) | Require network access or an API key to regenerate published metrics; hand-edit `results/RESULTS.md`. | **[spec]** |
-| `main.py`, `app.py` (repo root) | Historical artifact: the original submitted implementation, preserved so the errata have something to point at. | — | Be imported by anything under `iac_agent/`; be treated as current behaviour. | **[frozen]** legacy |
+| `app.py`, `ui_theme.py` (repo root) | The Streamlit view over the package: collects an input, calls `run_loop` or a scanner, renders what came back. Chooses labels and colours and no policy. | — (not importable from `iac_agent`) | Implement any analysis of its own; write a measured number into the page; render an absent analysis as a passing one. See `docs/UI_DESIGN.md` §6. | **[implemented]** |
 
 ---
 
@@ -569,12 +575,22 @@ layers — and this one should not be quietly stretched to cover it.
 in the fix prompt (`_PRESERVATION_RULES` in `llm.py`: never delete, never rename, additions are
 fine, return the complete file) and *measured* here. Neither alone is evidence — a prompt rule
 is an intention, and a metric with no countermeasure is just a record of failure. Accordingly
-drift is **reported, not enforced** as a hard rejection gate; the rate at which it occurs is a
-result for `eval/results/RESULTS.md` **[intent — not a number to state here]**.
+drift is both **reported and enforced**: `run_loop` computes it before the rescan, and a
+candidate that removed a resource carrying a baseline finding gets `rejected_because` set and is
+never written to disk or scanned — so it cannot post a count at all. The rate at which that
+fires is a result for `eval/results/RESULTS.md` **[intent — not a number to state here]**.
+
+> This paragraph previously read "drift is **reported, not enforced** as a hard rejection gate",
+> which was the opposite of what `loop.py` has always done and the opposite of what every other
+> document here says. It is called out rather than silently corrected because a design doc that
+> contradicts the code is the failure mode this project is supposed to be careful about.
 
 ### 6.4 Reference baseline
 
-**[measured]** Scanner findings on the six fixtures in `samples/`, with the frozen
+**[measured]** Scanner findings on the six fixtures the published results were measured on.
+`samples/` has since grown to twelve vulnerable fixtures plus four secure negative controls,
+and this table has deliberately **not** been recomputed over them — see `docs/EVALUATION.md`
+for which corpus each published number describes. Measured with the frozen
 `scanners.py` against checkov 3.2.489 and trivy 0.68.1 on Python 3.13:
 
 | Fixture | Checkov failed checks | Trivy findings |
