@@ -59,7 +59,8 @@ Six named values. The palette is derived from the subject's own artifacts — a 
 | `ink` | `#15171F` | `#E8EAF0` | All primary text. Also the primary button fill — see the risk below. |
 | `paper` | `#F4F5F7` | `#0F1117` | Page ground. Cool, not cream. |
 | `surface` | `#FFFFFF` | `#171A22` | Cards, tables, the rail. |
-| `rule` | `#D8DBE2` | `#2A2E3A` | Hairlines, borders, gate stations. |
+| `rule` | `#D8DBE2` | `#2A2E3A` | Hairlines and borders. |
+| `rule-strong` | `#868C9C` | `#666E7E` | The rail's own marks — see §8. |
 | `signal` | `#B45309` | `#E9A23B` | **Reserved for absence of knowledge.** Nothing else may use it. |
 | `blocked` | `#B42318` | `#F27B72` | A gate rejection, and the top of the severity ramp. |
 | `verified` | `#15803D` | `#5FBE7D` | A scanner that actually ran and reported zero failures. |
@@ -123,22 +124,25 @@ scanner path is deliberately usable with no network and no API key.
 ├─────────────┬─────────────────────────────────────────────────────────┤
 │             │  ANALYSE    DRIFT GATE    MEASURED RESULTS    METHOD    │  tab strip, mono, small caps
 │  SOURCE     │ ─────────────────────────────────────────────────────── │
-│  ○ sample   │                                                         │
-│  ○ upload   │   8   FAILED CHECKS                                     │  verdict — one number, one line
-│  [ec2_o… ▾] │       checkov · ec2_open.tf · terraform · 7 passed      │
+│ [ec2_open▾] │                                                         │
+│  38 lines   │   8   FAILED CHECKS                                     │  verdict — one number, one line
+│ › upload    │       checkov · ec2_open.tf · 7 passed                  │
 │             │                                                         │
 │  SCANNER    │   ┌───────────────────────────────────────────────────┐ │
 │  [checkov▾] │   │ input ──▪ parse ──▪ drift ──▪ rescan ──▪ returned │ │  ◀ SIGNATURE: the gate rail
-│  ITERATIONS │   │            ╎         ╎                            │ │
+│  MAX FIX    │   │            ╎         ╎                            │ │
 │  ●────      │   │            ╎         └ iter 2 · deleted a resource│ │
 │             │   │            └ iter 1 · did not parse               │ │
 │  ┌────────┐ │   └───────────────────────────────────────────────────┘ │
-│  │  Scan  │ │                                                         │
+│  │Scan—fre│ │                                                         │
 │  ├────────┤ │   EVIDENCE                                              │
-│  │ Fix  ▸ │ │   [ findings ][ diff ][ iterations ][ model ][ file ]   │  one tab level, not two
+│  │Fix—paid│ │   [ diff ][ findings ][ what the model claimed ]        │  one tab level, not two
 │  └────────┘ │                                                         │
 └─────────────┴─────────────────────────────────────────────────────────┘
 ```
+
+The source picker has no mode switch: the uploader lives under the fixture list and wins when it
+holds a file. Cost is in the run labels rather than in a tooltip. Both are §8.
 
 Three bands, in the order a sceptic reads them: **what is the answer / how was it reached / show
 me**. The reference material (the drift essay, the measured results, the method) keeps its own
@@ -238,3 +242,112 @@ mechanically checkable.
 - **`ui_theme.py` is not part of the installed package.** `pyproject.toml` installs `iac_agent`
   only. Like `app.py`, the theme module is repository-level: the UI is a view over the package and
   is not importable from it.
+
+---
+
+## 8. Second pass: what was still hard
+
+§1 fixed a page that was *cluttered*. This pass answers a different complaint — *make it
+easier* — and the distinction matters, because almost none of what follows is about how the page
+looks. Each item was found by driving the running app rather than by reading the source, and each
+is a step someone had to take that they should not have had to.
+
+### The reader could not read it
+
+`--ix-faint` measured **2.98:1** on light paper and **3.65:1** on the dark card — under the 4.5:1
+minimum for text at any of the sizes it is used at. That would be defensible for decoration, but
+`faint` is what the **tab strip**, the **rail's station names** and the **line under the verdict
+number** are set in, so the page's navigation and the sentence naming the scanner and the file
+were both below the threshold. Now `#6B7181` / `#8A92A2` — 4.55 and 5.56, still a clear step
+quieter than `muted` at 5.70 / 6.62.
+
+The rail had the same problem in a worse place. Its unreached stations were drawn in `rule` at
+**1.29:1**, which made the dotted pips and the track between them almost invisible — and §4 says
+in as many words that *not reached* and *passed* must not look alike. Graphics need 3:1, not
+4.5:1, so `rule-strong` is a separate token: hairlines stay hairlines. Two severity chips
+(`medium` 4.45, `info` 4.24) were darkened for the same reason.
+
+### The table was hard to use as a table
+
+| Was | Now |
+|---|---|
+| Sorted by severity then rule ID. Checkov reports `unknown` for everything, so in practice it sorted alphabetically by rule ID and scattered one resource's problems across the whole list. | Sorted by severity, then **resource**, then line. Everything wrong with one bucket sits together. |
+| A `severity` column reading `unknown` in every row — the widest column on screen spending its width on one repeated word. Trivy on a Dockerfile reports no resource at all, giving a column of blanks. | A column whose every value is identical is dropped. The chips above the table already state the breakdown. |
+| Dockerfile findings named `/var/folders/q0/…/tmp8f2/Dockerfile.ADD`: sixty characters of scratch path in front of the one word that identifies the instruction. | Paths **inside this run's own scratch directory** are shortened to their last component. Anything else is left exactly as the scanner reported it. |
+| A fixed ten-row height, so five findings got a scrollbar they did not need and thirty got a scroll region that ate the page's scroll whenever the pointer was over it. | Sized to its contents, to a ceiling. |
+| A finding cited line 120; the file was in a collapsed expander at the bottom of the page. | Select a row and the cited line appears **beneath the table**, numbered as it is numbered in the file. |
+
+The excerpt is deliberately **not** highlighted in amber. Amber-plus-dashed means "not verified"
+everywhere on this page, and a line a scanner reported is the most established thing on screen;
+emphasis there is weight and a neutral tint, so the convention keeps its one meaning.
+
+### "What changed?" was answered with two tables and a request to diff them by eye
+
+The *findings* evidence view put before and after in two half-width columns, each truncating,
+while the numbers that are the actual answer sat in a different line entirely. It is now one
+full-width table with a `status` column — `introduced`, then `still failing`, then `resolved`,
+worst news first.
+
+The classification is **not** computed here. `LoopResult.resolved` and `.introduced` are the
+loop's own key sets, and `loop.finding_key` — exported for this — is the loop's own
+normalisation, so the table cannot disagree with the counts printed above it. That normalisation
+is load-bearing rather than tidy: the baseline is scanned where the input was written and the
+candidate in the loop's output directory, so Checkov names the same Dockerfile instruction two
+different ways, and a naive join would report every finding resolved and every survivor newly
+introduced.
+
+### The controls asked for knowledge the page had not given
+
+- **Cost was in a tooltip.** Streamlit buttons give no sign they have one, so the single most
+  important thing to know before clicking — that this one spends money — was behind a hover
+  nobody had a reason to try. It is in the labels now: *Scan only — free* and *Scan, fix and
+  verify — paid*. Emphasis follows availability too: with no key the paid button is disabled, and
+  styling a dead control as the primary action made the loudest thing on the page the one where
+  nothing happens.
+- **The empty state described a button instead of containing one.** It read "press Scan only"
+  while the control was in the other column, past three groups the visitor had not learned yet.
+  The same action is now in the empty state, and it clears itself when used.
+- **A `Bundled sample` / `Upload` radio silently destroyed uploads.** Switching back to the
+  samples unmounted the uploader, which in Streamlit discards the file — so glancing at a fixture
+  cost you your own Terraform, with nothing on screen explaining why. The radio is gone; the
+  uploader sits under the picker and wins when it holds a file. Collapsing its expander does not
+  unmount it, which is the whole difference.
+- **A missing scanner was discovered by waiting for it to fail.** `pip install` provides Checkov
+  and not Trivy, which is a Go binary. `scanners.scanner_path` answers the question before the
+  run. The failure path is unchanged and still renders loudly if it happens.
+- **The default fixture was `docker_insecure.Dockerfile`** — alphabetically first, and the one
+  file type the drift gate does not apply to, so a visitor's first run demonstrated the page's
+  central argument reading *not applicable*. It now opens on the first Terraform fixture, still
+  chosen from what is on disk rather than named in the source.
+- **The reason a control was dead was printed underneath it.** Read in order you met the greyed
+  button first and the explanation second. Both moved above. The "fixing is unavailable"
+  explanation came out of a popover entirely: a popover styled with no border does not read as a
+  control, and being stuck is exactly when the reason must not be one click away.
+
+### Things that were saying themselves twice
+
+The verdict qualifier ended `stopped: Hit the iteration cap` and the caption directly beneath it
+began `MAX_ITERS — The loop used every attempt…`. The caption is the line that can also explain
+it, so it says it alone. `scanned as X (terraform)` now appears only when the scanned name
+differs from the one you chose — an upload or a Dockerfile, which is the case it was written for
+— rather than restating the filename from the line above. A completed run's `Done` box removes
+itself instead of sitting between the tab strip and the answer for the rest of the session.
+
+### Two things that were not about the view at all
+
+- `_do_scan` is memoised. The same file through the same scanner takes about five seconds and
+  returns the same thing every time. `_do_fix` is **deliberately not** memoised: it spends money
+  and it is not reproducible, so caching it would quietly turn a second paid run into a replay of
+  the first, which is the substitution this project objects to everywhere else.
+- The input preview renders the **result's** file, not the sidebar's current selection. Those
+  diverge the moment someone changes fixture without re-running, and the old version put the new
+  file's source directly under the old file's findings — line numbers indexing a listing they did
+  not come from.
+
+### Rules added to §5
+
+8. **A column whose every value is the same is not a column.** Say it once, above the table.
+9. **Cost goes in the label.** Never only in `help=`; a Streamlit control gives no sign it has a
+   tooltip.
+10. **Emphasis follows availability.** A disabled control is never the primary action.
+11. **The source shown belongs to the result shown**, never to the current selection.

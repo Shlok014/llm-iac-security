@@ -287,6 +287,18 @@ def _dockerfile_resource(resource: str, source_file: str) -> str:
     return res
 
 
+def finding_key(finding: Finding, iac_type: IaCType) -> tuple[str, str]:
+    """Public spelling of `_finding_key`, for callers that need to join against the key sets.
+
+    `LoopResult.resolved` and `.introduced` are sets of these keys and nothing else, so a caller
+    that wants to say *which* finding was resolved — rather than how many — has to be able to
+    compute the same key for a `Finding` it holds. Recomputing the normalisation outside this
+    module is exactly the duplication that produced the bug `_dockerfile_resource` documents, so
+    it is exported instead.
+    """
+    return _finding_key(finding, iac_type)
+
+
 def _finding_key(finding: Finding, iac_type: IaCType) -> tuple[str, str]:
     """Path-independent identity for a finding, so keys join across scan locations."""
     if iac_type is IaCType.DOCKERFILE:

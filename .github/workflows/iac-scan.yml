@@ -46,7 +46,7 @@ jobs:
       # No `paths:` filter on the trigger, on purpose: a workflow skipped by a path filter
       # reports no status at all, which blocks merges when the check is marked required.
       # Running always and doing nothing is the version that stays green.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0 # need the base commit to diff against
           # The token is not needed after checkout — the diff is computed locally — and this
@@ -103,7 +103,7 @@ jobs:
             echo "No Terraform or Dockerfile changes in this pull request." | tee -a "$GITHUB_STEP_SUMMARY"
           fi
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         if: steps.changed.outputs.any == 'true'
         with:
           python-version: "3.13"
@@ -226,14 +226,14 @@ jobs:
       contents: read
       pull-requests: write # to post the comment, and for nothing else
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           # This job hands a contributor-authored IaC file to a model. It commits nothing,
           # so it needs no git credential; `gh pr comment` uses GH_TOKEN from the
           # environment instead.
           persist-credentials: false
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
           cache: pip

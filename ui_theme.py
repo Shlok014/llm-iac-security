@@ -45,8 +45,20 @@ _CSS = """
   --ix-sans: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --ix-ink:        light-dark(#15171F, #E8EAF0);
   --ix-muted:      light-dark(#5C6270, #98A0B0);
-  --ix-faint:      light-dark(#8A90A0, #6B7383);
+  /* `faint` was #8A90A0 / #6B7383, which measures 2.98:1 on paper and 3.65:1 on the dark
+     surface — below the 4.5:1 minimum for text this size. That would be defensible for
+     decoration, but faint is what the tab strip, the rail's station names and the line under
+     the verdict number are set in, and those carry the scanner, the filename and the page's
+     own navigation. The replacements clear 4.5:1 in both schemes and stay a step quieter than
+     `muted` (5.70 / 7.18), so the hierarchy the design depends on survives. */
+  --ix-faint:      light-dark(#6B7181, #8A92A2);
   --ix-rule:       light-dark(#D8DBE2, #2A2E3A);
+  /* Hairlines can be faint; the rail's marks cannot. Its unreached stations were drawn in
+     `rule` at 1.29:1, so the dotted pips and the track between them were all but invisible —
+     and "not reached" looking like nothing at all is the one thing §4 says the rail must not
+     do. These are graphics rather than text, so the bar is 3:1: 3.14/3.36 light, 3.68/3.39
+     dark, measured against page and card backgrounds respectively. */
+  --ix-rule-strong: light-dark(#868C9C, #666E7E);
   --ix-surface:    light-dark(#FFFFFF, #171A22);
   --ix-signal:     light-dark(#B45309, #E9A23B);
   --ix-signal-bg:  light-dark(#FDF3E3, #2B1E0B);
@@ -65,6 +77,10 @@ _CSS = """
 [data-testid="stMainBlockContainer"] { max-width: 1160px; padding-top: 3.9rem; padding-bottom: 6rem; }
 [data-testid="stSidebarUserContent"] { padding-top: 1.15rem; }
 [data-testid="stSidebarUserContent"] [data-testid="stVerticalBlock"] { gap: .85rem; }
+/* Streamlit's default sidebar is 244px, and the fixture names are longer than that: the picker
+   read `docker_insecure.Dock…`, so the control that chooses what gets scanned could not show
+   what had been chosen. Wide enough for the longest name in `samples/`, and no wider. */
+[data-testid="stSidebar"] { width: 296px !important; min-width: 296px !important; }
 
 /* Tab strips are navigation, not headings: small, tracked, quiet until selected. */
 .stTabs [data-baseweb="tab-list"] { gap: 1.75rem; border-bottom: 1px solid var(--ix-rule); }
@@ -213,7 +229,7 @@ _CSS = """
 .ix-pip { position: relative; display: block; height: 30px; }
 .ix-pip::before {
   content: ""; position: absolute; left: 0; right: 0; top: 50%;
-  transform: translateY(-50%); height: 0; border-top: 1.5px solid var(--ix-rule);
+  transform: translateY(-50%); height: 0; border-top: 1.5px solid var(--ix-rule-strong);
 }
 .ix-pip.pass::before { border-top-color: var(--ix-ink); }
 .ix-pip.never::before { border-top-style: dotted; }
@@ -228,10 +244,10 @@ _CSS = """
 
 .ix-pip::after {
   content: ""; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
-  width: 8px; height: 8px; border-radius: 50%; background: var(--ix-rule);
+  width: 8px; height: 8px; border-radius: 50%; background: var(--ix-rule-strong);
 }
 .ix-pip.pass::after { background: var(--ix-ink); }
-.ix-pip.never::after { background: none; border: 1.5px dotted var(--ix-rule); }
+.ix-pip.never::after { background: none; border: 1.5px dotted var(--ix-rule-strong); }
 .ix-pip.stop::after {
   width: 13px; height: 13px; background: var(--ix-surface);
   border: 2px solid var(--ix-tone);
@@ -261,6 +277,37 @@ _CSS = """
   .ix-mast-meta { margin-left: 0; }
 }
 
+/* ------------------------------------------------- source excerpt */
+
+/* A finding cites a line number. Streamlit's `st.code` numbers from 1 with no way to offset,
+   so showing lines 118-122 of a file would label them 1-5 — wrong in the one respect that
+   matters here. Hence a small block of our own: real line numbers, and the cited line marked. */
+.ix-src {
+  border: 1px solid var(--ix-rule); border-radius: .3rem; background: var(--ix-surface);
+  overflow-x: auto; margin: .1rem 0 .2rem;
+}
+.ix-src table { border-collapse: collapse; width: 100%; }
+.ix-src td {
+  font-family: var(--ix-mono); font-size: 12.5px; line-height: 1.65;
+  padding: 0; white-space: pre; vertical-align: top;
+}
+.ix-src .ix-ln {
+  width: 1%; text-align: right; padding: 0 .85rem 0 .8rem;
+  color: var(--ix-faint); user-select: none;
+  border-right: 1px solid var(--ix-rule);
+}
+.ix-src .ix-code { padding: 0 1rem 0 .85rem; color: var(--ix-muted); width: 99%; }
+/* Deliberately *not* amber. Amber-plus-dashed means "not verified" everywhere on this page,
+   and the cited line is a fact the scanner reported — the most established thing on screen.
+   Emphasis here is weight and a neutral tint, so the convention keeps its one meaning. */
+.ix-src tr.ix-hit .ix-code {
+  color: var(--ix-ink); background: light-dark(#EEF0F4, #1B1F29); font-weight: 500;
+}
+.ix-src tr.ix-hit .ix-ln {
+  color: var(--ix-ink); background: light-dark(#EEF0F4, #1B1F29); font-weight: 500;
+  box-shadow: inset 2px 0 0 var(--ix-ink);
+}
+
 /* ------------------------------------------------------------- chips */
 
 .ix-chips { display: flex; flex-wrap: wrap; gap: .4rem; margin: .1rem 0 .2rem; }
@@ -287,12 +334,15 @@ _CSS = """
 # Severity as a single warm-to-cool ramp, so the column reads as an ordering rather than as five
 # unrelated hues. `unknown` is deliberately not the palest: Checkov's community build reports it
 # for most checks, and it means the scanner declined to say, not that the finding is minor.
+# The light-mode `medium` and `info` foregrounds were 4.45:1 and 4.24:1 on their own chip
+# backgrounds — under the 4.5:1 minimum for 11px text. Darkened just enough to clear it
+# (5.35 and 5.65) without leaving the ramp or disturbing the ordering.
 SEVERITY_TONE: dict[str, tuple[str, str]] = {
     "critical": ("light-dark(#9F1239, #F2789B)", "light-dark(#FDECF1, #2C0F1A)"),
     "high": ("light-dark(#B45309, #E9A23B)", "light-dark(#FDF3E3, #2B1E0B)"),
-    "medium": ("light-dark(#A16207, #D9B04A)", "light-dark(#FBF3DF, #26200C)"),
+    "medium": ("light-dark(#8A5A0B, #D9B04A)", "light-dark(#FBF3DF, #26200C)"),
     "low": ("light-dark(#475569, #94A3B8)", "light-dark(#EEF0F4, #1B1F29)"),
-    "info": ("light-dark(#64748B, #8B93A3)", "light-dark(#F0F2F5, #1B1F29)"),
+    "info": ("light-dark(#556074, #8B93A3)", "light-dark(#F0F2F5, #1B1F29)"),
     "unknown": ("light-dark(#B45309, #E9A23B)", "light-dark(#FDF3E3, #2B1E0B)"),
 }
 SEVERITY_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4, "unknown": 5}
@@ -364,6 +414,35 @@ def chips(items: list[tuple[str, str, bool]]) -> None:
     st.markdown("".join(out), unsafe_allow_html=True)
 
 
+def source_excerpt(code: str, focus: int | None, context: int = 4) -> None:
+    """Show the lines around `focus`, numbered as they are numbered in the file.
+
+    `focus` is 1-based and comes from a scanner. It is clamped rather than trusted: a scanner
+    that reports a line past the end of the file should shift the window, not raise.
+    """
+    lines = code.splitlines()
+    if not lines:
+        return
+    if focus is None:
+        start, end = 1, min(len(lines), 1 + context * 2)
+    else:
+        focus = max(1, min(int(focus), len(lines)))
+        start = max(1, focus - context)
+        end = min(len(lines), focus + context)
+
+    body = []
+    for number in range(start, end + 1):
+        hit = ' class="ix-hit"' if number == focus else ""
+        body.append(
+            f"<tr{hit}><td class=\"ix-ln\">{number}</td>"
+            f'<td class="ix-code">{_esc(lines[number - 1]) or "&nbsp;"}</td></tr>'
+        )
+    st.markdown(
+        f'<div class="ix-src"><table><tbody>{"".join(body)}</tbody></table></div>',
+        unsafe_allow_html=True,
+    )
+
+
 def gate_rail(rows: list[dict], note: str) -> None:
     """Draw every candidate against the gates it had to survive.
 
@@ -393,7 +472,13 @@ def gate_rail(rows: list[dict], note: str) -> None:
             if index == 1:
                 cls += " first"
             body.append(f'<div class="{cls}" style="--ix-tone:{tone}"></div>')
-        body.append(f'<div class="ix-why" style="--ix-tone:{tone}">{row["outcome"]}</div>')
+        # The outcome column shows a truncated rejection reason; the full one is carried as a
+        # tooltip rather than dropped, so "rejected — drift unverifiable · could not parse the
+        # original as…" has somewhere to finish.
+        full = f' title="{_esc(row["full"])}"' if row.get("full") else ""
+        body.append(
+            f'<div class="ix-why" style="--ix-tone:{tone}"{full}>{row["outcome"]}</div>'
+        )
         items.append(
             f'<li><b>{_esc(row["iteration"])}</b> — reached <b>{_esc(STATIONS[reached - 1][0])}</b>'
             f" · {row['outcome']}</li>"

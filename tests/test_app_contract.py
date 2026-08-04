@@ -146,6 +146,105 @@ def test_the_fixture_list_is_read_at_runtime(app):
     assert listed, "no fixtures were listed from samples/"
 
 
+# --------------------------------------------------------------------------------------
+# the before/after comparison must not invent its own idea of "resolved"
+# --------------------------------------------------------------------------------------
+
+
+def _finding(rule: str, resource: str, line: int = 1, file: str = "/wd/x.tf"):
+    from iac_agent.types import Finding
+
+    return Finding(
+        rule_id=rule,
+        severity="unknown",
+        resource=resource,
+        message=f"{rule} says no",
+        scanner="checkov",
+        file=file,
+        line=line,
+        guideline="",
+    )
+
+
+def test_the_comparison_table_classifies_from_the_loops_own_key_sets(app):
+    """`resolved` and `introduced` are decided in `iac_agent.loop`. The page labels rows from
+    those sets and from nothing else — if it recomputed the comparison it could disagree with
+    the counts printed directly above it, which is the failure this project is about."""
+    from iac_agent.types import IaCType
+
+    baseline = [_finding("CKV_AWS_1", "aws_s3_bucket.b"), _finding("CKV_AWS_2", "aws_s3_bucket.b")]
+    final = [_finding("CKV_AWS_2", "aws_s3_bucket.b"), _finding("CKV_AWS_9", "aws_s3_bucket.b")]
+
+    rows = app._change_rows(
+        baseline,
+        final,
+        resolved={("CKV_AWS_1", "aws_s3_bucket.b")},
+        introduced={("CKV_AWS_9", "aws_s3_bucket.b")},
+        iac_type=IaCType.TERRAFORM,
+        workdir=Path("/wd"),
+    )
+    by_rule = {row["rule"]: row["status"] for row in rows}
+    assert by_rule == {
+        "CKV_AWS_1": "resolved",
+        "CKV_AWS_2": "still failing",
+        "CKV_AWS_9": "introduced",
+    }
+
+
+def test_the_comparison_table_joins_dockerfile_findings_across_scan_locations(app):
+    """The baseline is scanned where the input was written and the candidate in the loop's
+    output directory, so Checkov names the same Dockerfile instruction two different ways. The
+    page must use `finding_key` — the package's own normalisation — or every finding would look
+    resolved and every surviving one newly introduced."""
+    from iac_agent.types import IaCType
+
+    rows = app._change_rows(
+        [_finding("CKV_DOCKER_1", "/wd/Dockerfile.EXPOSE", file="/wd/Dockerfile")],
+        [_finding("CKV_DOCKER_1", "/wd/out/fixed.Dockerfile.EXPOSE", file="/wd/out/fixed.Dockerfile")],
+        resolved=set(),
+        introduced=set(),
+        iac_type=IaCType.DOCKERFILE,
+        workdir=Path("/wd"),
+    )
+    assert [row["status"] for row in rows] == ["still failing"]
+
+
+def test_every_status_the_comparison_emits_has_a_sort_position(app):
+    """A status missing from `CHANGE_ORDER` would raise at sort time, in the middle of
+    rendering a paid run's result."""
+    from iac_agent.types import IaCType
+
+    rows = app._change_rows(
+        [_finding("CKV_AWS_1", "r"), _finding("CKV_AWS_2", "r")],
+        [_finding("CKV_AWS_2", "r"), _finding("CKV_AWS_3", "r")],
+        resolved={("CKV_AWS_1", "r")},
+        introduced={("CKV_AWS_3", "r")},
+        iac_type=IaCType.TERRAFORM,
+        workdir=Path("/wd"),
+    )
+    assert {row["status"] for row in rows} <= set(app.CHANGE_ORDER)
+    # Worst news first: what the rewrite created, then what it left, then what it fixed.
+    assert [row["status"] for row in rows] == ["introduced", "still failing", "resolved"]
+
+
+# --------------------------------------------------------------------------------------
+# a scratch path is not a resource name
+# --------------------------------------------------------------------------------------
+
+
+def test_only_paths_inside_the_run_directory_are_shortened(app):
+    """Checkov names a Dockerfile finding after the file it was in, so scanning out of a
+    temporary directory puts sixty characters of machine path in the resource column. Anything
+    the scanner reports that is *not* inside this run's own scratch directory is left alone —
+    shortening it would be editing the scanner's answer."""
+    workdir = Path("/wd")
+    assert app._display_resource("/wd/Dockerfile.ADD", workdir) == "Dockerfile.ADD"
+    assert app._display_resource("/wd/out/fixed.Dockerfile.ADD", workdir) == "fixed.Dockerfile.ADD"
+    assert app._display_resource("aws_s3_bucket.public", workdir) == "aws_s3_bucket.public"
+    assert app._display_resource("/elsewhere/Dockerfile.ADD", workdir) == "/elsewhere/Dockerfile.ADD"
+    assert app._display_resource("", workdir) == ""
+
+
 def test_the_api_key_is_never_read_into_the_page(app_source: str):
     """`_fix_availability` reports whether a key is *available*; it must never put the value on
     screen. Only the presence check may touch the environment variable."""

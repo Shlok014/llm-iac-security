@@ -12,8 +12,8 @@
 </div>
 
 <div align="center">
-  <img src="docs/assets/scan-light.png" alt="The analyse tab: Checkov reporting 8 failed checks on a bundled Terraform fixture, with the findings table below" width="900">
-  <p><em>The free path — Checkov on a bundled fixture. No API key, no model call, no cost.</em></p>
+  <img src="docs/assets/scan-light.png" alt="The analyse tab: Checkov reporting 8 failed checks on a bundled Terraform fixture, the findings table below it, and the selected finding's line shown in context underneath" width="900">
+  <p><em>The free path — Checkov on a bundled fixture. No API key, no model call, no cost. Selecting a finding shows the line it is about.</em></p>
 </div>
 
 ---
@@ -51,13 +51,15 @@ This is not a fluke of one sample — it is a reproducible behaviour, and the dr
 only signal in the pipeline that can tell it apart from a real fix.
 
 <div align="center">
-  <img src="docs/assets/fix-light.png" alt="A remediation run: 16 failed checks after, down 21 from baseline, with the gate rail showing three candidates that cleared every gate" width="900">
+  <img src="docs/assets/fix-light.png" alt="A remediation run: 18 failed checks after, down 19 from baseline, with the gate rail showing three candidates that cleared every gate and the second one returned" width="900">
 </div>
 
-> **One live run** on `samples/vulnerable_main.tf` — 37 findings down to 16, 21 resolved, 0
+> **One live run** on `samples/vulnerable_main.tf` — 37 findings down to 18, 19 resolved, 0
 > introduced. All three candidates cleared every gate, and the drift gate confirmed that none of
-> them got there by deleting a resource. This is a single run for illustration, **not** a measured
-> average; the measured figures are [below](#measured-results).
+> them got there by deleting a resource. Note which one is marked *returned*: iteration 2 scored
+> 18 and iteration 3 scored 19, so the loop hands back the **best** candidate it saw rather than
+> the last one it produced. This is a single run for illustration, **not** a measured average;
+> the measured figures are [below](#measured-results).
 
 The rail is the point. Stations run `input → model → parse → drift → rescan → returned`, and each
 candidate is drawn at the station that stopped it. A rejected candidate comes to rest **to the
@@ -96,7 +98,7 @@ GitHub Action runs.
 <summary><b>The page follows your system theme</b> — light and dark are both first-class</summary>
 <br>
 <div align="center">
-  <img src="docs/assets/scan-dark.png" alt="The same scan result rendered in dark mode" width="900">
+  <img src="docs/assets/scan-dark.png" alt="The same scan result, and the same selected finding shown in context, rendered in dark mode" width="900">
 </div>
 </details>
 
@@ -112,7 +114,7 @@ GitHub Action runs.
 | **Model** | `gpt-4o-mini-2024-07-18`, `temperature=0`, fixed seed, pinned prompt version |
 | **Evaluation** | 72 model calls — 6 fixtures × 2 corpus variants × 3 seeds |
 | **Reproducibility** | Every published figure regenerates offline from a committed response cache |
-| **Tests** | 355, passing with `OPENAI_API_KEY` unset |
+| **Tests** | 362, passing with `OPENAI_API_KEY` unset |
 | **Licence** | MIT |
 
 ---
