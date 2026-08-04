@@ -36,6 +36,7 @@ from iac_agent.scanners import (
     _resolve,
     _run,
     get_scanner,
+    scanner_path,
 )
 from iac_agent.types import IaCType, ScannerError
 
@@ -308,6 +309,40 @@ def test_resolve_raises_when_the_binary_is_missing_everywhere(
     with pytest.raises(ScannerError, match="not found") as exc:
         _resolve("checkov")
     assert "checkov" in str(exc.value)
+
+
+# ---------------------------------------------------------------------------
+# scanner_path — the pre-flight question, which must never raise
+# ---------------------------------------------------------------------------
+
+
+def test_scanner_path_returns_none_rather_than_raising_when_absent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Callers ask this *before* running anything, to avoid offering a scanner that cannot
+    work. A raising probe would be worse than no probe: it would turn a UI that wanted to warn
+    into a UI that crashes on load."""
+    _fake_venv(tmp_path, monkeypatch, with_binary=None)
+    monkeypatch.setattr(scanners.shutil, "which", lambda _: None)
+    assert scanner_path("checkov") is None
+    assert scanner_path("trivy") is None
+
+
+def test_scanner_path_agrees_with_the_lookup_a_real_scan_does(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """It must be the *same* lookup as `_resolve`, or the page could report a scanner as
+    available and then fail to run it — the one outcome the pre-flight check exists to
+    prevent."""
+    _fake_venv(tmp_path, monkeypatch, with_binary="checkov")
+    assert scanner_path("checkov") == _resolve("checkov")
+
+
+def test_scanner_path_is_case_insensitive_like_get_scanner(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _fake_venv(tmp_path, monkeypatch, with_binary="checkov")
+    assert scanner_path("CHECKOV") == _resolve("checkov")
 
 
 # ---------------------------------------------------------------------------

@@ -234,3 +234,18 @@ def get_scanner(name: str) -> Scanner:
         raise ScannerError(
             f"unknown scanner {name!r}; available: {', '.join(sorted(SCANNERS))}"
         ) from None
+
+
+def scanner_path(name: str) -> str | None:
+    """Where this scanner's executable is, or `None` if it is not installed.
+
+    A question the callers ask *before* running anything, so it must not raise. Both scanners
+    invoke a binary named after themselves, and `_resolve` is the same lookup a real scan does
+    — so a `None` here and a `ScannerError` there cannot disagree. Trivy is a Go binary that
+    `pip install` does not provide, which is why "is it there?" is worth asking up front rather
+    than discovering at the end of a run.
+    """
+    try:
+        return _resolve(name.lower())
+    except ScannerError:
+        return None
