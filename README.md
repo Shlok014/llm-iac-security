@@ -98,7 +98,7 @@ GitHub Action runs.
 <summary><b>The page follows your system theme</b> — light and dark are both first-class</summary>
 <br>
 <div align="center">
-  <img src="docs/assets/scan-dark.png" alt="The same scan result rendered in dark mode" width="900">
+  <img src="docs/assets/scan-dark.png" alt="The same scan result, and the same selected finding shown in context, rendered in dark mode" width="900">
 </div>
 </details>
 
