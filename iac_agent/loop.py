@@ -59,6 +59,7 @@ rescan is evidence about that candidate, so it is caught, recorded, and the loop
 from __future__ import annotations
 
 import tempfile
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
@@ -400,6 +401,7 @@ def run_loop(
     output_dir: str | Path | None = None,
     patience: int = 1,
     workdir: str | Path | None = None,
+    on_step: Callable[[str, IterationRecord | None], None] | None = None,
 ) -> LoopResult:
     """Scan, fix, verify, and refine until one of four explicit stop conditions fires.
 
@@ -413,6 +415,13 @@ def run_loop(
     handed the parser error or the named deletion. Two in a row is a pattern, not noise.
 
     `workdir` is an alias for `output_dir` (the name used in docs/LLD.md §7.1).
+
+    `on_step` is called as the run progresses, with a stage name and the record it concerns:
+    `("baseline", baseline_record)` once the file has been scanned, `("detected", None)` once
+    the model has read it, and `("iteration", record)` as each candidate settles. It exists
+    because a remediation run takes tens of seconds of model calls and a caller that cannot say
+    what is happening has to show a frozen box. Stage names are identifiers, not sentences: the
+    caller chooses the wording, exactly as it does for everything else in `LoopResult`.
 
     The input file is never modified: this function is read-only with respect to `path`.
     """
@@ -432,6 +441,20 @@ def run_loop(
     )
     scan_with: Scanner = get_scanner(scanner) if isinstance(scanner, str) else scanner
 
+    def _step(stage: str, record: IterationRecord | None = None) -> None:
+        """Report progress, without letting the reporting break the run.
+
+        A caller's progress line is not worth losing a paid run over: by the time the third
+        iteration is reported, real money has been spent, and a typo in someone's status
+        handler must not be able to throw that away. The loop's contract is the result.
+        """
+        if on_step is None:
+            return
+        try:
+            on_step(stage, record)
+        except Exception:  # a reporting callback must never abort the work it reports on
+            pass
+
     iac_type = detect_iac_type(target)          # once; threaded through every scanner call
     source = target.read_text(encoding="utf-8", errors="replace")
 
@@ -446,6 +469,7 @@ def run_loop(
         keys=_keys_of(baseline, iac_type),
         accepted=True,  # "change nothing" is always an admissible answer
     )
+    _step("baseline", baseline_record)
 
     def _finish(
         *,
@@ -534,6 +558,8 @@ def run_loop(
     except LLMError as exc:
         aborted = f"detection failed: {exc}"
     detect_tokens = _spent()
+    if not aborted:
+        _step("detected")
 
     if aborted:
         # No candidate was ever produced, so the honest reason is "made no progress".
@@ -584,6 +610,7 @@ def run_loop(
                     total_tokens=client.usage.total_tokens - before_total,
                 )
                 iterations.append(record)
+                _step("iteration", record)
                 aborted = f"model call failed on iteration {index}: {exc}"
                 stall_count += 1
                 stop_reason = (
@@ -662,6 +689,10 @@ def run_loop(
                     # Next round targets checks a scanner just proved still fail, not the
                     # model's opinion of what it already fixed.
                     feedback = distill_failures(scan)
+
+            # Reported here, once, after every gate has had its say — so a caller never sees a
+            # candidate described before the loop has finished deciding about it.
+            _step("iteration", record)
 
             stop_reason = _evaluate_stop(
                 best=best,

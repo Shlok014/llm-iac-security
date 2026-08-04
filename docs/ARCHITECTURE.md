@@ -42,8 +42,10 @@ review: every output is a *candidate patch* that a human is expected to read.
 ## 2. Design principles
 
 Each principle exists because of a specific failure, most of them failures in this project's
-own first implementation. The original submitted code is preserved at the repository root
-(`main.py`, `app.py`) as the historical artifact that the errata describe.
+own first implementation. That implementation — `main.py` and the `app.py` that imported from
+it — is no longer in the tree: it was retired in `7e79ac9` once the package replaced it. It is
+preserved in git history at the import commit, which is what `ERRATA.md` points at, and the
+quotations below are from there rather than from a file you can open.
 
 ### 2.1 Fail closed — the load-bearing rule
 
@@ -263,7 +265,7 @@ between "calls an LLM" and "acts on feedback".
 flowchart TD
     subgraph entry["Entry points"]
         CLI["cli.py<br/>iac-agent scan, iac-agent fix"]
-        UI["app.py<br/>Streamlit UI, legacy"]
+        UI["app.py + ui_theme.py<br/>Streamlit view"]
     end
 
     subgraph orch["Orchestration"]
@@ -290,7 +292,8 @@ flowchart TD
 
     CLI --> LOOP
     CLI --> SCAN
-    UI -. planned rewire .-> LOOP
+    UI --> LOOP
+    UI --> SCAN
     LOOP --> LLM
     LOOP --> SCAN
     LOOP --> VAL
@@ -316,11 +319,14 @@ package; the core layers import only shared contracts; only `loop.py` knows abou
 core layers. There is no path from `scanners.py` to `llm.py` — the scanner layer has no idea
 a model exists, which is what makes `iac-agent scan` runnable with no API key at all.
 
-**The Streamlit edge is dashed on purpose** **[frozen observation]**. At `HEAD`, `app.py`
-imports `detect_vulnerabilities`, `generate_fix`, and `validate_with_checkov` from the
-original `main.py`, so the UI still routes through the fail-open path described in §2.1.
-`app.py` and `main.py` are retained as the historical submission and are **not** part of the
-`iac_agent` package. Rewiring the UI onto `run_loop()` is planned, not done **[intent]**.
+**The Streamlit edge is solid** **[implemented]**. It was dashed for a while: `app.py` used to
+import `detect_vulnerabilities`, `generate_fix` and `validate_with_checkov` from the original
+`main.py` and so routed through the fail-open path described in §2.1. That was fixed in
+`7e79ac9` — `main.py` is deleted, and `app.py` now calls `run_loop` and the scanner registry
+directly, which is why the fail-closed behaviour §2.1 describes is the behaviour the page
+shows. `app.py` and `ui_theme.py` are still **not** part of the `iac_agent` package: the UI is a
+view over it and is not importable from it. The old module is in git history at the import
+commit, and `ERRATA.md` is what points at it.
 
 ---
 
@@ -448,13 +454,13 @@ files failed to converge, not just how many did.
 | --- | --- | --- | --- | --- |
 | `iac_agent/types.py` | Shared vocabulary: file-type routing, the normalised finding shape, the error hierarchy. | `IaCType` (`.checkov_framework`, `.output_name`, `.fence_tags`), `detect_iac_type()`, `Finding` (`.key()`), `ScanResult` (`.failed_count`, `.parsed_cleanly`, `.keys()`), `IaCAgentError`, `ScannerError`, `LLMError`, `UnsupportedFileError` | Import anything else in the package; perform I/O; guess a type for an unrecognised filename instead of raising. | **[frozen]** |
 | `iac_agent/parsing.py` | Recover structure from model prose: fence stripping and multi-stage JSON extraction. | `strip_code_fences(text, tags)`, `extract_json(text)`, `normalise_findings(parsed)` | Return a sentinel on failure. `extract_json` raises `ValueError`, so a caller cannot mistake failure for an empty finding list. | **[frozen]** |
-| `iac_agent/scanners.py` | Run external scanners, normalise their JSON, and fail closed on everything else. | `Scanner` protocol, `CheckovScanner`, `TrivyScanner`, `get_scanner(name)`, `SCANNERS` | Return a `ScanResult` for a run that did not produce trustworthy output; invoke Checkov as `python -m checkov`; know that an LLM exists. | **[frozen]** |
+| `iac_agent/scanners.py` | Run external scanners, normalise their JSON, and fail closed on everything else. | `Scanner` protocol, `CheckovScanner`, `TrivyScanner`, `get_scanner(name)`, `SCANNERS`, `scanner_path(name)` (is this binary installed? — asked before a run, never raises) | Return a `ScanResult` for a run that did not produce trustworthy output; invoke Checkov as `python -m checkov`; know that an LLM exists. | **[frozen]** |
 | `iac_agent/validity.py` | Two gates that run after the model rewrites a file, before anyone believes the score: does it still parse, and is it still the same infrastructure. | `ValidityError`, `ValidityResult(ok, reason, detail)`, `check_validity()` (hcl2 parse for Terraform, structural `FROM` check for Dockerfiles), `ResourceAddr(type, name)`, `extract_resources()`, `compute_drift(original, remediated, iac_type) -> DriftReport(deleted, added, renamed, type_count_drops)` with derived `.drifted` and `.summary()`, `drift_touches_flaw(drift, flagged_resources) -> list[str]` | Call a scanner or a model; return an empty resource list when the parse failed (it raises `ValidityError` instead, because "we could not tell" is not "the model deleted everything"); treat an empty or fenced file as valid. | **[frozen]** |
 | `iac_agent/llm.py` | The only module that talks to a model. Prompts, structured output, token accounting, honest failure. | `PROMPT_VERSION`, `ModelConfig(...).fingerprint()`, `TokenUsage`, `LLMResponse`, `CompleteFn` protocol, `LLMClient(cfg, complete_fn)` with `.usage` / `.is_injected`, `detect_vulnerabilities()`, `generate_fix(..., scanner_failures=)`, `distill_failures()` (module-level), `DETECT_RESPONSE_FORMAT` | Hard-code a network call with no injection point; return an error string instead of raising `LLMError`; float the model alias; write a `finish_reason == "length"` response to disk; truncate an oversized input; construct an OpenAI client at import time. | **[frozen]** |
-| `iac_agent/loop.py` | Orchestration and every policy decision: gate order, convergence, budget, best-so-far. | `run_loop()`, `StopReason` (`CONVERGED`, `MAX_ITERS`, `NO_PROGRESS`, `TOKEN_BUDGET`) | Catch `ScannerError` and continue with an empty finding list; let a rescan failure make a candidate eligible to become `best`; scan a candidate that failed the validity gate; return the last attempt instead of the best. | **[implemented]** |
+| `iac_agent/loop.py` | Orchestration and every policy decision: gate order, convergence, budget, best-so-far. | `run_loop()` (incl. `on_step` progress reporting), `StopReason` (`CONVERGED`, `MAX_ITERS`, `NO_PROGRESS`, `TOKEN_BUDGET`), `finding_key(finding, iac_type)` (the identity `resolved`/`introduced` are sets of, exported so a caller can join against them rather than recompute the normalisation) | Catch `ScannerError` and continue with an empty finding list; let a rescan failure make a candidate eligible to become `best`; scan a candidate that failed the validity gate; return the last attempt instead of the best. | **[implemented]** |
 | `iac_agent/cli.py` | Argument parsing, file routing, exit codes, human-readable output. | `iac-agent scan`, `iac-agent fix` | Collapse a `ScannerError` into the same exit code as "findings found"; require an API key for `scan`. | **[spec]** |
 | `eval/` | Ground truth, offline reproduction, metric computation. | `run_eval.py`, `metrics.py`, `labels/*.labels.yaml`, `cache/`, `strip_comments.py`, `results/RESULTS.md` (generated) | Require network access or an API key to regenerate published metrics; hand-edit `results/RESULTS.md`. | **[spec]** |
-| `main.py`, `app.py` (repo root) | Historical artifact: the original submitted implementation, preserved so the errata have something to point at. | — | Be imported by anything under `iac_agent/`; be treated as current behaviour. | **[frozen]** legacy |
+| `app.py`, `ui_theme.py` (repo root) | The Streamlit view over the package: collects an input, calls `run_loop` or a scanner, renders what came back. Chooses labels and colours and no policy. | — (not importable from `iac_agent`) | Implement any analysis of its own; write a measured number into the page; render an absent analysis as a passing one. See `docs/UI_DESIGN.md` §6. | **[implemented]** |
 
 ---
 
@@ -569,12 +575,22 @@ layers — and this one should not be quietly stretched to cover it.
 in the fix prompt (`_PRESERVATION_RULES` in `llm.py`: never delete, never rename, additions are
 fine, return the complete file) and *measured* here. Neither alone is evidence — a prompt rule
 is an intention, and a metric with no countermeasure is just a record of failure. Accordingly
-drift is **reported, not enforced** as a hard rejection gate; the rate at which it occurs is a
-result for `eval/results/RESULTS.md` **[intent — not a number to state here]**.
+drift is both **reported and enforced**: `run_loop` computes it before the rescan, and a
+candidate that removed a resource carrying a baseline finding gets `rejected_because` set and is
+never written to disk or scanned — so it cannot post a count at all. The rate at which that
+fires is a result for `eval/results/RESULTS.md` **[intent — not a number to state here]**.
+
+> This paragraph previously read "drift is **reported, not enforced** as a hard rejection gate",
+> which was the opposite of what `loop.py` has always done and the opposite of what every other
+> document here says. It is called out rather than silently corrected because a design doc that
+> contradicts the code is the failure mode this project is supposed to be careful about.
 
 ### 6.4 Reference baseline
 
-**[measured]** Scanner findings on the six fixtures in `samples/`, with the frozen
+**[measured]** Scanner findings on the six fixtures the published results were measured on.
+`samples/` has since grown to twelve vulnerable fixtures plus four secure negative controls,
+and this table has deliberately **not** been recomputed over them — see `docs/EVALUATION.md`
+for which corpus each published number describes. Measured with the frozen
 `scanners.py` against checkov 3.2.489 and trivy 0.68.1 on Python 3.13:
 
 | Fixture | Checkov failed checks | Trivy findings |

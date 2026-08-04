@@ -51,13 +51,13 @@ several are now *more* prominent, not less. See §6.
 
 ### Colour
 
-Six named values. The palette is derived from the subject's own artifacts — a unified diff and a
-`terraform plan` — not from a dashboard convention.
+Eight named values, seven of them from the original palette. It is derived from the subject's own
+artifacts — a unified diff and a `terraform plan` — not from a dashboard convention.
 
 | Token | Light | Dark | Used for |
 |---|---|---|---|
 | `ink` | `#15171F` | `#E8EAF0` | All primary text. Also the primary button fill — see the risk below. |
-| `paper` | `#F4F5F7` | `#0F1117` | Page ground. Cool, not cream. |
+| `paper` | `#F6F7F9` | `#0F1117` | Page ground, set in `.streamlit/config.toml`. Cool, not cream. |
 | `surface` | `#FFFFFF` | `#171A22` | Cards, tables, the rail. |
 | `rule` | `#D8DBE2` | `#2A2E3A` | Hairlines and borders. |
 | `rule-strong` | `#868C9C` | `#666E7E` | The rail's own marks — see §8. |
@@ -82,7 +82,7 @@ the run button; that is mitigated by putting it alone at the bottom of the contr
 nothing competing for the position.
 
 Severity is a single warm-to-cool ramp rather than a five-hue rainbow, so it reads as an ordering:
-`critical #9F1239` → `high #B45309` → `medium #A16207` → `low #475569` → `info #94A3B8`, with
+`critical #9F1239` → `high #B45309` → `medium #8A5A0B` → `low #475569` → `info #556074`, with
 `unknown` taking the dashed amber treatment above. Checkov's community build reports `unknown` for
 most checks, so under the old rainbow the most common severity was also the palest — which
 contradicted the caption sitting directly beneath it.
@@ -104,7 +104,7 @@ sizes to carry a headline, which most UI monos do not.
 
 | Role | Face | Size / weight / tracking |
 |---|---|---|
-| Verdict numeral | Plex Mono | 60 px / 500 / `tabular-nums` |
+| Verdict numeral | Plex Mono | 58 px / 500 / `tabular-nums` |
 | Wordmark | Plex Mono | 15 px / 600 / +0.14 em, uppercase |
 | Eyebrow, section label | Plex Mono | 11 px / 500 / +0.09 em, uppercase |
 | Data label, rule ID, chip | Plex Mono | 12 px / 500 |
@@ -172,8 +172,9 @@ This earns its complexity on three grounds:
 
 Rendering rules:
 
-- Stations that a run never reached are drawn in `rule`, not hidden. *Not reached* and *passed*
-  must not look alike.
+- Stations that a run never reached are drawn in `rule-strong`, not hidden. *Not reached* and
+  *passed* must not look alike — which is also why the token is `rule-strong` rather than
+  `rule`: at `rule`'s contrast they looked like nothing at all. See §8.
 - A Dockerfile has no addressable resources, so the drift station is drawn **dashed amber and
   labelled `n/a`** — it is neither passed nor failed, and the ramp for "unknown" already means
   exactly that.
@@ -332,6 +333,23 @@ it, so it says it alone. `scanned as X (terraform)` now appears only when the sc
 differs from the one you chose — an upload or a Dockerfile, which is the case it was written for
 — rather than restating the filename from the line above. A completed run's `Done` box removes
 itself instead of sitting between the tab strip and the answer for the rest of the session.
+
+### The slow path said nothing while it was slow
+
+A remediation run is tens of seconds of model calls. The status box listed three numbered steps
+written *before* any of them had run — asserting work was finished, then sitting still. It now
+reports as it goes, from `run_loop`'s `on_step` callback: the baseline count, then that the
+model has read the file, then one line per candidate as it settles.
+
+The wording matches the rail on purpose. Someone who watched *cleared the gates* appear during
+the run finds the same phrase under the same station afterwards, so the live view and the
+post-hoc view are the same vocabulary rather than two accounts of one run.
+
+Two properties of the callback are load-bearing and are tested. A candidate is reported **once**,
+and only after every gate has had its say — reporting mid-decision would let the box announce a
+finding count for a candidate the drift gate was about to reject, which is the confusion the
+gates exist to prevent. And a callback that raises cannot abort the run: by the third iteration
+real money has been spent, and a status handler is a courtesy, not the contract.
 
 ### Two things that were not about the view at all
 

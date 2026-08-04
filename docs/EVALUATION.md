@@ -324,9 +324,16 @@ appears in documentation gets copied out of it.
 Collection command:
 
 ```bash
-.venv/bin/iac-agent scan samples/s3_public.tf --scanner checkov --json | jq -r '.failed[].rule_id'
-.venv/bin/iac-agent scan samples/s3_public.tf --scanner trivy   --json | jq -r '.failed[].rule_id'
+.venv/bin/iac-agent scan samples/s3_public.tf --scanner checkov --json \
+  | jq -r '.targets[].scans[].findings[].rule_id'
+.venv/bin/iac-agent scan samples/s3_public.tf --scanner trivy --json \
+  | jq -r '.targets[].scans[].findings[].rule_id'
 ```
+
+> This was written as `jq -r '.failed[].rule_id'`, which errors — `failed` is the *count* on
+> each scan object, not the list. A section that opens by promising every ID here was verified
+> against a live run had better ship the command that does it, so the corrected form is above
+> and both spellings return 8 and 10 IDs respectively.
 
 The full ID set for `s3_public.tf`, `MEASURED` on Checkov 3.2.489 and Trivy 0.68.1, is 8 and 10
 IDs respectively — matching the 8 and 10 finding counts in [§2.1](#21-composition). Exactly one
@@ -716,11 +723,14 @@ cosmetic — it is the difference between B5 being an experiment and being a bla
 >
 > It is now a *real* experiment — it was vacuous while the pipeline was a straight line, because
 > removing a feedback edge that fed into nothing changed no output. With the loop implemented,
-> comparing `--max-iters 1` against `3` and `5` measures whether iteration actually buys
+> comparing one iteration against three and five measures whether iteration actually buys
 > anything or merely spends tokens. Running it costs roughly one extra full evaluation
-> (~$0.50 at gpt-4o-mini rates) and needs no new code:
+> (~$0.50 at gpt-4o-mini rates). It **does** need new code: `eval/run_eval.py` has no
+> `--max-iters` option — the harness calls `run_loop` with the package default — so the flag
+> has to be added and threaded through before the sweep below can be run.
 >
 > ```bash
+> # after adding --max-iters to eval/run_eval.py
 > for n in 1 3 5; do python -m eval.run_eval run --fresh --max-iters "$n" --out "eval/results/ablation-$n.json"; done
 > ```
 >
@@ -780,16 +790,24 @@ prompts built from public fixtures — no keys, no user data.
 ### 7.3 Offline regeneration and the fail-closed cache
 
 ```bash
-.venv/bin/python -m eval.run_eval --offline        # cache only; no network
-.venv/bin/python -m eval.metrics                   # recompute tables into eval/results/RESULTS.md
+.venv/bin/python -m eval.run_eval run             # cache only; a miss is a hard error
+.venv/bin/python -m eval.run_eval report          # regenerate eval/results/RESULTS.md
 ```
 
-In `--offline` mode a cache miss is a **hard error**, not a live call. This is the same fail-closed
-principle the scanner layer uses, applied to the evaluation harness: the failure mode being designed
-out is a run that appears reproducible while quietly making network calls and spending money, and
-which would produce a *different* answer for the next person because their cache miss was filled
-from a since-updated model. CI runs `--offline` with no API key configured, so any drift between the
-committed cache and the current prompts fails the build rather than being papered over.
+**There is no `--offline` flag, because offline is not a mode — it is the default.** `run` is
+cache-first and fail-closed: a cache miss raises rather than reaching the network, and spending
+money takes the explicit `--fresh`. That is the same principle the scanner layer uses, applied to
+the harness. The failure being designed out is a run that appears reproducible while quietly
+making live calls, and which would give the next person a *different* answer because their cache
+miss was filled from a since-updated model.
+
+The strongest version of the guarantee is `--complete-fn module:attr`, which injects a completion
+function and makes a network call structurally impossible rather than merely unauthorised.
+
+> An earlier draft of this section documented a `--offline` flag and claimed CI ran it with no
+> API key. Neither was true: the flag never existed, and `.github/workflows/ci.yml` runs ruff,
+> pytest and the exit-code contract — it does not run the evaluation harness at all. Reproducing
+> the published numbers is a local `make report`, and that is the only claim made for it.
 
 ### 7.4 Repeats, and what the spread means
 

@@ -57,8 +57,8 @@ jobs:
           cache-dependency-path: pyproject.toml
 
       # `[dev]` pulls in `[ui]` (see pyproject.toml). It has to: `tests/test_app_contract.py`
-      # imports `app.py`, which imports streamlit and pandas. Without them pytest reports
-      # eight collection errors that look like test failures and are not.
+      # imports `app.py`, which imports streamlit and pandas. Without them that file fails to
+      # collect, and the errors look like test failures without being any.
       - name: Install the package and its dev extra
         run: |
           python -m pip install --upgrade pip

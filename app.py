@@ -299,7 +299,12 @@ def _render_severity_summary(rows: list[dict], scanner: str) -> None:
         )
 
 
-def _render_findings_table(rows: list[dict], *, select_key: str | None = None) -> dict | None:
+def _render_findings_table(
+    rows: list[dict],
+    *,
+    select_key: str | None = None,
+    severity_stated_above: bool = False,
+) -> dict | None:
     """The findings, sorted so they can be read in order. Returns the selected row, if any.
 
     Two things here are about reading rather than about data. Findings are sorted by severity,
@@ -308,7 +313,11 @@ def _render_findings_table(rows: list[dict], *, select_key: str | None = None) -
     arrive with. And a column whose every cell holds the same value is dropped: Checkov reports
     `unknown` for all of them and Trivy reports no resource at all on Dockerfiles, so the widest
     column on screen was regularly one repeated word, squeezing the message that is the point.
-    Nothing is hidden by this — the severity chips above the table already state the breakdown.
+
+    Dropping the *severity* column is only free where something else has already said what it
+    would have said, which is why the caller has to assert it: `_render_scan_outcome` draws the
+    severity chips first, and the before/after comparison draws no chips at all. Getting that
+    backwards would silently delete the only statement of severity on the screen.
     """
     frame = pd.DataFrame(rows)
     # A scanner may report no line number; a nullable integer keeps the column numeric
@@ -336,7 +345,8 @@ def _render_findings_table(rows: list[dict], *, select_key: str | None = None) -
         "docs": st.column_config.LinkColumn("docs", display_text="open", width="small"),
     }
     config = {k: v for k, v in config.items() if k in frame.columns}
-    for column in ("severity", "resource"):
+    droppable = ("severity", "resource") if severity_stated_above else ("resource",)
+    for column in droppable:
         if column in frame.columns and frame[column].nunique(dropna=False) <= 1:
             frame = frame.drop(columns=[column])
             config.pop(column)
@@ -384,7 +394,9 @@ def _render_scan_outcome(
     picked: dict | None = None
     if rows:
         _render_severity_summary(rows, scanner)
-        picked = _render_findings_table(rows, select_key=select_key)
+        picked = _render_findings_table(
+            rows, select_key=select_key, severity_stated_above=True
+        )
     else:
         st.success(
             f"**{scanner} ran and reported 0 failed checks** ({passed} checks passed). "
@@ -613,7 +625,13 @@ def _do_scan(name: str, code: str, scanner: str) -> dict:
         }
 
 
-def _do_fix(name: str, code: str, scanner: str, max_iters: int) -> dict:
+def _do_fix(
+    name: str,
+    code: str,
+    scanner: str,
+    max_iters: int,
+    on_step: Any | None = None,
+) -> dict:
     with tempfile.TemporaryDirectory() as tmp:
         workdir = Path(tmp)
         iac_type, target = _prepare(name, code, workdir)
@@ -624,6 +642,7 @@ def _do_fix(name: str, code: str, scanner: str, max_iters: int) -> dict:
             cfg=ModelConfig(),
             max_iters=max_iters,
             output_dir=workdir / "out",
+            on_step=on_step,
         )
         best_scan = result.best.scan
         return {
@@ -685,6 +704,30 @@ def _do_fix(name: str, code: str, scanner: str, max_iters: int) -> dict:
 # --------------------------------------------------------------------------------------
 # result rendering
 # --------------------------------------------------------------------------------------
+
+
+def _report_step(stage: str, record: Any | None) -> None:
+    """Write one line into the open status box as `run_loop` reaches each stage.
+
+    The wording is chosen here, not in the package: `run_loop` reports stage names. Vocabulary
+    matches the rail deliberately — someone who watched *cleared the gates* appear during the
+    run should find the same phrase under the same station afterwards.
+    """
+    if stage == "baseline" and record is not None and record.scan is not None:
+        st.write(f"Baseline: **{record.scan.failed_count}** failed checks. Asking the model.")
+    elif stage == "detected":
+        st.write("The model has read the file. Generating a rewrite.")
+    elif stage == "iteration" and record is not None:
+        if record.rejected_because:
+            st.write(
+                f"Iteration {record.index}: **{_truncate(record.rejected_because, 90)}** — "
+                "never scanned."
+            )
+        elif record.scan is not None:
+            st.write(
+                f"Iteration {record.index}: cleared the gates · "
+                f"**{record.scan.failed_count}** failed."
+            )
 
 
 def _render_failure(failure: dict) -> None:
@@ -973,7 +1016,9 @@ def _render_fix(payload: dict) -> None:
             st.markdown(f"**Baseline — {before} failed**")
             _render_severity_summary(payload["baseline_findings"], payload["scanner"])
             if payload["baseline_findings"]:
-                _render_findings_table(payload["baseline_findings"])
+                _render_findings_table(
+                    payload["baseline_findings"], severity_stated_above=True
+                )
         else:
             # One table, full width, with what happened to each finding in the first column —
             # rather than two half-width tables the reader had to diff by eye while both of
@@ -1218,17 +1263,16 @@ with tab_run:
                         input_name, input_code, scanner_name
                     )
                 else:
-                    # One line about shape and cost, not three numbered steps. The steps were
-                    # written before any of them had run, so the box asserted that work was
-                    # done and then sat still for a minute; the sequence itself is on the
-                    # *method* tab and is drawn to scale by the rail once there is a result.
+                    # Reported as it happens rather than asserted up front. The box used to
+                    # list three numbered steps before any of them had run — claiming work was
+                    # done and then sitting still for a minute of model calls — which is both
+                    # a lie and the least reassuring thing a slow operation can do.
                     st.write(
                         f"Baseline scan, then up to {max_iters} rewrite(s), each through the "
-                        "parse and drift gates before it is allowed near a scanner. Usually "
-                        "under a minute."
+                        "parse and drift gates before it is allowed near a scanner."
                     )
                     st.session_state["outcome"] = _do_fix(
-                        input_name, input_code, scanner_name, max_iters
+                        input_name, input_code, scanner_name, max_iters, _report_step
                     )
             except ScannerError as exc:
                 st.session_state["failure"] = {"kind": "scanner", "message": str(exc)}

@@ -524,9 +524,17 @@ Written for the rebuilt `iac_agent` package. Claims tagged **Implemented** refer
 contract modules. Claims tagged **In progress** or **Design intent** describe modules being
 written alongside this document and have not been measured.
 
-The original submitted code (`main.py`, `app.py`) remains in the tree for provenance. It is not
-part of the `iac_agent` package, its defects are catalogued in `ERRATA.md`, and it should not be
-run. Its Streamlit upload path in particular writes to a filename derived from user input and
-carries none of the fail-closed behaviour described above.
+The original submitted code is no longer in the tree: `main.py` was retired in `7e79ac9` and
+`app.py` was rewired onto the package in the same commit. It survives in git history at the
+import commit, which is what `ERRATA.md` cites, and its defects are catalogued there.
+
+The Streamlit page that exists today is in scope and does carry the fail-closed behaviour above.
+Two properties are worth naming here because the old one had neither. The upload path does not
+write to a filename derived from user input: `app.py` routes the content through
+`detect_iac_type` and writes it under `IaCType.output_name` — `Dockerfile` or the basename with
+its `.tf` suffix — inside a `tempfile.TemporaryDirectory` that is removed when the run ends. That
+is a correctness requirement before it is a security one, since both scanners select their
+rulesets by filename. And a scanner that could not run is rendered as a failure with no finding
+count attached, never as a clean file; `tests/test_app_contract.py` is where that is enforced.
 
 Design rationale for the decisions referenced throughout: [DECISIONS.md](DECISIONS.md).
