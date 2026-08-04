@@ -124,22 +124,25 @@ scanner path is deliberately usable with no network and no API key.
 ├─────────────┬─────────────────────────────────────────────────────────┤
 │             │  ANALYSE    DRIFT GATE    MEASURED RESULTS    METHOD    │  tab strip, mono, small caps
 │  SOURCE     │ ─────────────────────────────────────────────────────── │
-│  ○ sample   │                                                         │
-│  ○ upload   │   8   FAILED CHECKS                                     │  verdict — one number, one line
-│  [ec2_o… ▾] │       checkov · ec2_open.tf · terraform · 7 passed      │
+│ [ec2_open▾] │                                                         │
+│  38 lines   │   8   FAILED CHECKS                                     │  verdict — one number, one line
+│ › upload    │       checkov · ec2_open.tf · 7 passed                  │
 │             │                                                         │
 │  SCANNER    │   ┌───────────────────────────────────────────────────┐ │
 │  [checkov▾] │   │ input ──▪ parse ──▪ drift ──▪ rescan ──▪ returned │ │  ◀ SIGNATURE: the gate rail
-│  ITERATIONS │   │            ╎         ╎                            │ │
+│  MAX FIX    │   │            ╎         ╎                            │ │
 │  ●────      │   │            ╎         └ iter 2 · deleted a resource│ │
 │             │   │            └ iter 1 · did not parse               │ │
 │  ┌────────┐ │   └───────────────────────────────────────────────────┘ │
-│  │  Scan  │ │                                                         │
+│  │Scan—fre│ │                                                         │
 │  ├────────┤ │   EVIDENCE                                              │
-│  │ Fix  ▸ │ │   [ findings ][ diff ][ iterations ][ model ][ file ]   │  one tab level, not two
+│  │Fix—paid│ │   [ diff ][ findings ][ what the model claimed ]        │  one tab level, not two
 │  └────────┘ │                                                         │
 └─────────────┴─────────────────────────────────────────────────────────┘
 ```
+
+The source picker has no mode switch: the uploader lives under the fixture list and wins when it
+holds a file. Cost is in the run labels rather than in a tooltip. Both are §8.
 
 Three bands, in the order a sceptic reads them: **what is the answer / how was it reached / show
 me**. The reference material (the drift essay, the measured results, the method) keeps its own
