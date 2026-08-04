@@ -311,14 +311,15 @@ _CSS = """
 /* ------------------------------------------------------------- chips */
 
 .ix-chips { display: flex; flex-wrap: wrap; gap: .4rem; margin: .1rem 0 .2rem; }
+/* `tabular-nums` because the counts are the part that varies between chips, and a proportional
+   `1` next to a proportional `8` makes two chips of the same width look like different widths. */
 .ix-chip {
   font-family: var(--ix-mono); font-size: 11px; font-weight: 500; letter-spacing: .03em;
+  font-variant-numeric: tabular-nums;
   padding: .18rem .5rem; border-radius: .25rem;
-  border: 1px solid var(--ix-tone); color: var(--ix-tone); background: transparent;
+  border: 1px solid var(--ix-tone); color: var(--ix-tone); background: var(--ix-tone-bg);
 }
-.ix-chip[data-fill="1"] { background: var(--ix-tone-bg); }
 .ix-chip.unverified { border-style: dashed; }
-.ix-chip .ix-n { font-variant-numeric: tabular-nums; opacity: .75; margin-left: .3rem; }
 
 /* Focus stays visible: the palette is low-contrast by design and the default ring is not. */
 .ix-rail a:focus-visible, .stTabs [data-baseweb="tab"]:focus-visible {
@@ -407,8 +408,7 @@ def chips(items: list[tuple[str, str, bool]]) -> None:
         fg, bg = SEVERITY_TONE.get(key, SEVERITY_TONE["info"])
         cls = "ix-chip unverified" if unverified else "ix-chip"
         out.append(
-            f'<span class="{cls}" data-fill="1" '
-            f'style="--ix-tone:{fg};--ix-tone-bg:{bg}">{_esc(text)}</span>'
+            f'<span class="{cls}" style="--ix-tone:{fg};--ix-tone-bg:{bg}">{_esc(text)}</span>'
         )
     out.append("</div>")
     st.markdown("".join(out), unsafe_allow_html=True)

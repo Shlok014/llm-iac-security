@@ -299,7 +299,12 @@ def _render_severity_summary(rows: list[dict], scanner: str) -> None:
         )
 
 
-def _render_findings_table(rows: list[dict], *, select_key: str | None = None) -> dict | None:
+def _render_findings_table(
+    rows: list[dict],
+    *,
+    select_key: str | None = None,
+    severity_stated_above: bool = False,
+) -> dict | None:
     """The findings, sorted so they can be read in order. Returns the selected row, if any.
 
     Two things here are about reading rather than about data. Findings are sorted by severity,
@@ -308,7 +313,11 @@ def _render_findings_table(rows: list[dict], *, select_key: str | None = None) -
     arrive with. And a column whose every cell holds the same value is dropped: Checkov reports
     `unknown` for all of them and Trivy reports no resource at all on Dockerfiles, so the widest
     column on screen was regularly one repeated word, squeezing the message that is the point.
-    Nothing is hidden by this — the severity chips above the table already state the breakdown.
+
+    Dropping the *severity* column is only free where something else has already said what it
+    would have said, which is why the caller has to assert it: `_render_scan_outcome` draws the
+    severity chips first, and the before/after comparison draws no chips at all. Getting that
+    backwards would silently delete the only statement of severity on the screen.
     """
     frame = pd.DataFrame(rows)
     # A scanner may report no line number; a nullable integer keeps the column numeric
@@ -336,7 +345,8 @@ def _render_findings_table(rows: list[dict], *, select_key: str | None = None) -
         "docs": st.column_config.LinkColumn("docs", display_text="open", width="small"),
     }
     config = {k: v for k, v in config.items() if k in frame.columns}
-    for column in ("severity", "resource"):
+    droppable = ("severity", "resource") if severity_stated_above else ("resource",)
+    for column in droppable:
         if column in frame.columns and frame[column].nunique(dropna=False) <= 1:
             frame = frame.drop(columns=[column])
             config.pop(column)
@@ -384,7 +394,9 @@ def _render_scan_outcome(
     picked: dict | None = None
     if rows:
         _render_severity_summary(rows, scanner)
-        picked = _render_findings_table(rows, select_key=select_key)
+        picked = _render_findings_table(
+            rows, select_key=select_key, severity_stated_above=True
+        )
     else:
         st.success(
             f"**{scanner} ran and reported 0 failed checks** ({passed} checks passed). "
@@ -1004,7 +1016,9 @@ def _render_fix(payload: dict) -> None:
             st.markdown(f"**Baseline — {before} failed**")
             _render_severity_summary(payload["baseline_findings"], payload["scanner"])
             if payload["baseline_findings"]:
-                _render_findings_table(payload["baseline_findings"])
+                _render_findings_table(
+                    payload["baseline_findings"], severity_stated_above=True
+                )
         else:
             # One table, full width, with what happened to each finding in the first column —
             # rather than two half-width tables the reader had to diff by eye while both of

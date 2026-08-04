@@ -69,12 +69,15 @@ ui = [
     "pandas==2.3.3",
 ]
 # `dev` pulls in `ui` on purpose. `tests/test_app_contract.py` imports `app.py` by path, and
-# `app.py` imports streamlit and pandas — so a `[dev]`-only environment cannot collect eight of
-# the tests and reports them as errors rather than skips. That is exactly what CI did: `ruff`
-# passed, `pytest` failed on `ModuleNotFoundError: No module named 'streamlit'`, and the badge
-# was red for a reason that had nothing to do with the code under test. Contributors installing
-# `.[dev]` hit the same wall locally. The self-reference is the standard PEP 508 spelling and
-# keeps the streamlit/pandas pins in one place.
+# `app.py` imports streamlit and pandas — so in a `[dev]`-only environment that whole file
+# fails to collect and is reported as errors rather than skips. That is exactly what CI did:
+# `ruff` passed, `pytest` failed on `ModuleNotFoundError: No module named 'streamlit'`, and
+# the badge was red for a reason that had nothing to do with the code under test. Contributors
+# installing `.[dev]` hit the same wall locally. The self-reference is the standard PEP 508
+# spelling and keeps the streamlit/pandas pins in one place.
+#
+# Deliberately no count of affected tests here: the first version of this comment said
+# "eight", which was true for about one commit.
 dev = [
     "iac-agent[ui]",
     "pytest>=8.0",
@@ -101,11 +104,14 @@ version = { attr = "iac_agent.__version__" }
 line-length = 100
 target-version = "py311"
 # `main.py` was the original submission and is gone from the tree; the entry stays so a
-# checkout of an older commit still lints. `app.py` is excluded because it is a Streamlit
-# script, not a module: its top level is the page, so import-time side effects and the
-# `st.*` call sequence are the point rather than a smell. `ui_theme.py` is a normal module
-# and is linted.
-extend-exclude = ["main.py", "app.py"]
+# checkout of an older commit still lints.
+#
+# `app.py` used to be excluded too, on the grounds that a Streamlit script's top level *is*
+# the page, so import-time side effects are the point rather than a smell. True — but nothing
+# in the rule set below objects to import-time side effects. It objects to unused imports and
+# undefined names, and app.py is the largest file here and the one a contributor is most
+# likely to edit. Excluding it bought nothing and cost the coverage; it lints clean today.
+extend-exclude = ["main.py"]
 
 [tool.ruff.lint]
 # Ruff's default rules (pyflakes + the pycodestyle error subset). Deliberately not extended:

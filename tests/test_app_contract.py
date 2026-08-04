@@ -43,10 +43,21 @@ def app_source() -> str:
 def test_every_rejection_the_loop_emits_is_recognised_by_the_view(app):
     """A rejection kind the page does not know about falls into the catch-all and is drawn as
     unverified. That is the safe default, but it is not the *informative* one — if `loop.py`
-    learns a new rejection, this test is where you find out the rail needs a station for it."""
-    emitted = set(re.findall(r'rejected_because[ =]+.{0,20}?f?"([a-z_]+):', LOOP_PATH.read_text()))
-    emitted |= set(re.findall(r'= "([a-z_]+): ', LOOP_PATH.read_text()))
+    learns a new rejection, this test is where you find out the rail needs a station for it.
+
+    The scrape has to tolerate a line break between `rejected_because =` and its value, because
+    `invalid:` is written that way and the original two regexes — both single-line — could not
+    see it. A guard with a hole in it is worse than no guard: it reports that it checked.
+    """
+    source = LOOP_PATH.read_text()
+    emitted = set(
+        re.findall(r"rejected_because\s*=\s*\(?\s*f?\"([a-z_]+):", source, re.S)
+    )
     handled = {prefix.rstrip(":") for prefix, *_ in app.REJECTION_KINDS}
+    assert "invalid" in emitted, (
+        "the scrape stopped seeing `invalid:` — it is written across a line break in loop.py, "
+        "and that is the case this regex exists to survive"
+    )
     unhandled = {kind for kind in emitted if kind not in handled}
     assert not unhandled, (
         f"`loop.py` can emit rejection kind(s) {sorted(unhandled)} that `REJECTION_KINDS` does "

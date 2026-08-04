@@ -324,9 +324,16 @@ appears in documentation gets copied out of it.
 Collection command:
 
 ```bash
-.venv/bin/iac-agent scan samples/s3_public.tf --scanner checkov --json | jq -r '.failed[].rule_id'
-.venv/bin/iac-agent scan samples/s3_public.tf --scanner trivy   --json | jq -r '.failed[].rule_id'
+.venv/bin/iac-agent scan samples/s3_public.tf --scanner checkov --json \
+  | jq -r '.targets[].scans[].findings[].rule_id'
+.venv/bin/iac-agent scan samples/s3_public.tf --scanner trivy --json \
+  | jq -r '.targets[].scans[].findings[].rule_id'
 ```
+
+> This was written as `jq -r '.failed[].rule_id'`, which errors — `failed` is the *count* on
+> each scan object, not the list. A section that opens by promising every ID here was verified
+> against a live run had better ship the command that does it, so the corrected form is above
+> and both spellings return 8 and 10 IDs respectively.
 
 The full ID set for `s3_public.tf`, `MEASURED` on Checkov 3.2.489 and Trivy 0.68.1, is 8 and 10
 IDs respectively — matching the 8 and 10 finding counts in [§2.1](#21-composition). Exactly one

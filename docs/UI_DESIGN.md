@@ -334,6 +334,23 @@ differs from the one you chose — an upload or a Dockerfile, which is the case 
 — rather than restating the filename from the line above. A completed run's `Done` box removes
 itself instead of sitting between the tab strip and the answer for the rest of the session.
 
+### The slow path said nothing while it was slow
+
+A remediation run is tens of seconds of model calls. The status box listed three numbered steps
+written *before* any of them had run — asserting work was finished, then sitting still. It now
+reports as it goes, from `run_loop`'s `on_step` callback: the baseline count, then that the
+model has read the file, then one line per candidate as it settles.
+
+The wording matches the rail on purpose. Someone who watched *cleared the gates* appear during
+the run finds the same phrase under the same station afterwards, so the live view and the
+post-hoc view are the same vocabulary rather than two accounts of one run.
+
+Two properties of the callback are load-bearing and are tested. A candidate is reported **once**,
+and only after every gate has had its say — reporting mid-decision would let the box announce a
+finding count for a candidate the drift gate was about to reject, which is the confusion the
+gates exist to prevent. And a callback that raises cannot abort the run: by the third iteration
+real money has been spent, and a status handler is a courtesy, not the contract.
+
 ### Two things that were not about the view at all
 
 - `_do_scan` is memoised. The same file through the same scanner takes about five seconds and
