@@ -180,3 +180,38 @@ def test_json_carries_the_unparsed_files_so_a_pipeline_can_act_on_them(
 def test_a_fully_parsed_file_with_findings_still_exits_1(tmp_path: Path) -> None:
     """Guard against over-correcting: parse errors must not swallow the ordinary case."""
     assert main(["scan", str(SAMPLES / "s3_public.tf")]) == EXIT_FINDINGS
+
+
+@pytest.mark.slow
+def test_zero_findings_from_zero_checks_is_reported_differently(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """"0 failed, 0 passed" and "0 failed, 46 passed" are not the same claim.
+
+    On real repositories the first is common — files holding only variables or outputs, and
+    resources this scanner's community build has no policy for — and both used to roll up into
+    an identical "0 finding(s)" line that reads as a verdict. Not an error: a `variables.tf`
+    with nothing to check is a legitimate zero, and exiting 2 on it would make the tool
+    unusable against a real module. It just has to say which zero it is.
+    """
+    nothing = tmp_path / "variables.tf"
+    nothing.write_text('variable "region" {\n  type = string\n}\n', encoding="utf-8")
+    assert main(["scan", str(nothing)]) == EXIT_OK
+    assert "no policy was evaluated" in capsys.readouterr().out
+
+    assert main(["scan", str(SAMPLES / "secure" / "secure_s3.tf")]) == EXIT_OK
+    assert "no policy was evaluated" not in capsys.readouterr().out
+
+
+@pytest.mark.slow
+def test_the_secure_fixtures_prove_we_looked_not_just_that_we_found_nothing(
+    capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Exit 0 is documented as "we looked, and it is clean". The negative controls are the only
+    fixtures that demonstrate the first half, which is why CI's clean case uses one."""
+    main(["scan", "--json", str(SAMPLES / "secure" / "secure_s3.tf")])
+    payload = json.loads(capsys.readouterr().out)
+    evaluated = sum(s["passed"] + s["failed"] for t in payload["targets"] for s in t["scans"])
+    assert payload["exit_code"] == EXIT_OK
+    assert evaluated > 0, "a clean verdict from zero evaluated checks is not a clean verdict"
+    assert payload["summary"]["no_checks_evaluated"] == 0

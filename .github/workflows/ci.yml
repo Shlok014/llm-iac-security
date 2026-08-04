@@ -89,9 +89,17 @@ jobs:
           iac-agent scan samples/s3_public.tf > /dev/null && code=0 || code=$?
           [ "$code" -eq 1 ] || fail "expected exit 1 (findings) from samples/s3_public.tf, got $code"
 
-          printf 'variable "region" {\n  type = string\n}\n' > "$RUNNER_TEMP/clean.tf"
-          iac-agent scan "$RUNNER_TEMP/clean.tf" > /dev/null && code=0 || code=$?
-          [ "$code" -eq 0 ] || fail "expected exit 0 (clean) from a finding-free file, got $code"
+          # `samples/secure/secure_s3.tf` rather than a synthetic `variable "region" {}`. The
+          # synthetic file exits 0 for the wrong reason: it declares no resources, so Checkov
+          # evaluates *no policies at all* on it — proving "0 findings" but not "we looked".
+          # A secure fixture passes dozens of real checks, so this asserts both halves of the
+          # documented meaning of exit 0, which is "we looked, and it is clean".
+          iac-agent scan samples/secure/secure_s3.tf > /dev/null && code=0 || code=$?
+          [ "$code" -eq 0 ] || fail "expected exit 0 (clean) from samples/secure/secure_s3.tf, got $code"
+
+          passed=$(iac-agent scan samples/secure/secure_s3.tf --json 2>/dev/null \
+            | python -c 'import json,sys; print(sum(s["passed"] for t in json.load(sys.stdin)["targets"] for s in t["scans"]))')
+          [ "$passed" -gt 0 ] || fail "exit 0 on secure_s3.tf but $passed checks were evaluated — that is 'we did not look', not 'it is clean'"
 
           # trivy is a Go binary and is deliberately not installed in this job, so this is a
           # genuine "the scanner could not run" case. It must be distinguishable from clean:

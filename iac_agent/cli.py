@@ -189,6 +189,7 @@ def cmd_scan(args: argparse.Namespace) -> int:
     documents: list[dict[str, Any]] = []
     errors: list[dict[str, str]] = []
     unparsed: list[dict[str, Any]] = []
+    unevaluated: list[dict[str, str]] = []
     all_findings: list[Finding] = []
 
     for target in targets:
@@ -224,11 +225,22 @@ def cmd_scan(args: argparse.Namespace) -> int:
             })
             if not args.json:
                 _render_table(result, out)
+            # "0 failed, 0 passed" is not the same claim as "0 failed, 77 passed", and on real
+            # repositories the first is common: files that hold only variables or outputs, and
+            # resources this scanner's community build has no policy for. Both then roll up
+            # into the same "0 finding(s)" line, which reads as a verdict. Say it on the line
+            # where the counts already are. Deliberately *not* an error — a `variables.tf` with
+            # nothing to check is a legitimate zero, and exiting 2 on it would make the tool
+            # unusable against a real module.
+            evaluated = result.failed_count + result.passed_count
             print(
                 f"  {name}: {result.failed_count} failed, {result.passed_count} passed"
-                + ("" if result.parsed_cleanly else f", {result.parse_errors} parse errors"),
+                + ("" if result.parsed_cleanly else f", {result.parse_errors} parse errors")
+                + ("" if evaluated else "  — no policy was evaluated on this file"),
                 file=out,
             )
+            if not evaluated:
+                unevaluated.append({"file": str(target), "scanner": name})
         documents.append({"file": str(target), "iac_type": kind.value, "scans": scans})
 
     failed_total = len(all_findings)
@@ -249,11 +261,13 @@ def cmd_scan(args: argparse.Namespace) -> int:
         _emit_json({
             "command": "scan", "version": __version__, "requested": list(args.path),
             "targets": documents, "errors": errors, "unparsed": unparsed,
+            "unevaluated": unevaluated,
             "summary": {
                 "files_scanned": len(targets), "scanners": scanner_names,
                 "failed_total": failed_total, "distinct_findings": distinct,
                 "by_severity": by_severity, "scanner_errors": len(errors),
                 "partially_parsed": len(unparsed),
+                "no_checks_evaluated": len(unevaluated),
                 "fail_on": args.fail_on, "gate_hits": len(gate_hits),
             },
             "exit_code": code,
