@@ -206,3 +206,64 @@ def test_baseline_is_recorded_and_non_zero() -> None:
     result = run("s3_public.tf", DETECT, "")
     assert result.baseline.failed_count == 8
     assert result.scanner == "checkov"
+
+
+# --------------------------------------------------------------------------------------
+# on_step — progress reporting that cannot damage the run it reports on
+# --------------------------------------------------------------------------------------
+
+
+def test_on_step_reports_the_baseline_before_any_model_call() -> None:
+    """A caller showing progress needs the first line *before* the slow part, not after it —
+    that is the whole point of reporting at all."""
+    seen: list[tuple[str, object]] = []
+    result = run(
+        "s3_public.tf", DETECT, "", on_step=lambda stage, rec: seen.append((stage, rec))
+    )
+    assert seen[0][0] == "baseline"
+    assert seen[0][1].scan.failed_count == result.baseline.failed_count
+    assert "detected" in [stage for stage, _ in seen]
+
+
+def test_on_step_reports_every_iteration_exactly_once() -> None:
+    seen: list[tuple[str, object]] = []
+    result = run(
+        "vulnerable.Dockerfile",
+        DETECT,
+        SECURE_DOCKERFILE,
+        max_iters=3,
+        on_step=lambda stage, rec: seen.append((stage, rec)),
+    )
+    reported = [rec for stage, rec in seen if stage == "iteration"]
+    assert [r.index for r in reported] == [r.index for r in result.iterations]
+
+
+def test_on_step_reports_an_iteration_only_once_its_gates_have_run() -> None:
+    """Reporting a candidate mid-decision would let a caller announce a count for one the
+    drift gate was about to reject — the exact confusion the gates exist to prevent."""
+    states: list[bool] = []
+
+    def note(stage: str, record: object) -> None:
+        if stage == "iteration":
+            # Settled means exactly one of the two outcomes is populated.
+            states.append(bool(record.rejected_because) != bool(record.scan is not None))
+
+    run("s3_public.tf", DETECT, "not valid terraform {{{", max_iters=2, on_step=note)
+    assert states and all(states)
+
+
+def test_a_callback_that_raises_cannot_abort_a_paid_run() -> None:
+    """By the third iteration real money has been spent. A typo in someone's status handler
+    must not be able to throw the result away."""
+
+    def explode(stage: str, record: object) -> None:
+        raise RuntimeError("the caller's problem, not the loop's")
+
+    result = run("s3_public.tf", DETECT, "", max_iters=2, on_step=explode)
+    assert result.baseline.failed_count == 8
+    assert result.stop_reason is not None
+
+
+def test_on_step_is_optional() -> None:
+    """The default path must not change: every other test in this file passes None."""
+    assert run("s3_public.tf", DETECT, "").baseline.failed_count == 8

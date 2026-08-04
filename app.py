@@ -613,7 +613,13 @@ def _do_scan(name: str, code: str, scanner: str) -> dict:
         }
 
 
-def _do_fix(name: str, code: str, scanner: str, max_iters: int) -> dict:
+def _do_fix(
+    name: str,
+    code: str,
+    scanner: str,
+    max_iters: int,
+    on_step: Any | None = None,
+) -> dict:
     with tempfile.TemporaryDirectory() as tmp:
         workdir = Path(tmp)
         iac_type, target = _prepare(name, code, workdir)
@@ -624,6 +630,7 @@ def _do_fix(name: str, code: str, scanner: str, max_iters: int) -> dict:
             cfg=ModelConfig(),
             max_iters=max_iters,
             output_dir=workdir / "out",
+            on_step=on_step,
         )
         best_scan = result.best.scan
         return {
@@ -685,6 +692,30 @@ def _do_fix(name: str, code: str, scanner: str, max_iters: int) -> dict:
 # --------------------------------------------------------------------------------------
 # result rendering
 # --------------------------------------------------------------------------------------
+
+
+def _report_step(stage: str, record: Any | None) -> None:
+    """Write one line into the open status box as `run_loop` reaches each stage.
+
+    The wording is chosen here, not in the package: `run_loop` reports stage names. Vocabulary
+    matches the rail deliberately — someone who watched *cleared the gates* appear during the
+    run should find the same phrase under the same station afterwards.
+    """
+    if stage == "baseline" and record is not None and record.scan is not None:
+        st.write(f"Baseline: **{record.scan.failed_count}** failed checks. Asking the model.")
+    elif stage == "detected":
+        st.write("The model has read the file. Generating a rewrite.")
+    elif stage == "iteration" and record is not None:
+        if record.rejected_because:
+            st.write(
+                f"Iteration {record.index}: **{_truncate(record.rejected_because, 90)}** — "
+                "never scanned."
+            )
+        elif record.scan is not None:
+            st.write(
+                f"Iteration {record.index}: cleared the gates · "
+                f"**{record.scan.failed_count}** failed."
+            )
 
 
 def _render_failure(failure: dict) -> None:
@@ -1218,17 +1249,16 @@ with tab_run:
                         input_name, input_code, scanner_name
                     )
                 else:
-                    # One line about shape and cost, not three numbered steps. The steps were
-                    # written before any of them had run, so the box asserted that work was
-                    # done and then sat still for a minute; the sequence itself is on the
-                    # *method* tab and is drawn to scale by the rail once there is a result.
+                    # Reported as it happens rather than asserted up front. The box used to
+                    # list three numbered steps before any of them had run — claiming work was
+                    # done and then sitting still for a minute of model calls — which is both
+                    # a lie and the least reassuring thing a slow operation can do.
                     st.write(
                         f"Baseline scan, then up to {max_iters} rewrite(s), each through the "
-                        "parse and drift gates before it is allowed near a scanner. Usually "
-                        "under a minute."
+                        "parse and drift gates before it is allowed near a scanner."
                     )
                     st.session_state["outcome"] = _do_fix(
-                        input_name, input_code, scanner_name, max_iters
+                        input_name, input_code, scanner_name, max_iters, _report_step
                     )
             except ScannerError as exc:
                 st.session_state["failure"] = {"kind": "scanner", "message": str(exc)}
