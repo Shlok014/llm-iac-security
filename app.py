@@ -363,7 +363,12 @@ def _render_findings_table(rows: list[dict], *, select_key: str | None = None) -
         selection_mode="single-row",
     )
     if select_key and event.selection.rows:
-        return frame.iloc[event.selection.rows[0]].to_dict()
+        # Bounds-checked because the widget key outlives the data: select the thirtieth finding
+        # of one file, scan a file with five, and a stale index would raise here — turning a
+        # perfectly good result into a traceback.
+        index = event.selection.rows[0]
+        if 0 <= index < len(frame):
+            return frame.iloc[index].to_dict()
     return None
 
 
