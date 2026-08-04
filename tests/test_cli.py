@@ -115,3 +115,68 @@ def test_the_network_guard_is_actually_armed() -> None:
 
     with pytest.raises(LiveAPICallInTests):
         openai.OpenAI(api_key="sk-not-a-real-key")
+
+
+# ---------------------------------------------------------------------------
+# a file the scanner could not fully parse is not a clean file
+# ---------------------------------------------------------------------------
+
+# Valid HCL up to the point it stops: a real half-written file, a bad merge, a stray brace.
+# hcl2 rejects it, Terraform would reject it, and checkov reports a parsing error and
+# evaluates nothing.
+TRUNCATED_TF = """resource "aws_s3_bucket" "data" {
+  bucket = "my-bucket"
+  acl    = "public-read"
+}
+
+resource "aws_iam_policy" "wide" {
+  name   = "wide"
+  policy = jsonencode({
+    Statement = [{
+      Effect = "Allow"
+      Action = "*"
+"""
+
+
+@pytest.mark.slow
+def test_a_file_that_does_not_parse_exits_2_not_0(tmp_path: Path) -> None:
+    """The founding bug, one layer up.
+
+    `validity.py` names this case exactly — "a file Terraform cannot parse and a file with zero
+    misconfigurations produce the same number" — and the scan path used to produce the same
+    *exit code* for them too. It printed `1 parse errors` and then exited 0, so a CI job gated
+    on this tool passed a Terraform file Terraform cannot read.
+    """
+    target = tmp_path / "truncated.tf"
+    target.write_text(TRUNCATED_TF, encoding="utf-8")
+    assert main(["scan", str(target)]) == EXIT_TOOLING
+
+
+@pytest.mark.slow
+def test_the_parse_failure_is_reported_not_just_counted(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Exit 2 alone would leave the reader guessing which of the two reasons applied."""
+    target = tmp_path / "truncated.tf"
+    target.write_text(TRUNCATED_TF, encoding="utf-8")
+    main(["scan", str(target)])
+    assert "did not parse cleanly" in capsys.readouterr().out
+
+
+@pytest.mark.slow
+def test_json_carries_the_unparsed_files_so_a_pipeline_can_act_on_them(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    target = tmp_path / "truncated.tf"
+    target.write_text(TRUNCATED_TF, encoding="utf-8")
+    main(["scan", "--json", str(target)])
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["exit_code"] == EXIT_TOOLING
+    assert payload["summary"]["partially_parsed"] == 1
+    assert payload["unparsed"] and payload["unparsed"][0]["parse_errors"] >= 1
+
+
+@pytest.mark.slow
+def test_a_fully_parsed_file_with_findings_still_exits_1(tmp_path: Path) -> None:
+    """Guard against over-correcting: parse errors must not swallow the ordinary case."""
+    assert main(["scan", str(SAMPLES / "s3_public.tf")]) == EXIT_FINDINGS

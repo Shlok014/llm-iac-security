@@ -99,4 +99,11 @@ jobs:
           iac-agent scan samples/s3_public.tf --scanner trivy > /dev/null 2>&1 && code=0 || code=$?
           [ "$code" -eq 2 ] || fail "expected exit 2 (scanner unavailable), got $code — a scanner that could not run must never look like a clean result"
 
-          echo "exit-code contract holds: 1 / 0 / 2"
+          # The second way to not-look: a file the scanner cannot parse. Checkov reports a
+          # parsing error, evaluates nothing, and returns zero findings — which for a long
+          # time exited 0 here. A half-written Terraform file must not pass a CI gate.
+          printf 'resource "aws_s3_bucket" "b" {\n  bucket = "x"\n  policy = jsonencode({\n    Statement = [{\n' > "$RUNNER_TEMP/truncated.tf"
+          iac-agent scan "$RUNNER_TEMP/truncated.tf" > /dev/null 2>&1 && code=0 || code=$?
+          [ "$code" -eq 2 ] || fail "expected exit 2 (file did not parse), got $code — a file that was never examined must never look like a clean result"
+
+          echo "exit-code contract holds: 1 / 0 / 2 (unavailable) / 2 (unparsed)"
