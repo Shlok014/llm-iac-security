@@ -274,8 +274,10 @@ This is not a nicety. A test suite that needs a key is a test suite nobody else 
 costs money to run, and that produces different results on Tuesday than it did on Monday. If you
 find yourself wanting a real model call in a test, you want a scripted fake instead.
 
-*(Design intent — not yet measured: CI is configured with no API key secret, so the rule is
-enforced mechanically rather than by convention.)*
+**Measured, not intended.** `.github/workflows/ci.yml` sets `OPENAI_API_KEY: ""` explicitly on
+the pytest step, and the suite passes there — so the rule is enforced mechanically rather than
+by convention. It was tagged *design intent — not yet measured* here for a long time, which was
+fair while CI had never once been allowed to run; it has now.
 
 ### Writing a test against a scripted fake model
 
