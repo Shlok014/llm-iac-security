@@ -68,7 +68,15 @@ ui = [
     "streamlit==1.51.0",
     "pandas==2.3.3",
 ]
+# `dev` pulls in `ui` on purpose. `tests/test_app_contract.py` imports `app.py` by path, and
+# `app.py` imports streamlit and pandas — so a `[dev]`-only environment cannot collect eight of
+# the tests and reports them as errors rather than skips. That is exactly what CI did: `ruff`
+# passed, `pytest` failed on `ModuleNotFoundError: No module named 'streamlit'`, and the badge
+# was red for a reason that had nothing to do with the code under test. Contributors installing
+# `.[dev]` hit the same wall locally. The self-reference is the standard PEP 508 spelling and
+# keeps the streamlit/pandas pins in one place.
 dev = [
+    "iac-agent[ui]",
     "pytest>=8.0",
     "ruff>=0.6",
 ]

@@ -40,18 +40,25 @@ jobs:
       # runs checkov and trivy rulesets over `samples/`, which is deliberately hostile
       # input, and it never pushes anything — so the token has no reason to be sitting on
       # disk where a subprocess could read it.
-      - uses: actions/checkout@v4
+      #
+      # checkout@v5 / setup-python@v6 are the first majors that run on Node 24. The v4/v5
+      # pair still works, but every run carries a deprecation annotation, and a warning
+      # triangle on a green run reads as "something is wrong here" to anyone skimming.
+      - uses: actions/checkout@v5
         with:
           persist-credentials: false
 
       # 3.13 is the version every measured number in docs/ was produced on. `requires-python`
       # allows 3.11–3.13; the upper bound is real — checkov 3.2.489 crashes on 3.14.
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
           cache: pip
           cache-dependency-path: pyproject.toml
 
+      # `[dev]` pulls in `[ui]` (see pyproject.toml). It has to: `tests/test_app_contract.py`
+      # imports `app.py`, which imports streamlit and pandas. Without them pytest reports
+      # eight collection errors that look like test failures and are not.
       - name: Install the package and its dev extra
         run: |
           python -m pip install --upgrade pip
