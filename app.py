@@ -37,6 +37,7 @@ import pandas as pd
 import streamlit as st
 
 import ui_theme as ui
+from demo import available_scanners, demo_mode, validate_upload
 from iac_agent import __version__
 from iac_agent.llm import LLMClient, ModelConfig
 from iac_agent.loop import StopReason, finding_key, run_loop
@@ -152,6 +153,9 @@ def _fix_availability() -> tuple[bool, str]:
     not to contain one, the loop raises `LLMError` and this page renders that message rather
     than a traceback.
     """
+    if demo_mode():
+        return False, "Live model repair is disabled in this public demo; the recorded repair is in measured results."
+
     missing = [m for m in ("openai", "dotenv") if importlib.util.find_spec(m) is None]
     if missing:
         return False, (
@@ -632,6 +636,8 @@ def _do_fix(
     max_iters: int,
     on_step: Any | None = None,
 ) -> dict:
+    if demo_mode():
+        raise ValueError("Live model repair is disabled in this public demo.")
     with tempfile.TemporaryDirectory() as tmp:
         workdir = Path(tmp)
         iac_type, target = _prepare(name, code, workdir)
@@ -1124,28 +1130,42 @@ with st.sidebar:
         uploaded = st.file_uploader(
             "Terraform or Dockerfile",
             label_visibility="collapsed",
-            help="Accepted: `*.tf`, `Dockerfile`, `*.Dockerfile`. Takes precedence over the "
-            "fixture above. Nothing leaves this machine unless you press **Scan, fix and "
-            "verify**.",
+            help=(
+                "Accepted: `*.tf`, `Dockerfile`, `*.Dockerfile`, up to 64 KiB. "
+                "Your source is sent to this hosted server for scanning; Scan only does not "
+                "send it to a model."
+                if demo_mode()
+                else "Accepted: `*.tf`, `Dockerfile`, `*.Dockerfile`. Takes precedence over "
+                "the fixture above. Scan only does not send source to a model."
+            ),
         )
     if uploaded is not None:
-        try:
-            uploaded_code = uploaded.getvalue().decode("utf-8")
-        except UnicodeDecodeError:
-            input_error = "That file is not UTF-8 text, so it is not IaC source."
-        else:
-            uploaded_name = Path(uploaded.name).name
+        if demo_mode():
             try:
-                detect_iac_type(uploaded_name)
-            except IaCAgentError as exc:
-                input_error = str(exc)
+                input_name, input_code = validate_upload(uploaded.name, uploaded.getvalue())
+            except ValueError as exc:
+                input_name, input_code, input_error = None, None, str(exc)
             else:
-                input_name, input_code, input_error = uploaded_name, uploaded_code, None
+                input_error = None
+        else:
+            try:
+                uploaded_code = uploaded.getvalue().decode("utf-8")
+            except UnicodeDecodeError:
+                input_name, input_code = None, None
+                input_error = "That file is not UTF-8 text, so it is not IaC source."
+            else:
+                uploaded_name = Path(uploaded.name).name
+                try:
+                    detect_iac_type(uploaded_name)
+                except IaCAgentError as exc:
+                    input_name, input_code, input_error = None, None, str(exc)
+                else:
+                    input_name, input_code, input_error = uploaded_name, uploaded_code, None
 
     ui.eyebrow("scanner")
     scanner_name = st.selectbox(
         "Scanner",
-        sorted(SCANNERS),
+        available_scanners(demo_mode()),
         label_visibility="collapsed",
         help="The tool must be installed. If it cannot run, this page says so — it never "
         "reports a missing scanner as a clean file.",
