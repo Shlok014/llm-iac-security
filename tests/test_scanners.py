@@ -471,7 +471,13 @@ def test_checkov_accepts_a_list_wrapped_document(
     assert CheckovScanner().scan(tf_file).failed_count == 2
 
 
-@pytest.mark.parametrize("output", ["{}", "[]", '{"summary": {}, "results": {}}'])
+@pytest.mark.parametrize("output", [
+    "{}", "[]", '{"summary": {}, "results": {}}',
+    '{"summary": {"passed": 0, "failed": 8, "parsing_errors": 0}, '
+    '"results": {"failed_checks": []}}',
+    '{"summary": {"passed": 0, "parsing_errors": 0}, '
+    '"results": {"failed_checks": []}}',
+])
 def test_checkov_rejects_json_without_a_complete_scan_result(
     monkeypatch: pytest.MonkeyPatch, stub_resolve: None, tf_file: Path, output: str
 ) -> None:
@@ -484,7 +490,8 @@ def test_checkov_surfaces_parsing_errors(
     monkeypatch: pytest.MonkeyPatch, stub_resolve: None, tf_file: Path
 ) -> None:
     """Zero findings on an unparseable file is the fail-open shape; parsed_cleanly says so."""
-    doc = {"results": {"failed_checks": []}, "summary": {"passed": 0, "parsing_errors": 1}}
+    doc = {"results": {"failed_checks": []},
+           "summary": {"passed": 0, "failed": 0, "parsing_errors": 1}}
     fake_run(monkeypatch, stdout=json.dumps(doc), returncode=0)
     result = CheckovScanner().scan(tf_file)
     assert result.failed_count == 0

@@ -166,10 +166,14 @@ class CheckovScanner:
                 not isinstance(summary.get(key), int)
                 or isinstance(summary.get(key), bool)
                 or summary[key] < 0
-                for key in ("passed", "parsing_errors")
+                for key in ("passed", "failed", "parsing_errors")
             )
         ):
             raise ScannerError("checkov returned an incomplete JSON result shape")
+        if summary["failed"] != len(results["failed_checks"]) or any(
+            not isinstance(check, dict) for check in results["failed_checks"]
+        ):
+            raise ScannerError("checkov returned an inconsistent JSON result shape")
         findings = [
             Finding(
                 rule_id=c.get("check_id", "?"),

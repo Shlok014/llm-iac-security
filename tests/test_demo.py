@@ -141,6 +141,30 @@ def test_recorded_example_refuses_output_not_bound_to_after_scan(tmp_path):
         load_recorded_example(tmp_path)
 
 
+def test_recorded_example_missing_digest_is_unavailable(tmp_path):
+    from demo import load_recorded_example
+
+    result = json.loads((ROOT / "eval/results/results.json").read_text())
+    result["runs"] = [
+        row for row in result["runs"]
+        if row["fixture"] == "samples/s3_public.tf"
+        and row["variant"] == "stripped"
+        and row["run_index"] == 0
+    ]
+    row = result["runs"][0]
+    del row["file_sha"]
+    report = tmp_path / "eval/results/results.json"
+    report.parent.mkdir(parents=True)
+    report.write_text(json.dumps(result))
+    for relative in (row["source"], row["output_path"]):
+        dest = tmp_path / relative
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(ROOT / relative, dest)
+
+    with pytest.raises(ValueError, match="incomplete"):
+        load_recorded_example(tmp_path)
+
+
 def test_public_scans_do_not_reuse_shared_cached_results(monkeypatch):
     from iac_agent.types import IaCType, ScanResult
 

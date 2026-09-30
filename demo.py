@@ -65,6 +65,7 @@ def load_recorded_example(root: Path) -> dict:
         checkov_version = metadata["checkov_version"]
         timestamp = metadata["timestamp"]
         drift_summary = row["drift"]["summary"]
+        source_sha = row["file_sha"]
         original_bytes = read_artifact(row["source"])
         output_bytes = read_artifact(row["output_path"])
         output_sha = row["attempts"][-1]["output_sha"]
@@ -72,7 +73,7 @@ def load_recorded_example(root: Path) -> dict:
             json.JSONDecodeError) as exc:
         raise ValueError("Recorded example evidence is incomplete.") from exc
 
-    if hashlib.sha256(original_bytes).hexdigest() != row["file_sha"]:
+    if hashlib.sha256(original_bytes).hexdigest() != source_sha:
         raise ValueError("Recorded example source digest does not match its report.")
     if hashlib.sha256(output_bytes).hexdigest() != output_sha:
         raise ValueError("Recorded example artifact digest does not match its report.")
