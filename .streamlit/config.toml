@@ -8,6 +8,9 @@
 # Only tokens Streamlit understands live here. Layout, the gate rail and anything with
 # structure are in `ui_theme.py`.
 
+[server]
+maxUploadSize = 1 # MB transport cap; demo.py enforces the tighter 64 KiB source cap.
+
 [theme]
 base = "light"
 

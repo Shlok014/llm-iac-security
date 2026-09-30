@@ -14,6 +14,12 @@ rescan before it can be returned.
 
 </div>
 
+## Live demo
+
+The public Streamlit demo runs real Checkov scans on bundled Terraform and Dockerfile fixtures and accepts small, non-confidential uploads. Its repair example is a **recorded evaluation run**, labelled with its scanner and model provenance. Anonymous visitors cannot trigger paid model calls. The URL will be added here after a hosted scan succeeds.
+
+To deploy from GitHub on Streamlit Community Cloud, select this repository and `app.py`, choose Python **3.13**, and set `IAC_DEMO_MODE = "1"` as a root-level app setting in Advanced settings. The root `requirements.txt` installs the package with its pinned UI and Checkov dependencies. Do not configure `OPENAI_API_KEY` for the public app. Uploaded source reaches the hosted server for scanning; Scan only does not transmit it to a model.
+
 <div align="center">
   <img src="docs/assets/scan-light.png" alt="The analyse tab: Checkov reporting 8 failed checks on a bundled Terraform fixture, the findings table below it, and the selected finding's line shown in context underneath" width="900">
   <p><em>Scan Terraform and Dockerfiles with the full interface. The free path uses Checkov on bundled fixtures; selecting a finding shows the relevant line in context.</em></p>

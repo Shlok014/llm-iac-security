@@ -115,3 +115,47 @@ def test_recorded_example_refuses_tampered_artifact(tmp_path):
 
     with pytest.raises(ValueError, match="artifact digest"):
         load_recorded_example(tmp_path)
+
+
+def test_public_scans_do_not_reuse_shared_cached_results(monkeypatch):
+    from iac_agent.types import IaCType, ScanResult
+
+    monkeypatch.setenv("IAC_DEMO_MODE", "1")
+    spec = importlib.util.spec_from_file_location("_demo_scan_cache_test", ROOT / "app.py")
+    app = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(app)
+
+    calls = 0
+
+    class Scanner:
+        def scan(self, target, iac_type):
+            nonlocal calls
+            calls += 1
+            return ScanResult(
+                scanner="checkov", target=target, iac_type=IaCType.TERRAFORM,
+                passed_count=calls,
+            )
+
+    monkeypatch.setattr(app, "get_scanner", lambda _name: Scanner())
+    first = app._do_scan("cache-probe.tf", 'resource "aws_s3_bucket" "a" {}', "checkov")
+    second = app._do_scan("cache-probe.tf", 'resource "aws_s3_bucket" "a" {}', "checkov")
+
+    assert first["passed"] == 1
+    assert second["passed"] == 2
+
+
+def test_public_scanner_failure_propagates_as_unverified(monkeypatch):
+    monkeypatch.setenv("IAC_DEMO_MODE", "1")
+    spec = importlib.util.spec_from_file_location("_demo_scanner_failure_test", ROOT / "app.py")
+    app = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(app)
+
+    class BrokenScanner:
+        def scan(self, target, iac_type):
+            raise RuntimeError("scanner unavailable")
+
+    monkeypatch.setattr(app, "get_scanner", lambda _name: BrokenScanner())
+    with pytest.raises(RuntimeError, match="scanner unavailable"):
+        app._do_scan("broken.tf", 'resource "aws_s3_bucket" "a" {}', "checkov")

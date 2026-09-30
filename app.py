@@ -629,14 +629,7 @@ def _prepare(name: str, code: str, workdir: Path) -> tuple[IaCType, Path]:
     return iac_type, target
 
 
-# Cached because it is deterministic and slow: the same file through the same scanner takes
-# about five seconds and returns the same thing every time, and re-scanning after glancing at
-# another tab was the commonest reason to wait. `_do_fix` is deliberately *not* cached — it
-# spends money and it is not reproducible, so memoising it would quietly turn a second paid run
-# into a replay of the first, which is exactly the kind of substitution this project objects to
-# everywhere else.
-@st.cache_data(show_spinner=False)
-def _do_scan(name: str, code: str, scanner: str) -> dict:
+def _scan_once(name: str, code: str, scanner: str) -> dict:
     with tempfile.TemporaryDirectory() as tmp:
         workdir = Path(tmp)
         iac_type, target = _prepare(name, code, workdir)
@@ -652,6 +645,16 @@ def _do_scan(name: str, code: str, scanner: str) -> dict:
             "passed": result.passed_count,
             "parse_errors": result.parse_errors,
         }
+
+
+# Local scans can reuse a deterministic result. Public uploads stay out of this shared cache.
+@st.cache_data(show_spinner=False)
+def _scan_cached(name: str, code: str, scanner: str) -> dict:
+    return _scan_once(name, code, scanner)
+
+
+def _do_scan(name: str, code: str, scanner: str) -> dict:
+    return _scan_once(name, code, scanner) if demo_mode() else _scan_cached(name, code, scanner)
 
 
 def _do_fix(
