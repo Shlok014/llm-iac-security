@@ -147,12 +147,29 @@ class CheckovScanner:
         )
         doc = _load_json(raw, "checkov")
         if isinstance(doc, list):
-            doc = doc[0] if doc else {}
+            doc = doc[0] if doc else None
         if not isinstance(doc, dict):
             raise ScannerError("checkov returned an unexpected JSON shape")
 
-        summary = doc.get("summary", {}) or {}
-        results = doc.get("results", {}) or {}
+        # Checkov uses a bare summary for a file with no runnable resources.
+        # A framework mismatch can have the same shape, but _run rejects its error stderr.
+        bare_summary = "summary" not in doc and "results" not in doc
+        summary = doc if bare_summary else doc.get("summary")
+        results = {"failed_checks": []} if bare_summary else doc.get("results")
+        if (
+            not isinstance(summary, dict)
+            or not isinstance(results, dict)
+            or not isinstance(results.get("failed_checks"), list)
+            or (bare_summary and any(key not in summary for key in
+                                     ("failed", "resource_count", "checkov_version")))
+            or any(
+                not isinstance(summary.get(key), int)
+                or isinstance(summary.get(key), bool)
+                or summary[key] < 0
+                for key in ("passed", "parsing_errors")
+            )
+        ):
+            raise ScannerError("checkov returned an incomplete JSON result shape")
         findings = [
             Finding(
                 rule_id=c.get("check_id", "?"),
@@ -164,15 +181,15 @@ class CheckovScanner:
                 line=(c.get("file_line_range") or [None])[0],
                 guideline=c.get("guideline") or "",
             )
-            for c in results.get("failed_checks", []) or []
+            for c in results["failed_checks"]
         ]
         return ScanResult(
             scanner=self.name,
             target=path,
             iac_type=kind,
             failed=findings,
-            passed_count=int(summary.get("passed") or 0),
-            parse_errors=int(summary.get("parsing_errors") or 0),
+            passed_count=summary["passed"],
+            parse_errors=summary["parsing_errors"],
         )
 
 

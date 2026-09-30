@@ -117,6 +117,30 @@ def test_recorded_example_refuses_tampered_artifact(tmp_path):
         load_recorded_example(tmp_path)
 
 
+def test_recorded_example_refuses_output_not_bound_to_after_scan(tmp_path):
+    from demo import load_recorded_example
+
+    result = json.loads((ROOT / "eval/results/results.json").read_text())
+    result["runs"] = [
+        row for row in result["runs"]
+        if row["fixture"] == "samples/s3_public.tf"
+        and row["variant"] == "stripped"
+        and row["run_index"] == 0
+    ]
+    row = result["runs"][0]
+    row["after"]["checkov"]["target"] = "unrelated.tf"
+    report = tmp_path / "eval/results/results.json"
+    report.parent.mkdir(parents=True)
+    report.write_text(json.dumps(result))
+    for relative in (row["source"], row["output_path"]):
+        dest = tmp_path / relative
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(ROOT / relative, dest)
+
+    with pytest.raises(ValueError, match="target"):
+        load_recorded_example(tmp_path)
+
+
 def test_public_scans_do_not_reuse_shared_cached_results(monkeypatch):
     from iac_agent.types import IaCType, ScanResult
 
@@ -159,3 +183,30 @@ def test_public_scanner_failure_propagates_as_unverified(monkeypatch):
     monkeypatch.setattr(app, "get_scanner", lambda _name: BrokenScanner())
     with pytest.raises(RuntimeError, match="scanner unavailable"):
         app._do_scan("broken.tf", 'resource "aws_s3_bucket" "a" {}', "checkov")
+
+
+def test_parse_errors_never_render_a_clean_verified_scan(monkeypatch):
+    spec = importlib.util.spec_from_file_location("_demo_parse_error_test", ROOT / "app.py")
+    app = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(app)
+
+    successes = []
+    warnings = []
+    verdicts = []
+    monkeypatch.setattr(app.st, "success", lambda message: successes.append(message))
+    monkeypatch.setattr(app.st, "warning", lambda message: warnings.append(message))
+    monkeypatch.setattr(app.st, "caption", lambda message: None)
+    monkeypatch.setattr(app.st, "download_button", lambda *args, **kwargs: None)
+    monkeypatch.setattr(app.ui, "eyebrow", lambda *args, **kwargs: None)
+    monkeypatch.setattr(app.ui, "verdict", lambda *args, **kwargs: verdicts.append(kwargs))
+
+    payload = {
+        "findings": [], "scanned_as": "broken.tf", "name": "broken.tf",
+        "scanner": "checkov", "passed": 0, "parse_errors": 1, "iac_type": "terraform",
+    }
+    app._render_scan(payload)
+
+    assert verdicts[0]["tone"] == "unverified"
+    assert not successes
+    assert warnings

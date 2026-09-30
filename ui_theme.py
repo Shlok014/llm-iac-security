@@ -164,6 +164,7 @@ _CSS = """
 .ix-verdict[data-tone="blocked"] .ix-verdict-num { color: var(--ix-blocked); }
 .ix-verdict[data-tone="verified"] .ix-verdict-num { color: var(--ix-verified); }
 .ix-verdict[data-tone="signal"] .ix-verdict-num { color: var(--ix-signal); }
+.ix-verdict[data-tone="unverified"] .ix-verdict-num { color: var(--ix-signal); }
 .ix-verdict-label {
   font-family: var(--ix-mono); font-size: 11px; font-weight: 500;
   letter-spacing: .13em; text-transform: uppercase; color: var(--ix-muted);

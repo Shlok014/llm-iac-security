@@ -61,25 +61,47 @@ def load_recorded_example(root: Path) -> dict:
         metadata = report["metadata"]
         before = row["before"]["checkov"]
         after = row["after"]["checkov"]
+        model = metadata["model"]
+        checkov_version = metadata["checkov_version"]
+        timestamp = metadata["timestamp"]
+        drift_summary = row["drift"]["summary"]
         original_bytes = read_artifact(row["source"])
         output_bytes = read_artifact(row["output_path"])
         output_sha = row["attempts"][-1]["output_sha"]
-    except (KeyError, IndexError, StopIteration, TypeError, json.JSONDecodeError) as exc:
+    except (AttributeError, KeyError, IndexError, StopIteration, TypeError,
+            json.JSONDecodeError) as exc:
         raise ValueError("Recorded example evidence is incomplete.") from exc
 
     if hashlib.sha256(original_bytes).hexdigest() != row["file_sha"]:
         raise ValueError("Recorded example source digest does not match its report.")
     if hashlib.sha256(output_bytes).hexdigest() != output_sha:
         raise ValueError("Recorded example artifact digest does not match its report.")
+    if not isinstance(before, dict) or not isinstance(after, dict):
+        raise ValueError("Recorded example scanner evidence is incomplete.")
     if (
-        row["remediation_valid"] is not True
-        or row["after_is_before"] is not False
-        or row["drift_touches_flaw"]
-        or row["drift"]["drifted"] is not False
-        or before["parse_errors"] != 0
-        or after["parse_errors"] != 0
-        or after["failed_count"] >= before["failed_count"]
+        row["source"] != "eval/corpus/stripped/s3_public.tf"
+        or before.get("target") != row["source"]
+        or after.get("target") != row["output_path"]
     ):
+        raise ValueError("Recorded example scanner target does not match its source or output.")
+    if any(
+        not isinstance(count, int) or isinstance(count, bool) or count < 0
+        for count in (before.get("failed_count"), after.get("failed_count"))
+    ):
+        raise ValueError("Recorded example finding counts are incomplete.")
+    try:
+        valid = (
+            row["remediation_valid"] is True
+            and row["after_is_before"] is False
+            and not row["drift_touches_flaw"]
+            and row["drift"]["drifted"] is False
+            and before["parse_errors"] == 0
+            and after["parse_errors"] == 0
+            and after["failed_count"] < before["failed_count"]
+        )
+    except (KeyError, TypeError) as exc:
+        raise ValueError("Recorded example evidence is incomplete.") from exc
+    if not valid:
         raise ValueError("Recorded example did not pass its reported checks.")
 
     try:
@@ -93,10 +115,10 @@ def load_recorded_example(root: Path) -> dict:
         "artifact": row["output_path"],
         "original": original,
         "output": output,
-        "model": metadata["model"],
-        "checkov_version": metadata["checkov_version"],
-        "timestamp": metadata["timestamp"],
+        "model": model,
+        "checkov_version": checkov_version,
+        "timestamp": timestamp,
         "before": before["failed_count"],
         "after": after["failed_count"],
-        "drift": row["drift"]["summary"],
+        "drift": drift_summary,
     }

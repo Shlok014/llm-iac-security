@@ -41,7 +41,7 @@ from demo import available_scanners, demo_mode, load_recorded_example, validate_
 from iac_agent import __version__
 from iac_agent.llm import LLMClient, ModelConfig
 from iac_agent.loop import StopReason, finding_key, run_loop
-from iac_agent.scanners import SCANNERS, get_scanner, scanner_path
+from iac_agent.scanners import get_scanner, scanner_path
 from iac_agent.types import IaCAgentError, IaCType, ScannerError, detect_iac_type
 
 REPO_ROOT = Path(__file__).resolve().parent
@@ -401,7 +401,7 @@ def _render_scan_outcome(
         picked = _render_findings_table(
             rows, select_key=select_key, severity_stated_above=True
         )
-    else:
+    elif not parse_errors:
         st.success(
             f"**{scanner} ran and reported 0 failed checks** ({passed} checks passed). "
             "This is a real result from a scanner that executed — not an absent one."
@@ -413,7 +413,7 @@ def _render_scan_outcome(
     if parse_errors:
         st.warning(
             f"**{scanner} reported {parse_errors} parsing error(s).** Part of this file was "
-            "not analysed, so the count above is a floor, not a total."
+            "not analysed. This scan is unverified and its finding count is a floor, not a total."
         )
     return picked
 
@@ -599,7 +599,7 @@ upload here is written under a name that implies its type before a scanner sees 
 | temperature / seed | `{cfg.temperature}` / `{cfg.seed}` |
 | prompt version | `{cfg.prompt_version}` |
 | default token budget | `{TOKEN_BUDGET_DEFAULT}` |
-| scanners available | {', '.join(f'`{s}`' for s in sorted(SCANNERS))} |
+| scanners available | {', '.join(f'`{s}`' for s in available_scanners(demo_mode()))} |
 | package version | `{__version__}` |
 
 Read from `iac_agent` at page load, not written down here.
@@ -784,6 +784,7 @@ def _render_failure(failure: dict) -> None:
 
 def _render_scan(payload: dict) -> None:
     count = len(payload["findings"])
+    incomplete = bool(payload["parse_errors"])
     # The "scanned as …" line only says something when the name on disk differs from the name
     # you chose — an upload, or a Dockerfile, which is the case it was written for. On a
     # bundled `.tf` the two are identical and it spent a line of the verdict restating the
@@ -798,10 +799,11 @@ def _render_scan(payload: dict) -> None:
     )
     ui.verdict(
         str(count),
-        "failed checks" if count != 1 else "failed check",
+        ("failed checks — incomplete" if incomplete else
+         "failed checks" if count != 1 else "failed check"),
         f"{_mono(payload['scanner'])} on {_mono(payload['name'])} · "
         f"{payload['passed']} checks passed · <i>no model was called</i>{renamed}",
-        tone="blocked" if count else "verified",
+        tone="unverified" if incomplete else "blocked" if count else "verified",
     )
     ui.eyebrow("findings")
     picked = _render_scan_outcome(

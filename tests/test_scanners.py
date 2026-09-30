@@ -471,6 +471,15 @@ def test_checkov_accepts_a_list_wrapped_document(
     assert CheckovScanner().scan(tf_file).failed_count == 2
 
 
+@pytest.mark.parametrize("output", ["{}", "[]", '{"summary": {}, "results": {}}'])
+def test_checkov_rejects_json_without_a_complete_scan_result(
+    monkeypatch: pytest.MonkeyPatch, stub_resolve: None, tf_file: Path, output: str
+) -> None:
+    fake_run(monkeypatch, stdout=output)
+    with pytest.raises(ScannerError, match="shape"):
+        CheckovScanner().scan(tf_file)
+
+
 def test_checkov_surfaces_parsing_errors(
     monkeypatch: pytest.MonkeyPatch, stub_resolve: None, tf_file: Path
 ) -> None:
@@ -500,7 +509,7 @@ def test_checkov_command_line_for_dockerfile(
     monkeypatch: pytest.MonkeyPatch, stub_resolve: None, docker_file: Path
 ) -> None:
     """The framework flag follows the detected type, or Dockerfile rules never run."""
-    calls = fake_run(monkeypatch, stdout=json.dumps({"results": {}, "summary": {}}), returncode=0)
+    calls = fake_run(monkeypatch, stdout=json.dumps(DEGENERATE_CHECKOV), returncode=0)
     result = CheckovScanner().scan(docker_file)
     cmd, _ = calls[0]
 
@@ -514,7 +523,7 @@ def test_checkov_explicit_iac_type_overrides_detection(
     """Lets a caller scan a temp file whose name would not route on its own."""
     odd = tmp_path / "scratch.txt"
     odd.write_text("FROM ubuntu:latest\n")
-    calls = fake_run(monkeypatch, stdout=json.dumps({"results": {}, "summary": {}}), returncode=0)
+    calls = fake_run(monkeypatch, stdout=json.dumps(DEGENERATE_CHECKOV), returncode=0)
     result = CheckovScanner().scan(odd, iac_type=IaCType.DOCKERFILE)
     cmd, _ = calls[0]
 
