@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import importlib.util
+import json
+import shutil
 from pathlib import Path
 
 import pytest
@@ -74,3 +76,42 @@ def test_demo_advertises_only_installed_checkov(monkeypatch):
 
     monkeypatch.setenv("IAC_DEMO_MODE", "1")
     assert available_scanners(public=True) == ["checkov"]
+
+
+def test_recorded_example_uses_committed_scanner_and_drift_evidence():
+    from demo import load_recorded_example
+
+    example = load_recorded_example(ROOT)
+    assert example["fixture"] == "samples/s3_public.tf"
+    assert example["model"] == "gpt-4o-mini-2024-07-18"
+    assert example["checkov_version"] == "3.2.489"
+    assert example["before"] == 8
+    assert example["after"] == 7
+    assert example["drift"] == "no resource drift"
+    assert 'acl    = "public-read"' in example["original"]
+    assert 'acl    = "private"' in example["output"]
+    assert example["artifact"] == "eval/results/artifacts/stripped/run0/s3_public/fixed.tf"
+
+
+def test_recorded_example_refuses_tampered_artifact(tmp_path):
+    from demo import load_recorded_example
+
+    result = json.loads((ROOT / "eval/results/results.json").read_text())
+    result["runs"] = [
+        row for row in result["runs"]
+        if row["fixture"] == "samples/s3_public.tf"
+        and row["variant"] == "stripped"
+        and row["run_index"] == 0
+    ]
+    report = tmp_path / "eval/results/results.json"
+    report.parent.mkdir(parents=True)
+    report.write_text(json.dumps(result))
+    row = result["runs"][0]
+    for relative in (row["source"], row["output_path"]):
+        dest = tmp_path / relative
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(ROOT / relative, dest)
+    (tmp_path / row["output_path"]).write_text("tampered")
+
+    with pytest.raises(ValueError, match="artifact digest"):
+        load_recorded_example(tmp_path)

@@ -37,7 +37,7 @@ import pandas as pd
 import streamlit as st
 
 import ui_theme as ui
-from demo import available_scanners, demo_mode, validate_upload
+from demo import available_scanners, demo_mode, load_recorded_example, validate_upload
 from iac_agent import __version__
 from iac_agent.llm import LLMClient, ModelConfig
 from iac_agent.loop import StopReason, finding_key, run_loop
@@ -503,6 +503,31 @@ tab carries the rate, read from the evaluation harness rather than written down 
 
 def _render_results_page() -> None:
     """Render `eval/results/RESULTS.md` from disk. Nothing here is duplicated into the UI."""
+    st.subheader("One recorded repair")
+    try:
+        example = load_recorded_example(REPO_ROOT)
+    except ValueError as exc:
+        st.warning(f"Recorded repair unavailable — unverified: {exc}")
+    else:
+        st.caption(
+            f"Historical evaluation run, not a live model call · `{example['fixture']}` · "
+            f"{example['model']} · Checkov {example['checkov_version']} · "
+            f"{example['timestamp']}"
+        )
+        st.markdown(
+            f"**Checkov failed checks: {example['before']} → {example['after']}** · "
+            f"{example['drift']}. Source and output are committed as "
+            f"`{example['artifact']}`. This result does not prove Terraform apply safety."
+        )
+        _render_diff(
+            example["original"], example["output"], example["fixture"],
+            example["artifact"], "hcl"
+        )
+        with st.expander("Original and recorded output"):
+            st.code(example["original"], language="hcl")
+            st.code(example["output"], language="hcl")
+
+    st.divider()
     if not RESULTS_MD.is_file():
         st.warning(
             f"**`{RESULTS_MD.relative_to(REPO_ROOT)}` is not present in this checkout**, so "
