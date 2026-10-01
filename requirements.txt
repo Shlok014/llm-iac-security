@@ -1,1 +1,2 @@
 -e .[ui]
+# Community Cloud dependency refresh for the public demo.
