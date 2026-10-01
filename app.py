@@ -1232,14 +1232,18 @@ with st.sidebar:
             "other scanner."
         )
     # "Max iterations" of what was ambiguous next to two buttons, only one of which iterates.
-    max_iters = st.slider(
-        "Max fix iterations",
-        1,
-        5,
-        3,
-        help="How many rewrites the loop may attempt before returning the best candidate "
-        "it has seen. No effect on **Scan only**.",
-    )
+    if demo_mode():
+        max_iters = 1
+        st.caption("Live free-tier repair, when configured, makes one rewrite attempt.")
+    else:
+        max_iters = st.slider(
+            "Max fix iterations",
+            1,
+            5,
+            3,
+            help="How many rewrites the loop may attempt before returning the best candidate "
+            "it has seen. No effect on **Scan only**.",
+        )
 
     ui.eyebrow("run")
     ready = input_name is not None and input_code is not None and scanner_installed
