@@ -96,6 +96,39 @@ def test_an_unrecognised_rejection_fails_closed(app):
     assert unverified is True
 
 
+def test_provider_failure_does_not_claim_a_candidate_failed_parsing(app, monkeypatch):
+    shown = []
+    monkeypatch.setattr(app.st, "info", shown.append)
+    app._render_drift_verdict({
+        "aborted": "detection failed: provider returned HTTP 500",
+        "iterations": [], "drift_note": "", "iac_type": "terraform",
+    })
+    assert shown
+    assert "not reached" in shown[0].lower()
+    assert "parse gate" not in shown[0].lower()
+
+
+def test_rewrite_provider_failure_does_not_claim_a_candidate_failed_parsing(app, monkeypatch):
+    shown = []
+    monkeypatch.setattr(app.st, "info", shown.append)
+    app._render_drift_verdict({
+        "aborted": "model call failed on iteration 1: provider returned HTTP 500",
+        "iterations": [{"reason": "llm_error: provider returned HTTP 500", "drift_checked": False}],
+        "drift_note": "", "iac_type": "terraform",
+    })
+    assert shown
+    assert "not reached" in shown[0].lower()
+    assert "parse gate" not in shown[0].lower()
+
+
+def test_provider_failure_labels_the_count_as_baseline_not_after(app):
+    payload = {
+        "aborted": "detection failed: provider returned HTTP 500",
+        "iterations": [],
+    }
+    assert app._fix_count_label(payload) == "baseline failed checks"
+
+
 def test_the_drift_gate_is_drawn_before_the_rescan(app):
     """The station order is the argument, not a layout preference: drift is checked before the
     rescan precisely so a deletion cannot score."""

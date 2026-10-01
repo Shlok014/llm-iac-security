@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import hashlib
 import json
+import time
 from pathlib import Path
 
 from iac_agent.scanners import SCANNERS
@@ -52,11 +53,22 @@ def gemini_complete(messages: list[dict[str, str]], *, cfg: ModelConfig,
     }
     if response_format is not None:
         kwargs["response_format"] = response_format
-    try:
-        resp = client.chat.completions.create(**kwargs)
-    except Exception as exc:
-        # Provider errors may echo request headers. Never show one beside a public key.
-        raise LLMError(f"Gemini request failed ({type(exc).__name__}); try the recorded example.") from exc
+    for attempt in range(2):
+        try:
+            resp = client.chat.completions.create(**kwargs)
+            break
+        except Exception as exc:
+            # Retry one transient provider failure. Keep the one-rewrite limit: a failed
+            # HTTP response produced no candidate, and every successful response still
+            # enters the same parse, drift, and rescan gates.
+            status = getattr(exc, "status_code", None)
+            if attempt == 0 and isinstance(status, int) and 500 <= status < 600:
+                time.sleep(1)
+                continue
+            # Provider errors may echo request headers. Never show one beside a public key.
+            raise LLMError(
+                f"Gemini request failed ({type(exc).__name__}); try the recorded example."
+            ) from exc
     if not getattr(resp, "choices", None):
         raise LLMError("Gemini returned no candidate.")
     choice = resp.choices[0]

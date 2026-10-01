@@ -1,4 +1,4 @@
-"""Tests for the refinement loop: the four stop conditions and the two gates.
+"""Tests for the refinement loop: stop conditions, errors, and the two gates.
 
 The loop is what makes the project's central claim true — it observes the consequences of its
 own output through an oracle it does not control, and decides whether that output was an
@@ -76,7 +76,7 @@ def _best_count(result) -> int | None:
 
 
 # --------------------------------------------------------------------------------------
-# the four stop conditions
+# stop conditions and provider errors
 # --------------------------------------------------------------------------------------
 
 
@@ -92,6 +92,46 @@ def test_no_progress_when_the_model_returns_the_input_unchanged() -> None:
     result = run("s3_public.tf", DETECT, original, max_iters=3)
     assert result.stop_reason is StopReason.NO_PROGRESS
     assert _best_count(result) == result.baseline.failed_count
+
+
+def test_detection_provider_error_is_not_reported_as_no_progress() -> None:
+    from iac_agent.types import LLMError
+
+    def fail_provider(_messages, **_kwargs):
+        raise LLMError("provider returned HTTP 500")
+
+    with tempfile.TemporaryDirectory() as td:
+        result = run_loop(
+            SAMPLES / "s3_public.tf", scanner="checkov",
+            client=LLMClient(complete_fn=fail_provider),
+            cfg=ModelConfig(), max_iters=1, output_dir=td,
+        )
+    assert result.stop_reason is StopReason.ERROR
+    assert result.aborted_because.startswith("detection failed:")
+    assert result.iterations == []
+
+
+def test_rewrite_provider_error_is_not_reported_as_iteration_cap() -> None:
+    from iac_agent.types import LLMError
+
+    calls = 0
+
+    def fail_rewrite(_messages, **_kwargs):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return DETECT
+        raise LLMError("provider returned HTTP 500")
+
+    with tempfile.TemporaryDirectory() as td:
+        result = run_loop(
+            SAMPLES / "s3_public.tf", scanner="checkov",
+            client=LLMClient(complete_fn=fail_rewrite),
+            cfg=ModelConfig(), max_iters=1, output_dir=td,
+        )
+    assert result.stop_reason is StopReason.ERROR
+    assert result.aborted_because.startswith("model call failed")
+    assert len(result.iterations) == 1
 
 
 def test_max_iters_caps_the_run() -> None:

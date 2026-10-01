@@ -94,6 +94,11 @@ STOP_REASONS: dict[str, tuple[str, str]] = {
         "The run reached its token ceiling before converging. The best candidate so far is "
         "what you get.",
     ),
+    "ERROR": (
+        "Model request failed",
+        "The model did not complete this step. The scanner baseline remains the only "
+        "verified count for this run.",
+    ),
 }
 
 # Where on the rail a rejected candidate came to rest, and how that stop is drawn. The mapping
@@ -920,7 +925,21 @@ def _render_rail(payload: dict) -> None:
     )
 
 
+def _model_stopped_before_candidate(payload: dict) -> bool:
+    return bool(payload["aborted"]) and all(
+        (record["reason"] or "").startswith("llm_error:")
+        for record in payload["iterations"]
+    )
+
+
+def _fix_count_label(payload: dict) -> str:
+    return "baseline failed checks" if _model_stopped_before_candidate(payload) else "failed checks after"
+
+
 def _render_drift_verdict(payload: dict) -> None:
+    if _model_stopped_before_candidate(payload):
+        st.info("The drift gate was not reached; the model failed before producing a candidate.")
+        return
     rejections = [
         record
         for record in payload["iterations"]
@@ -993,7 +1012,7 @@ def _render_fix(payload: dict) -> None:
         # wrapped row.
         ui.verdict(
             str(after),
-            "failed checks after",
+            _fix_count_label(payload),
             f"{movement} &nbsp; {_mono(payload['scanner'])} loop on {_mono(payload['name'])} · "
             f"was {before} at baseline<br>"
             f"{payload['resolved']} resolved · {payload['introduced']} introduced · "
@@ -1015,7 +1034,12 @@ def _render_fix(payload: dict) -> None:
 
     if not payload["accepted_any"]:
         scanned = sum(1 for record in payload["iterations"] if record["accepted"])
-        if scanned:
+        if _model_stopped_before_candidate(payload):
+            st.info(
+                "No rewrite was produced. The original file and its baseline count "
+                "remain unchanged."
+            )
+        elif scanned:
             st.info(
                 f"**No candidate beat the baseline.** {scanned} candidate(s) cleared every "
                 "gate and were scanned, but none scored better than the file you started "

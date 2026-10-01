@@ -117,6 +117,7 @@ class StopReason(str, Enum):
     MAX_ITERS = "max_iters"      # ran out of permitted attempts
     NO_PROGRESS = "no_progress"  # stopped beating the incumbent; further spend is waste
     TOKEN_BUDGET = "token_budget"  # cost ceiling reached
+    ERROR = "error"              # scanner/model transport failed before a planned stop
 
 
 @dataclass
@@ -403,7 +404,7 @@ def run_loop(
     workdir: str | Path | None = None,
     on_step: Callable[[str, IterationRecord | None], None] | None = None,
 ) -> LoopResult:
-    """Scan, fix, verify, and refine until one of four explicit stop conditions fires.
+    """Scan, fix, verify, and refine until an explicit stop condition fires.
 
     `client` must be supplied. It carries the injection seam (`complete_fn`), so passing
     it explicitly is what makes "this run cannot reach the network" a checkable property
@@ -562,12 +563,11 @@ def run_loop(
         _step("detected")
 
     if aborted:
-        # No candidate was ever produced, so the honest reason is "made no progress".
-        # `aborted_because` carries what actually happened.
+        # No candidate was ever produced; this is an error, not an assessment of progress.
         return _finish(
             best=best,
             iterations=[],
-            stop_reason=StopReason.NO_PROGRESS,
+            stop_reason=StopReason.ERROR,
             total_tokens=_spent(),
             detect_tokens=detect_tokens,
             issues=issues,
@@ -612,19 +612,7 @@ def run_loop(
                 iterations.append(record)
                 _step("iteration", record)
                 aborted = f"model call failed on iteration {index}: {exc}"
-                stall_count += 1
-                stop_reason = (
-                    _evaluate_stop(
-                        best=best,
-                        iterations_run=len(iterations),
-                        max_iters=max_iters,
-                        stall_count=stall_count,
-                        patience=patience,
-                        tokens_spent=_spent(),
-                        token_budget=token_budget,
-                    )
-                    or StopReason.NO_PROGRESS
-                )
+                stop_reason = StopReason.ERROR
                 break
 
             record = IterationRecord(

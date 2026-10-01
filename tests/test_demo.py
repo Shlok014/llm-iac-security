@@ -104,6 +104,71 @@ def test_gemini_transport_uses_only_its_key_and_compatibility_endpoint(monkeypat
     assert "seed" not in calls[1]
 
 
+def test_gemini_transport_retries_one_transient_server_failure(monkeypatch):
+    from types import SimpleNamespace
+    import openai
+
+    from demo import FREE_MODEL, gemini_complete
+    from iac_agent.llm import ModelConfig
+
+    monkeypatch.setenv("GEMINI_API_KEY", "fixture-test-key")
+    attempts = []
+
+    class ServerFailure(Exception):
+        status_code = 500
+
+    class FakeOpenAI:
+        def __init__(self, **_kwargs):
+            self.chat = SimpleNamespace(completions=SimpleNamespace(create=self.create))
+
+        def create(self, **_kwargs):
+            attempts.append(1)
+            if len(attempts) == 1:
+                raise ServerFailure("temporary provider fault")
+            return SimpleNamespace(
+                choices=[SimpleNamespace(
+                    finish_reason="stop", message=SimpleNamespace(content="fixed code")
+                )],
+                usage=SimpleNamespace(prompt_tokens=2, completion_tokens=3, total_tokens=5),
+            )
+
+    monkeypatch.setattr(openai, "OpenAI", FakeOpenAI)
+    reply = gemini_complete(
+        [{"role": "user", "content": "fixture"}], cfg=ModelConfig(model=FREE_MODEL)
+    )
+    assert reply.text == "fixed code"
+    assert len(attempts) == 2
+
+
+def test_gemini_transport_does_not_retry_client_error(monkeypatch):
+    from types import SimpleNamespace
+    import openai
+
+    from demo import FREE_MODEL, gemini_complete
+    from iac_agent.llm import ModelConfig
+    from iac_agent.types import LLMError
+
+    monkeypatch.setenv("GEMINI_API_KEY", "fixture-test-key")
+    attempts = []
+
+    class ClientFailure(Exception):
+        status_code = 401
+
+    class FakeOpenAI:
+        def __init__(self, **_kwargs):
+            self.chat = SimpleNamespace(completions=SimpleNamespace(create=self.create))
+
+        def create(self, **_kwargs):
+            attempts.append(1)
+            raise ClientFailure("do not display provider response")
+
+    monkeypatch.setattr(openai, "OpenAI", FakeOpenAI)
+    with pytest.raises(LLMError, match="Gemini request failed") as caught:
+        gemini_complete([{"role": "user", "content": "fixture"}], cfg=ModelConfig(model=FREE_MODEL))
+    assert len(attempts) == 1
+    assert "do not display provider response" not in str(caught.value)
+
+
 def test_upload_rejects_oversize_before_decoding():
     from demo import validate_upload
 
