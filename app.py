@@ -37,7 +37,10 @@ import pandas as pd
 import streamlit as st
 
 import ui_theme as ui
-from demo import available_scanners, demo_mode, load_recorded_example, validate_upload
+from demo import (
+    FREE_MODEL, available_scanners, demo_mode, free_model_fixture,
+    gemini_complete, load_recorded_example, validate_upload,
+)
 from iac_agent import __version__
 from iac_agent.llm import LLMClient, ModelConfig
 from iac_agent.loop import StopReason, finding_key, run_loop
@@ -154,7 +157,16 @@ def _fix_availability() -> tuple[bool, str]:
     than a traceback.
     """
     if demo_mode():
-        return False, "Live model repair is disabled in this public demo; the recorded repair is in measured results."
+        if os.getenv("GEMINI_API_KEY"):
+            return True, (
+                "One live Gemini free-tier repair is available per visit for an unchanged "
+                "bundled fixture. Uploaded files are scan-only. Google's free tier may use "
+                "submitted fixture content to improve its products. Provider quota may run out."
+            )
+        return False, (
+            "Live repair needs the owner's Gemini free-tier key; the recorded repair is "
+            "in measured results. Scanning needs no key."
+        )
 
     missing = [m for m in ("openai", "dotenv") if importlib.util.find_spec(m) is None]
     if missing:
@@ -664,16 +676,25 @@ def _do_fix(
     max_iters: int,
     on_step: Any | None = None,
 ) -> dict:
-    if demo_mode():
-        raise ValueError("Live model repair is disabled in this public demo.")
+    public = demo_mode()
+    if public:
+        if not os.getenv("GEMINI_API_KEY"):
+            raise ValueError("Live model repair is disabled until a Gemini key is configured.")
+        if not free_model_fixture(REPO_ROOT, name, code):
+            raise ValueError("Live model repair is limited to an unchanged bundled fixture.")
+        if scanner != "checkov":
+            raise ValueError("The public demo only supports Checkov.")
+        max_iters = 1
+    cfg = ModelConfig(model=FREE_MODEL, max_tokens=4096) if public else ModelConfig()
+    client = LLMClient(cfg=cfg, complete_fn=gemini_complete) if public else LLMClient()
     with tempfile.TemporaryDirectory() as tmp:
         workdir = Path(tmp)
         iac_type, target = _prepare(name, code, workdir)
         result = run_loop(
             target,
             scanner=scanner,
-            client=LLMClient(),
-            cfg=ModelConfig(),
+            client=client,
+            cfg=cfg,
             max_iters=max_iters,
             output_dir=workdir / "out",
             on_step=on_step,
@@ -1109,7 +1130,7 @@ fix_enabled, fix_reason = _fix_availability()
 
 ui.masthead(
     "static scanners detect · a model rewrites · the scanners <b>verify</b>",
-    f"iac_agent {__version__} · {ModelConfig().model}",
+    f"iac_agent {__version__} · {FREE_MODEL if demo_mode() and fix_enabled else ModelConfig().model}",
 )
 
 with st.sidebar:
@@ -1222,16 +1243,17 @@ with st.sidebar:
 
     ui.eyebrow("run")
     ready = input_name is not None and input_code is not None and scanner_installed
+    public_fix_ready = (
+        not demo_mode()
+        or (input_name is not None and input_code is not None
+            and free_model_fixture(REPO_ROOT, input_name, input_code)
+            and not st.session_state.get("free_model_used"))
+    )
     # The reason a button is dead belongs above the button, not under it: read in order, the
     # old arrangement showed a greyed-out control first and explained it second.
     if input_error:
         st.caption(f"⚠︎ {input_error}")
-    # Cost belongs in the label. It used to live only in `help=`, and a Streamlit button gives
-    # no sign it has a tooltip — so the one thing a first-time visitor most needs to know
-    # before clicking, that this button spends money, was behind a hover they had no reason to
-    # try. Emphasis follows what they can actually do, too: without a key the paid button is
-    # disabled, and leaving it styled as the primary action made the loudest control on the
-    # page the one nothing happens on.
+    # Put provider cost or free-tier limits in the label, where visitors can see them.
     scan_clicked = st.button(
         "Scan only — free",
         type="secondary" if fix_enabled else "primary",
@@ -1240,13 +1262,17 @@ with st.sidebar:
         help="Runs the scanner. No API key, no model, no cost.",
     )
     fix_clicked = st.button(
-        "Scan, fix and verify — paid",
-        type="primary" if fix_enabled else "secondary",
+        "Scan, fix and verify — free-tier fixture" if demo_mode() and fix_enabled
+        else "Scan, fix and verify — paid" if not demo_mode()
+        else "Scan, fix and verify — needs free key",
+        type="primary" if fix_enabled and public_fix_ready else "secondary",
         width="stretch",
-        disabled=not (ready and fix_enabled),
-        help=fix_reason if not fix_enabled else "Calls the model. This one costs money.",
+        disabled=not (ready and fix_enabled and public_fix_ready),
+        help=fix_reason if demo_mode() else (
+            fix_reason if not fix_enabled else "Calls the model. This one costs money."
+        ),
     )
-    if fix_enabled:
+    if fix_enabled and public_fix_ready:
         # Available is the uninteresting case: one quiet line, expandable.
         with st.popover("Fixing is available", width="stretch"):
             st.markdown(fix_reason)
@@ -1254,6 +1280,8 @@ with st.sidebar:
         # Unavailable is the case someone is stuck on, and a disabled button's tooltip is not
         # where you explain why it is disabled — several browsers never show one.
         st.caption(f"**Fixing is unavailable.** {fix_reason}")
+    if demo_mode() and fix_enabled and not public_fix_ready:
+        st.caption("Live repair accepts one unchanged bundled fixture per visit. Uploads stay scan-only.")
 
 with st.sidebar:
     st.caption(
@@ -1276,6 +1304,10 @@ with tab_run:
         with idle_holder.container():
             ui.empty(
                 "nothing has been run",
+                "A fixture from <b>samples/</b> is already selected. Scanning is free — no API "
+                "key, no model call. <b>Scan, fix and verify</b> adds the model and gates "
+                "when a demo key is configured; it is limited to bundled fixtures."
+                if demo_mode() else
                 "A fixture from <b>samples/</b> is already selected. Scanning is free — no API "
                 "key, no model call. <b>Scan, fix and verify</b> in the left rail adds the "
                 "model and the gates, and calls a paid API.",
@@ -1313,6 +1345,8 @@ with tab_run:
                         input_name, input_code, scanner_name
                     )
                 else:
+                    if demo_mode():
+                        st.session_state["free_model_used"] = True
                     # Reported as it happens rather than asserted up front. The box used to
                     # list three numbered steps before any of them had run — claiming work was
                     # done and then sitting still for a minute of model calls — which is both

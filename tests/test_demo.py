@@ -12,9 +12,10 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 
 
-def test_demo_mode_disables_fix_even_if_a_key_is_present(monkeypatch):
+def test_demo_mode_disables_openai_fix_even_if_a_key_is_present(monkeypatch):
     monkeypatch.setenv("IAC_DEMO_MODE", "1")
     monkeypatch.setenv("OPENAI_API_KEY", "not-a-real-key")
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     spec = importlib.util.spec_from_file_location("_demo_app_test", ROOT / "app.py")
     app = importlib.util.module_from_spec(spec)
     assert spec.loader is not None
@@ -22,11 +23,12 @@ def test_demo_mode_disables_fix_even_if_a_key_is_present(monkeypatch):
 
     enabled, reason = app._fix_availability()
     assert enabled is False
-    assert "demo" in reason.lower()
+    assert "gemini" in reason.lower()
 
 
 def test_demo_mode_rejects_direct_fix_call_before_constructing_a_model(monkeypatch):
     monkeypatch.setenv("IAC_DEMO_MODE", "1")
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     spec = importlib.util.spec_from_file_location("_demo_direct_fix_test", ROOT / "app.py")
     app = importlib.util.module_from_spec(spec)
     assert spec.loader is not None
@@ -38,6 +40,68 @@ def test_demo_mode_rejects_direct_fix_call_before_constructing_a_model(monkeypat
     monkeypatch.setattr(app, "LLMClient", unexpected_model)
     with pytest.raises(ValueError, match="disabled"):
         app._do_fix("example.tf", 'resource "aws_s3_bucket" "a" {}', "checkov", 1)
+
+
+def test_free_model_is_only_available_for_exact_bundled_fixture(monkeypatch):
+    from demo import free_model_fixture
+
+    monkeypatch.setenv("IAC_DEMO_MODE", "1")
+    fixture = ROOT / "samples" / "ec2_open.tf"
+    source = fixture.read_text()
+    assert free_model_fixture(ROOT, fixture.name, source)
+    assert not free_model_fixture(ROOT, fixture.name, source + "\n# changed")
+    assert not free_model_fixture(ROOT, "custom.tf", source)
+
+
+def test_free_model_guard_rejects_upload_even_with_key(monkeypatch):
+    monkeypatch.setenv("IAC_DEMO_MODE", "1")
+    monkeypatch.setenv("GEMINI_API_KEY", "not-a-real-key")
+    spec = importlib.util.spec_from_file_location("_demo_free_guard_test", ROOT / "app.py")
+    app = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(app)
+    with pytest.raises(ValueError, match="bundled fixture"):
+        app._do_fix("custom.tf", 'resource "aws_s3_bucket" "a" {}', "checkov", 1)
+
+
+def test_gemini_transport_uses_only_its_key_and_compatibility_endpoint(monkeypatch):
+    from types import SimpleNamespace
+    import openai
+
+    from demo import FREE_MODEL, GEMINI_OPENAI_BASE_URL, gemini_complete
+    from iac_agent.llm import ModelConfig
+
+    monkeypatch.setenv("GEMINI_API_KEY", "fixture-test-key")
+    calls = []
+
+    class FakeOpenAI:
+        def __init__(self, **kwargs):
+            calls.append(kwargs)
+            self.chat = SimpleNamespace(completions=SimpleNamespace(create=self.create))
+
+        def create(self, **kwargs):
+            calls.append(kwargs)
+            return SimpleNamespace(
+                choices=[SimpleNamespace(
+                    finish_reason="stop",
+                    message=SimpleNamespace(content='{"findings": []}'),
+                )],
+                usage=SimpleNamespace(prompt_tokens=10, completion_tokens=3, total_tokens=13),
+            )
+
+    monkeypatch.setattr(openai, "OpenAI", FakeOpenAI)
+    reply = gemini_complete(
+        [{"role": "user", "content": "fixture"}],
+        cfg=ModelConfig(model=FREE_MODEL),
+        response_format={"type": "json_schema"},
+    )
+    assert reply.text == '{"findings": []}'
+    assert reply.usage.total_tokens == 13
+    assert calls[0]["base_url"] == GEMINI_OPENAI_BASE_URL
+    assert calls[0]["api_key"] == "fixture-test-key"
+    assert calls[1]["model"] == FREE_MODEL
+    assert calls[1]["response_format"] == {"type": "json_schema"}
+    assert "seed" not in calls[1]
 
 
 def test_upload_rejects_oversize_before_decoding():

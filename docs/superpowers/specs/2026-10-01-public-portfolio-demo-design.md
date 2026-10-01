@@ -1,5 +1,18 @@
 # Public portfolio demo for LLM IaC Security
 
+## 1 October scope update: optional free-tier repair
+
+The user asked to make live repair available with a free API key after the scanner-only
+demo was deployed. The owner may set `GEMINI_API_KEY` in Streamlit Secrets for Gemini
+3.8 Flash on a free-tier Google AI Studio project. Without it, the deployed app remains
+a usable scanner and recorded-repair demo. The public repair path accepts only byte-for-
+byte unchanged bundled fixtures, uses Checkov, caps the loop at one rewrite attempt,
+and allows one request per Streamlit session. Provider quotas are the final abuse bound;
+the session limit is a courtesy limit, not an identity or global rate limit. Uploaded
+source never reaches Gemini. The UI must distinguish the live Gemini result from the
+recorded OpenAI evaluation and disclose free-tier data use. This section supersedes
+the earlier absolute no-model rule below only when `GEMINI_API_KEY` is configured.
+
 ## Purpose and success criteria
 
 Give a recruiter or security engineer a public URL where they can run the project's real Checkov scan on a bundled Terraform or Dockerfile fixture, inspect findings and source context, and understand the verified remediation work without supplying a credential. The demo must work on a free hosting tier and must not let anonymous visitors spend the owner's model API budget.

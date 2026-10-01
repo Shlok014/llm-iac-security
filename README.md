@@ -16,9 +16,9 @@ rescan before it can be returned.
 
 ## Live demo
 
-The public Streamlit demo runs real Checkov scans on bundled Terraform and Dockerfile fixtures and accepts small, non-confidential uploads. Its repair example is a **recorded evaluation run**, labelled with its scanner and model provenance. Anonymous visitors cannot trigger paid model calls. The URL will be added here after a hosted scan succeeds.
+Try the [public demo](https://vulnagent.streamlit.app). It runs real Checkov scans on bundled Terraform and Dockerfile fixtures and accepts small, non-confidential uploads. Its repair example is a **recorded evaluation run**, labelled with its scanner and model provenance. The hosted EC2 fixture scan was verified on 1 October 2026: 8 failed checks and 7 passed. Live repair is optional and appears only when the owner configures a Gemini free-tier key; it is limited to one unchanged bundled fixture per visit and one rewrite attempt. The published evaluation results used a different, pinned OpenAI model and do not measure Gemini's repair quality.
 
-To deploy from GitHub on Streamlit Community Cloud, select this repository and `app.py`, choose Python **3.13**, and set `IAC_DEMO_MODE = "1"` as a root-level app setting in Advanced settings. The root `requirements.txt` installs the package with its pinned UI and Checkov dependencies. Do not configure `OPENAI_API_KEY` for the public app. Uploaded source reaches the hosted server for scanning; Scan only does not transmit it to a model.
+To deploy from GitHub on Streamlit Community Cloud, select this repository and `app.py`, choose Python **3.13**, and set `IAC_DEMO_MODE = "1"` as a root-level Secret. The root `requirements.txt` installs the package with its pinned UI and Checkov dependencies. For optional live repair, create a **free-tier** Gemini API key in [Google AI Studio](https://aistudio.google.com/app/apikey) and set `GEMINI_API_KEY = "..."` in Streamlit Secrets, never in Git or chat. A billing-enabled project can incur charges; the app cannot verify the account tier. [Gemini's free-tier terms](https://ai.google.dev/gemini-api/docs/pricing) say submitted data may be used to improve Google's products, so public repair processes only committed fixtures. Provider rate limits may make it temporarily unavailable. Uploaded source reaches the hosted server for scanning; Scan only does not transmit it to a model, and uploaded source cannot use the owner's model key. Do not configure `OPENAI_API_KEY` for the public app.
 
 <div align="center">
   <img src="docs/assets/scan-light.png" alt="The analyse tab: Checkov reporting 8 failed checks on a bundled Terraform fixture, the findings table below it, and the selected finding's line shown in context underneath" width="900">
@@ -131,7 +131,7 @@ GitHub Action runs.
 | **Model** | `gpt-4o-mini-2024-07-18`, `temperature=0`, fixed seed, pinned prompt version |
 | **Evaluation** | 72 model calls — 6 fixtures × 2 corpus variants × 3 seeds |
 | **Reproducibility** | Every published figure regenerates offline from a committed response cache |
-| **Tests** | 362, passing with `OPENAI_API_KEY` unset |
+| **Tests** | 393, passing on Python 3.13 with `OPENAI_API_KEY` and `GEMINI_API_KEY` unset |
 | **Licence** | MIT |
 
 ---

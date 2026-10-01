@@ -8,8 +8,12 @@ import json
 from pathlib import Path
 
 from iac_agent.scanners import SCANNERS
+from iac_agent.llm import LLMResponse, ModelConfig, TokenUsage
+from iac_agent.types import LLMError
 
 MAX_UPLOAD_BYTES = 64 * 1024
+FREE_MODEL = "gemini-3.8-flash"
+GEMINI_OPENAI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
 
 
 def demo_mode() -> bool:
@@ -18,6 +22,59 @@ def demo_mode() -> bool:
 
 def available_scanners(public: bool) -> list[str]:
     return ["checkov"] if public else sorted(SCANNERS)
+
+
+def free_model_fixture(root: Path, name: str, code: str) -> bool:
+    """The owner's free-tier key may only process unmodified repository fixtures."""
+    fixture = root / "samples" / name
+    if not fixture.is_file() or fixture.name != name:
+        return False
+    try:
+        return fixture.read_text(encoding="utf-8") == code
+    except OSError:
+        return False
+
+
+def gemini_complete(messages: list[dict[str, str]], *, cfg: ModelConfig,
+                    response_format: dict | None = None) -> LLMResponse:
+    """OpenAI-compatible Gemini transport for the optional public fixture demo."""
+    from openai import OpenAI
+
+    key = os.getenv("GEMINI_API_KEY")
+    if not key:
+        raise LLMError("GEMINI_API_KEY is not configured for this demo.")
+    client = OpenAI(api_key=key, base_url=GEMINI_OPENAI_BASE_URL, max_retries=0, timeout=45)
+    kwargs = {
+        "model": cfg.model,
+        "messages": messages,
+        "temperature": cfg.temperature,
+        "max_tokens": cfg.max_tokens,
+    }
+    if response_format is not None:
+        kwargs["response_format"] = response_format
+    try:
+        resp = client.chat.completions.create(**kwargs)
+    except Exception as exc:
+        # Provider errors may echo request headers. Never show one beside a public key.
+        raise LLMError(f"Gemini request failed ({type(exc).__name__}); try the recorded example.") from exc
+    if not getattr(resp, "choices", None):
+        raise LLMError("Gemini returned no candidate.")
+    choice = resp.choices[0]
+    if getattr(choice, "finish_reason", None) == "length":
+        raise LLMError("Gemini reached its output limit; no partial fix was accepted.")
+    content = getattr(choice.message, "content", None)
+    if not content:
+        raise LLMError("Gemini returned no code.")
+    usage = getattr(resp, "usage", None)
+    return LLMResponse(
+        text=content,
+        usage=TokenUsage(
+            prompt_tokens=int(getattr(usage, "prompt_tokens", 0) or 0),
+            completion_tokens=int(getattr(usage, "completion_tokens", 0) or 0),
+            total_tokens=int(getattr(usage, "total_tokens", 0) or 0),
+            calls=1,
+        ),
+    )
 
 
 def validate_upload(name: str, content: bytes) -> tuple[str, str]:
