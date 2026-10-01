@@ -44,12 +44,13 @@ def gemini_complete(messages: list[dict[str, str]], *, cfg: ModelConfig,
     key = os.getenv("GEMINI_API_KEY")
     if not key:
         raise LLMError("GEMINI_API_KEY is not configured for this demo.")
-    client = OpenAI(api_key=key, base_url=GEMINI_OPENAI_BASE_URL, max_retries=0, timeout=45)
+    client = OpenAI(api_key=key, base_url=GEMINI_OPENAI_BASE_URL, max_retries=0, timeout=120)
     kwargs = {
         "model": cfg.model,
         "messages": messages,
         "temperature": cfg.temperature,
         "max_tokens": cfg.max_tokens,
+        "reasoning_effort": "low",
     }
     if response_format is not None:
         kwargs["response_format"] = response_format

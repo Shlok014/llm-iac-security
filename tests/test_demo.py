@@ -99,7 +99,9 @@ def test_gemini_transport_uses_only_its_key_and_compatibility_endpoint(monkeypat
     assert reply.usage.total_tokens == 13
     assert calls[0]["base_url"] == GEMINI_OPENAI_BASE_URL
     assert calls[0]["api_key"] == "fixture-test-key"
+    assert calls[0]["timeout"] == 120
     assert calls[1]["model"] == FREE_MODEL
+    assert calls[1]["reasoning_effort"] == "low"
     assert calls[1]["response_format"] == {"type": "json_schema"}
     assert "seed" not in calls[1]
 
