@@ -13,7 +13,7 @@ from iac_agent.llm import LLMResponse, ModelConfig, TokenUsage
 from iac_agent.types import LLMError
 
 MAX_UPLOAD_BYTES = 64 * 1024
-FREE_MODEL = "gemini-3.8-flash"
+FREE_MODEL = "gemini-3.5-flash-lite"
 GEMINI_OPENAI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
 
 
