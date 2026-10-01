@@ -4,7 +4,9 @@
 
 The user asked to make live repair available with a free API key after the scanner-only
 demo was deployed. The owner may set `GEMINI_API_KEY` in Streamlit Secrets for Gemini
-3.8 Flash on a free-tier Google AI Studio project. Without it, the deployed app remains
+3.5 Flash-Lite on a free-tier Google AI Studio project. The public demo switched from
+3.8 Flash after repeated provider errors and timeouts on the detection call; live
+repair still requires a successful hosted verification. Without it, the app remains
 a usable scanner and recorded-repair demo. The public repair path accepts only byte-for-
 byte unchanged bundled fixtures, uses Checkov, caps the loop at one rewrite attempt,
 and allows one request per Streamlit session. Provider quotas are the final abuse bound;
