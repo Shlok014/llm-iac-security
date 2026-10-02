@@ -124,6 +124,7 @@ def drift_to_dict(d: DriftReport) -> dict[str, Any]:
         "added": [r.address for r in d.added],
         "renamed": [[b.address, a.address] for b, a in d.renamed],
         "type_count_drops": {k: list(v) for k, v in d.type_count_drops.items()},
+        "docker_drops": list(d.docker_drops),
         "drifted": d.drifted,
         "summary": d.summary(),
     }

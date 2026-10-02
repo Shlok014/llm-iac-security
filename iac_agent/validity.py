@@ -14,9 +14,9 @@ drop in findings as the result. That measures the wrong thing twice over:
    drop *because the resource stopped existing*".
 
 Zero new dependencies. HCL parsing uses `hcl2` (the `bc-python-hcl2` distribution), which
-is already installed as a Checkov dependency. Dockerfiles get a structural check instead —
-no HCL grammar applies to them, and pulling in a Dockerfile parser for a first-instruction
-check would not be worth the dependency.
+is already installed as a Checkov dependency. Dockerfiles get bounded structural checks:
+known instructions with arguments, followed by a comparison of base stages, application
+copy presence and startup command presence. This is not a full Docker build validation.
 """
 
 from __future__ import annotations
@@ -141,11 +141,13 @@ def _instructions(text: str) -> Iterator[tuple[str, str]]:
             continue
         buf += line
         if buf.strip():
-            head, _, rest = buf.strip().partition(" ")
+            parts = buf.strip().split(None, 1)
+            head, rest = parts[0], parts[1] if len(parts) > 1 else ""
             yield head.upper(), rest.strip()
         buf = ""
     if buf.strip():
-        head, _, rest = buf.strip().partition(" ")
+        parts = buf.strip().split(None, 1)
+        head, rest = parts[0], parts[1] if len(parts) > 1 else ""
         yield head.upper(), rest.strip()
 
 
@@ -170,22 +172,37 @@ def _check_terraform(text: str) -> ValidityResult:
     return ValidityResult(ok=True, reason="parsed", detail=f"{len(doc)} top-level block types")
 
 
+_DOCKER_INSTRUCTIONS = frozenset({
+    "ADD", "ARG", "CMD", "COPY", "ENTRYPOINT", "ENV", "EXPOSE", "FROM",
+    "HEALTHCHECK", "LABEL", "MAINTAINER", "ONBUILD", "RUN", "SHELL",
+    "STOPSIGNAL", "USER", "VOLUME", "WORKDIR",
+})
+
+
 def _check_dockerfile(text: str) -> ValidityResult:
-    for instruction, _args in _instructions(text):
+    stage_seen = False
+    for instruction, args in _instructions(text):
+        if instruction not in _DOCKER_INSTRUCTIONS:
+            return ValidityResult(False, "unknown_instruction", f"unknown Dockerfile instruction {instruction}")
+        if not args:
+            return ValidityResult(False, "missing_argument", f"{instruction} has no arguments")
+        if instruction == "FROM" and not _base_family(args):
+            return ValidityResult(False, "missing_image", "FROM has no base image")
+        if instruction in {"COPY", "ADD"}:
+            operands = [part for part in args.split() if not part.startswith("--")]
+            if len(operands) < 2:
+                return ValidityResult(False, "missing_destination", f"{instruction} needs source and destination")
         # ARG is the only instruction Docker permits before FROM (it parameterises the base
         # image), so leading ARGs are skipped rather than rejected.
-        if instruction == "ARG":
+        if instruction == "ARG" and not stage_seen:
             continue
         if instruction == "FROM":
-            return ValidityResult(ok=True, reason="parsed", detail="first instruction is FROM")
-        return ValidityResult(
-            ok=False,
-            reason="missing_from",
-            detail=f"first instruction is {instruction!r}, expected FROM",
-        )
-    return ValidityResult(
-        ok=False, reason="no_instructions", detail="no Dockerfile instructions found"
-    )
+            stage_seen = True
+        elif not stage_seen:
+            return ValidityResult(False, "missing_from", f"first instruction is {instruction!r}, expected FROM")
+    if not stage_seen:
+        return ValidityResult(False, "missing_from", "no FROM instruction found")
+    return ValidityResult(True, "parsed", "Dockerfile instructions have known names and arguments")
 
 
 def check_validity(
@@ -241,9 +258,8 @@ def extract_resources(
     """List the resource addresses declared in a file, in document order.
 
     Dockerfiles have no addressable resources — an image is one artifact, not a set of
-    independently-named objects — so this returns `[]` for them by design rather than by
-    accident. Drift for Dockerfiles is therefore always empty; if that ever needs a
-    metric it will need a different unit of identity (instructions, layers), not this one.
+    independently-named objects — so this returns `[]` for them. Dockerfile structural
+    drift uses instruction families in `compute_drift` instead of resource addresses.
 
     python-hcl2 shapes a document as `{"resource": [{type: {name: {body}}}, ...]}`, one
     single-key dict per resource block.
@@ -278,7 +294,7 @@ def extract_resources(
 
 @dataclass
 class DriftReport:
-    """What changed about the *set of resources* between the original and the remediation.
+    """What changed about Terraform resources or critical Dockerfile structure.
 
     A rename is, definitionally, a deletion plus an addition, so a renamed resource appears
     in all three lists. `summary()` un-double-counts for display; `drift_touches_flaw()`
@@ -289,11 +305,12 @@ class DriftReport:
     added: list[ResourceAddr] = field(default_factory=list)
     renamed: list[tuple[ResourceAddr, ResourceAddr]] = field(default_factory=list)
     type_count_drops: dict[str, tuple[int, int]] = field(default_factory=dict)
+    docker_drops: list[str] = field(default_factory=list)
 
     @property
     def drifted(self) -> bool:
         """Derived, not stored: a stored flag can disagree with the lists it summarises."""
-        return bool(self.deleted or self.type_count_drops or self.renamed)
+        return bool(self.deleted or self.type_count_drops or self.renamed or self.docker_drops)
 
     def summary(self) -> str:
         renamed_from = {before.address for before, _ in self.renamed}
@@ -318,6 +335,7 @@ class DriftReport:
                     f"{t} {b}->{a}" for t, (b, a) in sorted(self.type_count_drops.items())
                 )
             )
+        parts.extend(self.docker_drops)
         if not parts:
             return "no resource drift"
         return ("DRIFT: " if self.drifted else "no drift; ") + "; ".join(parts)
@@ -333,7 +351,9 @@ def _by_type(resources: list[ResourceAddr]) -> dict[str, list[str]]:
 def compute_drift(
     original: str | Path, remediated: str | Path, iac_type: IaCType
 ) -> DriftReport:
-    """Compare the resource sets of a file before and after remediation."""
+    """Compare Terraform resource identity or Dockerfile application structure."""
+    if iac_type is IaCType.DOCKERFILE:
+        return _dockerfile_drift(_read_source(original), _read_source(remediated))
     before = extract_resources(original, iac_type)
     after = extract_resources(remediated, iac_type)
 
@@ -362,6 +382,44 @@ def compute_drift(
             (ResourceAddr(rtype, b), ResourceAddr(rtype, a)) for b, a in zip(gone, new)
         )
 
+    return report
+
+
+def _base_family(args: str) -> str:
+    """Keep repository identity while allowing tag and digest updates."""
+    parts = args.split()
+    image = next((part for part in parts if not part.startswith("--")), "")
+    if image.upper() == "AS":
+        return ""
+    image = image.split("@", 1)[0]
+    slash = image.rfind("/")
+    colon = image.rfind(":")
+    return image[:colon] if colon > slash else image
+
+
+def _dockerfile_drift(original: str, remediated: str) -> DriftReport:
+    """Detect destructive structural rewrites without equating instruction text.
+
+    This is a bounded gate: it cannot prove Dockerfile semantic equivalence. It
+    blocks wholesale deletion of stages, copied application content, the start
+    command, and a switch to an unrelated base image. Security edits to RUN,
+    USER, exposed ports, tags and digests remain possible.
+    """
+    before = list(_instructions(original))
+    after = list(_instructions(remediated))
+    report = DriftReport()
+    before_bases = [_base_family(args) for op, args in before if op == "FROM"]
+    after_bases = [_base_family(args) for op, args in after if op == "FROM"]
+    if before_bases != after_bases:
+        report.docker_drops.append(f"base stages changed: {before_bases} -> {after_bases}")
+    for name, operations in (
+        ("application copy", {"COPY", "ADD"}),
+        ("startup command", {"CMD", "ENTRYPOINT"}),
+    ):
+        before_count = sum(op in operations for op, _ in before)
+        after_count = sum(op in operations for op, _ in after)
+        if before_count and not after_count:
+            report.docker_drops.append(f"{name} removed")
     return report
 
 

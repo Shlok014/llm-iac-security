@@ -64,11 +64,7 @@ def test_extracts_every_resource_from_the_richest_fixture() -> None:
 
 
 def test_dockerfiles_have_no_addressable_resources() -> None:
-    """Not an oversight: a Dockerfile has no addresses, so it can never drift.
-
-    Returning [] rather than raising is what lets drift_rate be quoted over Terraform
-    outputs only, instead of being diluted by files structurally incapable of drifting.
-    """
+    """Dockerfiles have no resource addresses; their structural gate is separate."""
     assert extract_resources(SAMPLES / "vulnerable.Dockerfile") == []
 
 
@@ -115,6 +111,57 @@ def test_dockerfile_without_from_is_rejected() -> None:
 def test_dockerfile_with_leading_arg_is_accepted() -> None:
     """Docker permits ARG before FROM, so the gate must too."""
     assert check_validity("ARG TAG=3.12\nFROM python:${TAG}\nUSER app\n", IaCType.DOCKERFILE).ok
+
+
+def test_dockerfile_unknown_instruction_is_not_a_valid_remediation() -> None:
+    result = check_validity("FROM python:3.12\nNOT_A_DOCKER_INSTRUCTION remove-app\n", IaCType.DOCKERFILE)
+    assert not result.ok
+    assert result.reason == "unknown_instruction"
+
+
+def test_dockerfile_required_instruction_argument_cannot_be_empty() -> None:
+    result = check_validity("FROM python:3.12\nCOPY\n", IaCType.DOCKERFILE)
+    assert not result.ok
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "FROM --platform=linux/amd64\n",
+        "FROM --platform=linux/amd64 AS final\n",
+        "FROM python:3.12\nCOPY source\n",
+    ],
+)
+def test_dockerfile_requires_image_and_copy_destination(text: str) -> None:
+    assert not check_validity(text, IaCType.DOCKERFILE).ok
+
+
+def test_dockerfile_allows_tabs_between_instruction_and_arguments() -> None:
+    assert check_validity("FROM\tpython:3.12\nCOPY\t. /app\n", IaCType.DOCKERFILE).ok
+
+
+@pytest.mark.parametrize(
+    "candidate",
+    [
+        "FROM scratch\nCOPY . /app\nCMD [\"python\", \"app.py\"]\n",
+        "FROM python:3.13\nCMD [\"python\", \"app.py\"]\n",
+        "FROM python:3.13\nCOPY . /app\n",
+    ],
+)
+def test_dockerfile_structure_drops_are_detected(candidate: str) -> None:
+    from eval.serialise import drift_to_dict
+
+    original = "FROM python:3.12\nCOPY . /app\nCMD [\"python\", \"app.py\"]\n"
+    drift = compute_drift(original, candidate, IaCType.DOCKERFILE)
+    assert drift.drifted
+    assert drift.docker_drops
+    assert drift_to_dict(drift)["docker_drops"] == drift.docker_drops
+
+
+def test_dockerfile_security_changes_can_keep_its_application_structure() -> None:
+    original = "FROM python:3.12\nCOPY . /app\nUSER root\nCMD [\"python\", \"app.py\"]\n"
+    fixed = "FROM python:3.13\nCOPY --chown=app . /app\nUSER app\nCMD [\"python\", \"app.py\"]\n"
+    assert not compute_drift(original, fixed, IaCType.DOCKERFILE).drifted
 
 
 # --------------------------------------------------------------------------------------

@@ -268,7 +268,7 @@ The cheapest way to make a finding disappear is to delete the resource it was ab
 | commented | 18 | 12 | 3 | 25.0% | 3 | 3 | 0 | 0 |
 | stripped | 18 | 12 | 2 | 16.7% | 2 | 2 | 0 | 0 |
 
-The drift rate is quoted over **Terraform** outputs: a Dockerfile has no addressable resources, so it can never drift, and including Dockerfiles in the denominator would dilute the rate with outputs structurally incapable of moving it. Renames count as drift — Terraform keys state on the address, so a rename destroys and recreates on the next apply. Additions never do, because fixing a public bucket correctly *requires* adding resources.
+The quoted rate uses **Terraform** outputs. These stored runs predate the Dockerfile structural gate and contain no Dockerfile drift measurements; new runs record removed application structure separately. Terraform renames count as drift because state keys on the address. Additions alone do not: fixing a public bucket correctly can require adding resources.
 
 **Drift events — `commented`** (listed individually, not just counted)
 | fixture | run | summary | flaw-carrying resources lost |

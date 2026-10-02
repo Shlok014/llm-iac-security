@@ -97,7 +97,7 @@ STOP_REASONS: dict[str, tuple[str, str]] = {
 # the classification itself is the package's. `unverified` switches the pip to the dashed amber
 # treatment that means "we could not establish this", as opposed to "this failed".
 REJECTION_KINDS: tuple[tuple[str, int, str, str, bool], ...] = (
-    ("drift:", ST_DRIFT, "rejected — deleted a resource", BLOCKED, False),
+    ("drift:", ST_DRIFT, "rejected — protected structure changed", BLOCKED, False),
     ("drift_unmeasurable:", ST_DRIFT, "rejected — drift unverifiable", SIGNAL, True),
     ("invalid:", ST_PARSE, "rejected — did not parse", BLOCKED, False),
     ("llm_error:", ST_MODEL, "the model call failed", MUTED, False),
@@ -468,22 +468,22 @@ infrastructure it described is simply gone, which is a worse outcome than the fi
 
 1. **Parse gate** — the candidate must parse as Terraform / Dockerfile. A malformed file can
    scan *better* than a correct one.
-2. **Drift gate** — the resource set of the candidate is compared with the resource set of
-   the original. If any resource that carried a baseline finding was deleted or renamed away,
-   the candidate is rejected.
+2. **Drift gate** — Terraform resource addresses are compared with the original, and any
+   deletion or rename is rejected. For Dockerfiles, the gate checks base image families,
+   application copy presence and startup command presence.
 3. **Rescan** — only a candidate that survives both is written to disk and scanned. Only then
    can its number count.
 
 A rejected candidate is **never scanned**, so a deletion can never be recorded as an
 improvement. That ordering is what the rail on the *analyse* tab draws: a rejected candidate
 comes to rest to the left of `rescan`, and there is no position on the rail where a deleted
-resource could have produced a count. The name of the deleted resource is fed back to the model
+resource could have produced a count. The structural failure is fed back to the model
 as the next turn's instruction, which is why a rejection is often followed by a real fix.
 
 **What it does not cover, stated plainly:**
 
-- Dockerfiles have no addressable resources, so the drift gate does not apply to them. The
-  parse gate still does.
+- The Dockerfile gate is structural. It does not prove the image builds or behaves the same;
+  changes inside `RUN`, `COPY`, `CMD` and other instructions still need human review.
 - If the *original* file does not parse, drift cannot be measured against it. The loop
   records that as "drift gate disabled" and this page shows it — "not checked" is never
   displayed as "no drift".
@@ -871,14 +871,12 @@ def _render_drift_verdict(payload: dict) -> None:
     ]
     if rejections:
         st.error(
-            f"**The drift gate fired — {len(rejections)} proposed fix(es) were rejected for "
-            "removing a resource that carried a finding.** Deleting a resource makes its "
-            "findings vanish without securing anything, so the candidate was thrown away "
-            "*before it was scanned*. Without the gate, each of these would have been reported "
-            "as an improvement."
+            f"**The drift gate rejected {len(rejections)} proposed fix(es).** "
+            "A Terraform resource was removed or renamed, or protected Dockerfile "
+            "application structure changed. Each candidate was rejected before rescanning."
         )
         for record in rejections:
-            summary = f" · resource diff: {record['drift_summary']}" if record["drift_summary"] else ""
+            summary = f" · structural diff: {record['drift_summary']}" if record["drift_summary"] else ""
             st.caption(f"Iteration {record['index']} — `{record['reason']}`{summary}")
         return
 
@@ -889,19 +887,20 @@ def _render_drift_verdict(payload: dict) -> None:
         )
         return
 
-    if payload["iac_type"] == IaCType.DOCKERFILE.value:
-        st.info(
-            "**Drift gate not applicable.** A Dockerfile has no addressable resources to "
-            "compare, so only the parse gate ran here. The gate applies to Terraform."
-        )
-        return
-
     checked = sum(1 for record in payload["iterations"] if record["drift_checked"])
     if checked:
-        st.success(
-            f"**Drift gate ran on {checked} candidate(s) and found no deleted resources.** "
-            "The reduction below is a change to the configuration, not a removal of it."
-        )
+        if payload["iac_type"] == IaCType.DOCKERFILE.value:
+            st.success(
+                f"**Dockerfile structural gate ran on {checked} candidate(s).** "
+                "No protected stage, application copy or startup command was removed. "
+                "This does not prove the image builds or preserves its behavior."
+            )
+        else:
+            st.success(
+                f"**Resource drift gate ran on {checked} candidate(s).** "
+                "No Terraform resource was removed or renamed. Review the remaining "
+                "configuration changes before applying them."
+            )
     else:
         st.info(
             "No candidate reached the drift gate — every attempt failed the parse gate first."
@@ -1093,11 +1092,9 @@ with st.sidebar:
     else:
         by_name = {path.name: path for path in samples}
         names = list(by_name)
-        # Open on a Terraform fixture rather than on whatever sorts first. The drift gate does
-        # not apply to Dockerfiles — they have no addressable resources — so opening on
-        # `docker_insecure.Dockerfile`, which is what alphabetical order gives, meant the first
-        # run a visitor made was the one where the page's whole argument reads "not
-        # applicable". Still derived from what is on disk, never a hardcoded name.
+        # Open on Terraform so the first run illustrates resource-address drift,
+        # the project's measured evaluation case. Dockerfile structural drift is
+        # also checked, but it answers a different and narrower question.
         default = next((i for i, n in enumerate(names) if n.endswith(".tf")), 0)
         picked = st.selectbox(
             "Fixture",

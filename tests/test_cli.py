@@ -13,11 +13,48 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from iac_agent.types import IaCType
+from iac_agent.cli import _drift_document
+
 import pytest
 
 from iac_agent.cli import EXIT_FINDINGS, EXIT_LLM, EXIT_OK, EXIT_TOOLING, main
 
 SAMPLES = Path(__file__).resolve().parent.parent / "samples"
+
+
+def test_cli_reports_dockerfile_structural_drift(tmp_path: Path) -> None:
+    source = tmp_path / "Dockerfile"
+    source.write_text('FROM python:3.12\nCOPY . /app\nCMD ["python", "app.py"]\n')
+
+    class View:
+        best_code = "FROM scratch\n"
+        baseline_scan = None
+
+        def drift(self):
+            return None
+
+    doc = _drift_document(View(), source, IaCType.DOCKERFILE)
+    assert doc["available"] is True
+    assert doc["drifted"] is True
+    assert doc["docker_drops"]
+
+
+def test_cli_does_not_call_a_dockerfile_structure_check_resource_drift(tmp_path: Path) -> None:
+    source = tmp_path / "Dockerfile"
+    source.write_text('FROM python:3.12\nCOPY . /app\nCMD ["python", "app.py"]\n')
+
+    class View:
+        best_code = 'FROM python:3.13\nCOPY . /app\nCMD ["python", "app.py"]\n'
+        baseline_scan = None
+
+        def drift(self):
+            return None
+
+    doc = _drift_document(View(), source, IaCType.DOCKERFILE)
+    assert doc["available"] is True
+    assert doc["drifted"] is False
+    assert "Dockerfile" in doc["summary"]
 
 CLEAN_TF = 'variable "region" {\n  type = string\n}\n'
 

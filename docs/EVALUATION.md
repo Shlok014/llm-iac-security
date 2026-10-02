@@ -617,6 +617,12 @@ subset of them whose address was deleted or renamed. Note that this is scanner-r
 label-relative: it asks "which resources that had findings stopped existing", which is the right
 question, because the finding delta is also scanner-relative and this is the metric that audits it.
 
+**Current runtime gate, added after the stored evaluation:** the remediation loop rejects *any*
+Terraform deletion or rename, including resources without scanner findings. It also rejects
+Dockerfile rewrites that remove every application copy or startup command, change the base image
+family, or drop a stage. The historical tables measure only Terraform resource drift; they do not
+prove the new Dockerfile gate's effect or semantic equivalence of accepted Dockerfiles.
+
 It returns a list rather than a boolean so `RESULTS.md` can name the specific casualties instead of
 reporting a count nobody can act on. Resource matching tolerates Checkov's
 `module.db.aws_db_instance.main` prefixing by also trying the trailing two segments.
@@ -629,9 +635,9 @@ and it means the corresponding contribution to the finding delta is fraudulent.
 > drift event individually rather than only counting them — a rate hides which resource was lost,
 > and that is the part a reader needs in order to judge whether the fix was real.
 >
-> The drift rate is quoted over **Terraform** outputs only. A Dockerfile has no addressable
-> resources and so can never drift; including Dockerfiles in the denominator would dilute the
-> rate with outputs structurally incapable of moving it.
+> The stored drift rate is quoted over **Terraform** outputs only. Those runs predate the
+> Dockerfile structural gate, so they cannot establish its detection rate. Current runs record
+> base-stage, application-copy and startup-command drops separately.
 
 **Honest limits of address-level drift.** This is a weaker instrument than a real `terraform plan`
 diff, and the gap is not small:

@@ -31,7 +31,7 @@ metric a remediation tool normally reports.
 | | |
 |---|---|
 | **Detects** | Checkov and Trivy scan Terraform and Dockerfiles for the baseline. An LLM detection pass runs alongside — and is measured against them, not trusted over them. |
-| **Remediates** | The model rewrites the file. Every candidate must survive a **parse gate** and a **drift gate** before it is allowed near a scanner. |
+| **Remediates** | The model rewrites the file. Every candidate must survive a **parse gate** and a **drift gate** before it is allowed near a scanner. Terraform resource deletions and renames are rejected even when the scanner did not flag them; Dockerfile rewrites must keep their base image family, an application copy, and a startup command. |
 | **Verifies** | Only a surviving candidate is written to disk and rescanned. The loop returns the **best candidate it saw**, never the last one — and the original file if nothing beat it. |
 | **Refuses to guess** | A scanner that crashes, times out or emits an empty report raises an error. An absent analysis is never rendered as a clean pass. |
 
@@ -121,7 +121,7 @@ GitHub Action runs.
 | **Model** | `gpt-4o-mini-2024-07-18`, `temperature=0`, fixed seed, pinned prompt version |
 | **Evaluation** | 72 model calls — 6 fixtures × 2 corpus variants × 3 seeds |
 | **Reproducibility** | Every published figure regenerates offline from a committed response cache |
-| **Tests** | 362, passing with `OPENAI_API_KEY` unset |
+| **Tests** | 384 default tests, passing with `OPENAI_API_KEY` unset; 21 scanner integration tests are opt-in |
 | **Licence** | MIT |
 
 ---
@@ -210,6 +210,11 @@ overstating its result — including, necessarily, the original version of this 
 
 Every one of those five events is the same thing: `aws_s3_bucket_policy.public_policy` deleted
 rather than restricted.
+
+These figures come from the stored evaluation run before the current Dockerfile structural
+gate. The new gate blocks wholesale image or application removal, but it cannot prove a
+Dockerfile still builds or behaves identically. Re-run the model evaluation before attributing
+an improvement in these historical scores to that gate.
 
 > ⚠️ Descriptive statistics over 3 seeds on **6 synthetic fixtures**. n is far too small for
 > confidence intervals or significance claims. They show the pipeline works and is measurable;

@@ -589,7 +589,7 @@ def validity_rate(records: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
     rate of 20%, not 100%.
 
     "Parses" is `iac_agent.validity.check_validity`: an `hcl2` parse for Terraform, a
-    first-instruction-is-FROM check for Dockerfiles. It is a **syntax gate, not
+    bounded structural check for Dockerfiles. It is a **syntax gate, not
     `terraform validate`** — it does not resolve references, check provider schemas, or
     check required arguments, so a file can pass this and still be undeployable.
     """
@@ -648,11 +648,10 @@ def drift_metrics(records: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
     That is the "fixed it by deleting it" number, and a non-zero value means the
     corresponding contribution to the finding delta is fraudulent.
 
-    Denominators are stated twice on purpose. Dockerfiles have no addressable resources,
-    so `extract_resources` returns `[]` and a Dockerfile can never drift; including them
-    in the denominator would dilute the rate with outputs that are structurally incapable
-    of moving it. The Terraform-only rate is the headline; the all-output rate is given
-    beside it.
+    Denominators are stated twice on purpose. Terraform resource drift and Dockerfile
+    structural drift are different measurements. The Terraform-only rate is the headline;
+    the all-output rate includes any Dockerfile structure drops captured by new runs.
+    Older stored results predate that gate and cannot be retroactively credited with it.
     """
     valid_all = 0
     valid_tf = 0

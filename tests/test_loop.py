@@ -167,6 +167,33 @@ def test_deleting_the_flawed_resource_is_rejected() -> None:
     assert _best_count(result) == result.baseline.failed_count
 
 
+def test_deleting_dockerfile_application_is_rejected_before_scanning() -> None:
+    """A bare secure base image is not a repair for an application image."""
+    result = run("vulnerable.Dockerfile", DETECT, "FROM scratch\n", max_iters=1)
+    assert result.iterations[0].scan is None
+    assert "drift" in result.iterations[0].rejected_because
+    assert result.best.code == (SAMPLES / "vulnerable.Dockerfile").read_text()
+
+
+def test_deleting_an_unflagged_terraform_resource_is_also_rejected(tmp_path: Path) -> None:
+    """An unflagged resource can still be essential infrastructure."""
+    vulnerable = (SAMPLES / "s3_public.tf").read_text()
+    extra = '\nresource "null_resource" "important_job" {}\n'
+    target = tmp_path / "service.tf"
+    target.write_text(vulnerable + extra)
+    result = run_loop(
+        target,
+        scanner="checkov",
+        client=LLMClient(complete_fn=scripted(DETECT, vulnerable)),
+        cfg=ModelConfig(),
+        max_iters=1,
+        token_budget=None,
+    )
+    assert "null_resource.important_job" not in {f.resource for f in result.baseline.failed}
+    assert result.iterations[0].scan is None
+    assert "null_resource.important_job" in result.iterations[0].rejected_because
+
+
 # --------------------------------------------------------------------------------------
 # invariants
 # --------------------------------------------------------------------------------------

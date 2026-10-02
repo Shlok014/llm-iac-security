@@ -30,7 +30,7 @@ STATIONS: tuple[tuple[str, str], ...] = (
     ("input", "the file as given"),
     ("model", "rewrite proposed"),
     ("parse", "must still be valid IaC"),
-    ("drift", "must not have deleted a resource"),
+    ("drift", "must retain protected structure"),
     ("rescan", "only now can it score"),
     ("returned", "best candidate kept"),
 )

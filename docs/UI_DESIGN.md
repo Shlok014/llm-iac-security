@@ -175,9 +175,9 @@ Rendering rules:
 - Stations that a run never reached are drawn in `rule-strong`, not hidden. *Not reached* and
   *passed* must not look alike — which is also why the token is `rule-strong` rather than
   `rule`: at `rule`'s contrast they looked like nothing at all. See §8.
-- A Dockerfile has no addressable resources, so the drift station is drawn **dashed amber and
-  labelled `n/a`** — it is neither passed nor failed, and the ramp for "unknown" already means
-  exactly that.
+- A Dockerfile has no addressable resources. The current runtime checks a bounded structural
+  signature instead: base image family, application copy presence, and startup command presence.
+  The station can pass or reject, but a pass does not prove semantic equivalence or a build.
 - If the original file does not parse, drift cannot be measured at all; the station is dashed
   amber with the loop's own `drift_gate_note` beside it. The rail never renders an unmeasured gate
   as a passed one.
@@ -316,10 +316,10 @@ introduced.
 - **A missing scanner was discovered by waiting for it to fail.** `pip install` provides Checkov
   and not Trivy, which is a Go binary. `scanners.scanner_path` answers the question before the
   run. The failure path is unchanged and still renders loudly if it happens.
-- **The default fixture was `docker_insecure.Dockerfile`** — alphabetically first, and the one
-  file type the drift gate does not apply to, so a visitor's first run demonstrated the page's
-  central argument reading *not applicable*. It now opens on the first Terraform fixture, still
-  chosen from what is on disk rather than named in the source.
+- **The default fixture was `docker_insecure.Dockerfile`** — alphabetically first, and historically
+  shown with the drift gate as *not applicable*. The current runtime has a bounded Dockerfile
+  structural gate. The page still opens on the first Terraform fixture because resource-address
+  drift is the project's measured evaluation case; selection remains data-driven.
 - **The reason a control was dead was printed underneath it.** Read in order you met the greyed
   button first and the explanation second. Both moved above. The "fixing is unavailable"
   explanation came out of a popover entirely: a popover styled with no border does not read as a

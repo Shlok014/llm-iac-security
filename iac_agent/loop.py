@@ -80,7 +80,6 @@ from .validity import (
     ValidityResult,
     check_validity,
     compute_drift,
-    drift_touches_flaw,
     extract_resources,
 )
 
@@ -532,8 +531,6 @@ def run_loop(
     except ValidityError as exc:
         drift_note = f"drift gate disabled: original does not parse ({exc})"
 
-    flagged_resources = {f.resource for f in baseline.failed if f.resource}
-
     # Snapshot as ints, never as a reference: `LLMClient.usage` is a single TokenUsage
     # instance mutated in place by `add()`, so holding the object and subtracting from it
     # later measures nothing. Deltas also mean a caller may reuse one client across runs.
@@ -645,7 +642,7 @@ def run_loop(
                 feedback = _feedback_from_invalid(record.validity)
 
             # -- gate 2: is it still the same infrastructure? --------------------------
-            elif iac_type is IaCType.TERRAFORM and not drift_note:
+            elif not drift_note:
                 try:
                     record.drift = compute_drift(source, candidate, iac_type)
                 except ValidityError as exc:
@@ -656,10 +653,27 @@ def run_loop(
                         ValidityResult(False, "hcl_parse_error", str(exc))
                     )
                 else:
-                    lost = drift_touches_flaw(record.drift, flagged_resources)
-                    if lost:
-                        record.rejected_because = "drift: removed " + ", ".join(lost)
-                        feedback = _feedback_from_drift(lost)
+                    if iac_type is IaCType.DOCKERFILE and record.drift.drifted:
+                        record.rejected_because = "drift: " + record.drift.summary()
+                        feedback = [{
+                            "rule_id": "DOCKERFILE_STRUCTURE_CHANGED",
+                            "name": (
+                                "The rewrite removed application structure or changed base "
+                                "image family. Preserve the original stages, an application "
+                                "copy, and the startup command while fixing security settings."
+                            ),
+                            "resource": record.drift.summary(),
+                        }]
+                    elif iac_type is IaCType.TERRAFORM:
+                        # A scanner finding is not the measure of a resource's value.
+                        # Deleting an unflagged database or job is still destructive.
+                        lost = sorted(
+                            {r.address for r in record.drift.deleted}
+                            | {before.address for before, _ in record.drift.renamed}
+                        )
+                        if lost:
+                            record.rejected_because = "drift: removed " + ", ".join(lost)
+                            feedback = _feedback_from_drift(lost)
 
             if record.rejected_because:
                 # Never scanned and never written. A file we know is malformed, or one we
