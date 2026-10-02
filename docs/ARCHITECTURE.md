@@ -567,7 +567,7 @@ Two more properties of the design:
 
 **Dockerfiles return `[]` from resource extraction by design.** An image is one artifact, not a set of
 independently-named objects, so there is no resource address to track. The current runtime
-uses a separate structural gate for base image families, application copy presence and startup
+uses a separate structural gate for base image families, per-stage copy sources and startup
 command presence. The stored evaluation predates that gate; it measures Terraform resource
 drift only. Neither gate proves semantic equivalence.
 

@@ -176,7 +176,7 @@ Rendering rules:
   *passed* must not look alike — which is also why the token is `rule-strong` rather than
   `rule`: at `rule`'s contrast they looked like nothing at all. See §8.
 - A Dockerfile has no addressable resources. The current runtime checks a bounded structural
-  signature instead: base image family, application copy presence, and startup command presence.
+  signature instead: base image family, per-stage copy sources, and startup command presence.
   The station can pass or reject, but a pass does not prove semantic equivalence or a build.
 - If the original file does not parse, drift cannot be measured at all; the station is dashed
   amber with the loop's own `drift_gate_note` beside it. The rail never renders an unmeasured gate

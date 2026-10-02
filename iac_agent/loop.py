@@ -659,8 +659,8 @@ def run_loop(
                             "rule_id": "DOCKERFILE_STRUCTURE_CHANGED",
                             "name": (
                                 "The rewrite removed application structure or changed base "
-                                "image family. Preserve the original stages, an application "
-                                "copy, and the startup command while fixing security settings."
+                                "image family. Preserve the original stages, each stage's copy "
+                                "sources, and startup presence while fixing security settings."
                             ),
                             "resource": record.drift.summary(),
                         }]

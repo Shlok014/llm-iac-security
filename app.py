@@ -470,7 +470,7 @@ infrastructure it described is simply gone, which is a worse outcome than the fi
    scan *better* than a correct one.
 2. **Drift gate** — Terraform resource addresses are compared with the original, and any
    deletion or rename is rejected. For Dockerfiles, the gate checks base image families,
-   application copy presence and startup command presence.
+   per-stage copy sources and startup command presence.
 3. **Rescan** — only a candidate that survives both is written to disk and scanned. Only then
    can its number count.
 
@@ -892,7 +892,7 @@ def _render_drift_verdict(payload: dict) -> None:
         if payload["iac_type"] == IaCType.DOCKERFILE.value:
             st.success(
                 f"**Dockerfile structural gate ran on {checked} candidate(s).** "
-                "No protected stage, application copy or startup command was removed. "
+                "No protected stage, per-stage copy source or startup command was removed. "
                 "This does not prove the image builds or preserves its behavior."
             )
         else:

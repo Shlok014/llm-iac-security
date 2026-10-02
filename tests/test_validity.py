@@ -140,6 +140,29 @@ def test_dockerfile_allows_tabs_between_instruction_and_arguments() -> None:
     assert check_validity("FROM\tpython:3.12\nCOPY\t. /app\n", IaCType.DOCKERFILE).ok
 
 
+def test_dockerfile_accepts_json_copy_and_run_heredoc() -> None:
+    source = 'FROM python:3.12\nCOPY ["app.py","/app/app.py"]\nRUN <<EOF\necho hello\nEOF\nCMD ["python", "app.py"]\n'
+    assert check_validity(source, IaCType.DOCKERFILE).ok
+
+
+def test_dockerfile_gate_tracks_each_copy_source_and_stage_startup() -> None:
+    original = (
+        'FROM python:3.12 AS build\nCOPY requirements.txt /app/\n'
+        'COPY . /app\nCMD ["echo", "build"]\n'
+        'FROM python:3.12\nCOPY --from=build /app /app\nCMD ["python", "app.py"]\n'
+    )
+    removed_copy = original.replace('COPY . /app\n', '')
+    removed_final_cmd = original.rsplit('CMD ["python", "app.py"]\n', 1)[0]
+    assert compute_drift(original, removed_copy, IaCType.DOCKERFILE).drifted
+    assert compute_drift(original, removed_final_cmd, IaCType.DOCKERFILE).drifted
+
+
+def test_dockerfile_gate_resolves_global_arg_in_base_image() -> None:
+    original = 'ARG BASE=python:3.12\nFROM ${BASE}\nCOPY . /app\n'
+    candidate = original.replace('BASE=python:3.12', 'BASE=scratch')
+    assert compute_drift(original, candidate, IaCType.DOCKERFILE).drifted
+
+
 @pytest.mark.parametrize(
     "candidate",
     [
@@ -172,6 +195,19 @@ def test_dockerfile_security_changes_can_keep_its_application_structure() -> Non
 def test_identical_input_does_not_drift() -> None:
     original = (SAMPLES / "vulnerable_main.tf").read_text()
     assert not compute_drift(original, original, IaCType.TERRAFORM).drifted
+
+
+def test_removing_module_invocation_is_destructive_drift() -> None:
+    original = (
+        'module "database" { source = "./modules/database" }\n'
+        'resource "aws_s3_bucket" "site" { bucket = "site" }\n'
+    )
+    candidate = 'resource "aws_s3_bucket" "site" { bucket = "site" }\n'
+    assert check_validity(original, IaCType.TERRAFORM).ok
+    assert check_validity(candidate, IaCType.TERRAFORM).ok
+    drift = compute_drift(original, candidate, IaCType.TERRAFORM)
+    assert drift.drifted
+    assert "module.database" in [r.address for r in drift.deleted]
 
 
 def test_deletion_is_detected() -> None:

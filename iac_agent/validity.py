@@ -15,13 +15,16 @@ drop in findings as the result. That measures the wrong thing twice over:
 
 Zero new dependencies. HCL parsing uses `hcl2` (the `bc-python-hcl2` distribution), which
 is already installed as a Checkov dependency. Dockerfiles get bounded structural checks:
-known instructions with arguments, followed by a comparison of base stages, application
-copy presence and startup command presence. This is not a full Docker build validation.
+known instructions with arguments, followed by a comparison of resolved base stages, per-stage
+copy sources and startup command presence. This is not a full Docker build validation.
 """
 
 from __future__ import annotations
 
+import json
 import re
+import shlex
+from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterator
@@ -130,8 +133,13 @@ def _instructions(text: str) -> Iterator[tuple[str, str]]:
     both legal and common.
     """
     buf = ""
+    heredoc_end: str | None = None
     for raw in text.splitlines():
         line = raw.strip()
+        if heredoc_end is not None:
+            if line == heredoc_end:
+                heredoc_end = None
+            continue
         if line.startswith("#"):
             continue
         if not line and not buf:
@@ -144,6 +152,10 @@ def _instructions(text: str) -> Iterator[tuple[str, str]]:
             parts = buf.strip().split(None, 1)
             head, rest = parts[0], parts[1] if len(parts) > 1 else ""
             yield head.upper(), rest.strip()
+            if head.upper() in {"RUN", "COPY", "ADD"}:
+                marker = re.search(r"<<-?\s*(['\"]?)([A-Za-z_][A-Za-z0-9_]*)\1(?:\s|$)", rest)
+                if marker:
+                    heredoc_end = marker.group(2)
         buf = ""
     if buf.strip():
         parts = buf.strip().split(None, 1)
@@ -179,6 +191,27 @@ _DOCKER_INSTRUCTIONS = frozenset({
 })
 
 
+def _copy_sources(args: str) -> list[str]:
+    """Read COPY/ADD source operands from shell or JSON form, ignoring mutable flags."""
+    remaining = args.strip()
+    while remaining.startswith("--"):
+        parts = remaining.split(None, 1)
+        remaining = parts[1] if len(parts) > 1 else ""
+    if remaining.startswith("["):
+        try:
+            operands = json.loads(remaining)
+        except json.JSONDecodeError:
+            return []
+        if not isinstance(operands, list) or not all(isinstance(x, str) for x in operands):
+            return []
+    else:
+        try:
+            operands = shlex.split(remaining)
+        except ValueError:
+            return []
+    return operands[:-1] if len(operands) >= 2 else []
+
+
 def _check_dockerfile(text: str) -> ValidityResult:
     stage_seen = False
     for instruction, args in _instructions(text):
@@ -189,8 +222,7 @@ def _check_dockerfile(text: str) -> ValidityResult:
         if instruction == "FROM" and not _base_family(args):
             return ValidityResult(False, "missing_image", "FROM has no base image")
         if instruction in {"COPY", "ADD"}:
-            operands = [part for part in args.split() if not part.startswith("--")]
-            if len(operands) < 2:
+            if not _copy_sources(args):
                 return ValidityResult(False, "missing_destination", f"{instruction} needs source and destination")
         # ARG is the only instruction Docker permits before FROM (it parameterises the base
         # image), so leading ARGs are skipped rather than rejected.
@@ -255,14 +287,16 @@ class ResourceAddr:
 def extract_resources(
     text_or_path: str | Path, iac_type: IaCType | None = None
 ) -> list[ResourceAddr]:
-    """List the resource addresses declared in a file, in document order.
+    """List directly declared resource addresses and module-call identities in a file.
 
     Dockerfiles have no addressable resources — an image is one artifact, not a set of
     independently-named objects — so this returns `[]` for them. Dockerfile structural
     drift uses instruction families in `compute_drift` instead of resource addresses.
 
-    python-hcl2 shapes a document as `{"resource": [{type: {name: {body}}}, ...]}`, one
-    single-key dict per resource block.
+    Module calls follow resources in the result and are included as `module.NAME`:
+    deleting a call can remove all of its
+    nested infrastructure, even when this one file has no direct resource declarations.
+    python-hcl2 shapes resources as `{"resource": [{type: {name: {body}}}, ...]}`.
     """
     kind = iac_type if iac_type is not None else _resolve_type(text_or_path, None)
     if kind is not IaCType.TERRAFORM:
@@ -286,6 +320,15 @@ def extract_resources(
                 if rname.startswith("__"):
                     continue
                 addr = ResourceAddr(str(rtype), str(rname))
+                if addr.address not in seen:
+                    seen.add(addr.address)
+                    out.append(addr)
+    for block in doc.get("module", []) or []:
+        if not isinstance(block, dict):
+            continue
+        for name in block:
+            if not name.startswith("__"):
+                addr = ResourceAddr("module", str(name))
                 if addr.address not in seen:
                     seen.add(addr.address)
                     out.append(addr)
@@ -351,7 +394,7 @@ def _by_type(resources: list[ResourceAddr]) -> dict[str, list[str]]:
 def compute_drift(
     original: str | Path, remediated: str | Path, iac_type: IaCType
 ) -> DriftReport:
-    """Compare Terraform resource identity or Dockerfile application structure."""
+    """Compare Terraform resource/module identity or Dockerfile application structure."""
     if iac_type is IaCType.DOCKERFILE:
         return _dockerfile_drift(_read_source(original), _read_source(remediated))
     before = extract_resources(original, iac_type)
@@ -385,41 +428,72 @@ def compute_drift(
     return report
 
 
-def _base_family(args: str) -> str:
+def _base_family(args: str, global_args: dict[str, str] | None = None) -> str:
     """Keep repository identity while allowing tag and digest updates."""
     parts = args.split()
     image = next((part for part in parts if not part.startswith("--")), "")
     if image.upper() == "AS":
         return ""
+    if global_args:
+        image = re.sub(
+            r"\$\{([A-Za-z_][A-Za-z0-9_]*)(?::?-[^}]*)?\}|\$([A-Za-z_][A-Za-z0-9_]*)",
+            lambda match: global_args.get(match.group(1) or match.group(2), match.group(0)),
+            image,
+        )
     image = image.split("@", 1)[0]
     slash = image.rfind("/")
     colon = image.rfind(":")
     return image[:colon] if colon > slash else image
 
 
+def _docker_stages(instructions: list[tuple[str, str]]) -> list[dict[str, object]]:
+    """The bounded per-stage structure retained by the drift gate."""
+    global_args: dict[str, str] = {}
+    stages: list[dict[str, object]] = []
+    for op, args in instructions:
+        if op == "ARG" and not stages:
+            name, _, default = args.partition("=")
+            global_args[name.strip()] = default
+        elif op == "FROM":
+            stages.append({"base": _base_family(args, global_args), "copies": Counter(), "startup": False})
+        elif stages and op in {"COPY", "ADD"}:
+            copies = stages[-1]["copies"]
+            assert isinstance(copies, Counter)
+            copies.update(_copy_sources(args))
+        elif stages and op in {"CMD", "ENTRYPOINT"}:
+            stages[-1]["startup"] = True
+    return stages
+
+
 def _dockerfile_drift(original: str, remediated: str) -> DriftReport:
     """Detect destructive structural rewrites without equating instruction text.
 
     This is a bounded gate: it cannot prove Dockerfile semantic equivalence. It
-    blocks wholesale deletion of stages, copied application content, the start
+    blocks wholesale deletion of stages, copied application sources, the start
     command, and a switch to an unrelated base image. Security edits to RUN,
     USER, exposed ports, tags and digests remain possible.
     """
     before = list(_instructions(original))
     after = list(_instructions(remediated))
     report = DriftReport()
-    before_bases = [_base_family(args) for op, args in before if op == "FROM"]
-    after_bases = [_base_family(args) for op, args in after if op == "FROM"]
+    before_stages = _docker_stages(before)
+    after_stages = _docker_stages(after)
+    before_bases = [stage["base"] for stage in before_stages]
+    after_bases = [stage["base"] for stage in after_stages]
     if before_bases != after_bases:
         report.docker_drops.append(f"base stages changed: {before_bases} -> {after_bases}")
-    for name, operations in (
-        ("application copy", {"COPY", "ADD"}),
-        ("startup command", {"CMD", "ENTRYPOINT"}),
-    ):
-        before_count = sum(op in operations for op, _ in before)
-        after_count = sum(op in operations for op, _ in after)
-        if before_count and not after_count:
-            report.docker_drops.append(f"{name} removed")
+    for index, prior in enumerate(before_stages):
+        current = after_stages[index] if index < len(after_stages) else {}
+        prior_copies = prior["copies"]
+        current_copies = current.get("copies", Counter())
+        assert isinstance(prior_copies, Counter) and isinstance(current_copies, Counter)
+        removed_sources = prior_copies - current_copies
+        if removed_sources:
+            report.docker_drops.append(
+                f"stage {index + 1} application copy sources removed: {', '.join(sorted(removed_sources))}"
+            )
+        if prior["startup"] and not current.get("startup", False):
+            report.docker_drops.append(f"stage {index + 1} startup command removed")
     return report
 
 

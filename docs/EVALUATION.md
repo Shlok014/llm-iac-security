@@ -618,10 +618,12 @@ label-relative: it asks "which resources that had findings stopped existing", wh
 question, because the finding delta is also scanner-relative and this is the metric that audits it.
 
 **Current runtime gate, added after the stored evaluation:** the remediation loop rejects *any*
-Terraform deletion or rename, including resources without scanner findings. It also rejects
-Dockerfile rewrites that remove every application copy or startup command, change the base image
-family, or drop a stage. The historical tables measure only Terraform resource drift; they do not
-prove the new Dockerfile gate's effect or semantic equivalence of accepted Dockerfiles.
+direct Terraform resource or module-call deletion or rename, including objects without scanner
+findings. It also rejects Dockerfile rewrites that remove a stage's copy source or startup command,
+change the resolved base image family, or drop a stage. A legitimate removal of a dangerous
+copy can also be rejected; the user should review and apply that edit directly. The historical
+tables measure only Terraform resource drift; they do not prove the new Dockerfile gate's effect
+or semantic equivalence of accepted Dockerfiles.
 
 It returns a list rather than a boolean so `RESULTS.md` can name the specific casualties instead of
 reporting a count nobody can act on. Resource matching tolerates Checkov's

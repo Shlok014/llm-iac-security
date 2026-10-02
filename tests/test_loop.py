@@ -80,9 +80,20 @@ def _best_count(result) -> int | None:
 # --------------------------------------------------------------------------------------
 
 
-def test_converged_when_findings_reach_zero() -> None:
-    result = run("vulnerable.Dockerfile", DETECT, SECURE_DOCKERFILE)
-    assert result.baseline.failed_count == 5
+def test_converged_when_findings_reach_zero(tmp_path: Path) -> None:
+    # This source keeps its application copy. The larger vulnerable fixture intentionally
+    # copies secrets and remote archives, whose removal the conservative gate rejects.
+    source = tmp_path / "Dockerfile"
+    source.write_text('FROM python:3.10-slim\nCOPY . /app\nCMD ["python", "-m", "app"]\n')
+    result = run_loop(
+        source,
+        scanner="checkov",
+        client=LLMClient(complete_fn=scripted(DETECT, SECURE_DOCKERFILE)),
+        cfg=ModelConfig(),
+        max_iters=2,
+        token_budget=None,
+    )
+    assert result.baseline.failed_count > 0
     assert _best_count(result) == 0
     assert result.stop_reason is StopReason.CONVERGED
 
@@ -173,6 +184,25 @@ def test_deleting_dockerfile_application_is_rejected_before_scanning() -> None:
     assert result.iterations[0].scan is None
     assert "drift" in result.iterations[0].rejected_because
     assert result.best.code == (SAMPLES / "vulnerable.Dockerfile").read_text()
+
+
+def test_deleting_one_application_copy_is_rejected_before_scanning(tmp_path: Path) -> None:
+    source = tmp_path / "Dockerfile"
+    original = (
+        'FROM python:3.12\nCOPY requirements.txt /app/\n'
+        'COPY . /app\nCMD ["python", "app.py"]\n'
+    )
+    source.write_text(original)
+    result = run_loop(
+        source,
+        scanner="checkov",
+        client=LLMClient(complete_fn=scripted(DETECT, original.replace('COPY . /app\n', ''))),
+        cfg=ModelConfig(),
+        max_iters=1,
+        token_budget=None,
+    )
+    assert result.iterations[0].scan is None
+    assert "application copy sources removed" in result.iterations[0].rejected_because
 
 
 def test_deleting_an_unflagged_terraform_resource_is_also_rejected(tmp_path: Path) -> None:

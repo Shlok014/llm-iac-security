@@ -231,8 +231,9 @@ Meanwhile `bc-python-hcl2 0.4.3` is already installed — it ships as a Checkov 
 parses all six fixtures. Zero additional install, zero additional supply-chain surface
 ([THREAT_MODEL.md T-07](THREAT_MODEL.md#t-07--supply-chain)).
 
-**Decision.** Gate validity by parsing: `hcl2.load()` for Terraform, a structural check for a
-`FROM` instruction for Dockerfiles. Output that fails the gate is rejected as a candidate and
+**Decision.** Gate validity by parsing: `hcl2.loads()` for Terraform, and a bounded
+Dockerfile instruction check for known operations and required arguments (including JSON-form
+COPY and RUN heredocs). Output that fails the gate is rejected as a candidate and
 never scored. `extract_resources()` builds on the same parse, so the resource inventory used for
 drift measurement comes from the parser rather than from regex over the text.
 
@@ -250,8 +251,9 @@ drift measurement comes from the parser rather than from regex over the text.
   [THREAT_MODEL.md §6](THREAT_MODEL.md#6-non-goals) so no reader infers otherwise.
 - Depends on a Checkov transitive dependency. If Checkov drops or replaces `bc-python-hcl2`, this
   becomes a direct dependency to declare. It should arguably be declared directly regardless.
-- The Dockerfile check is deliberately shallow. A `FROM` check catches truncation and prose
-  responses; it does not validate instruction syntax.
+- The Dockerfile check is deliberately shallow. It catches unknown instructions, missing
+  arguments, and destructive changes to base stages, copy sources, or startup presence. It does
+  not prove that the image builds or behaves the same way.
 
 ---
 

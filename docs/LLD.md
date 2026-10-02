@@ -552,7 +552,7 @@ test any change here has to keep passing.
 ### 6.9 Sharp edges
 
 - **Dockerfile drift detection is structural and bounded.** `extract_resources` still returns
-  `[]`, but the current runtime compares base image families and whether application copy and
+  `[]`, but the current runtime compares base image families and whether per-stage copy sources and
   startup instructions survive. It can still miss harmful changes within `RUN`, `COPY`, or
   `CMD`; do not report a Dockerfile resolution rate as proof of equivalent image behavior.
 - **Drift is name-level, not semantics-level.** A model can keep `aws_db_instance.bad_rds` at
@@ -663,7 +663,8 @@ What the diagram does not show:
    `CONVERGED`, zero iterations and zero tokens. That is a correctness property before it is a
    saving: there is no way to damage a good file if we never rewrite it.
 4. **The drift gate is an up-front rejection, not a tiebreak.** The current loop rejects
-   every Terraform resource deletion or rename, including unflagged resources. The
+   deletion or rename of every directly declared Terraform resource or module call,
+   including unflagged objects. The
    `drift_touches_flaw` subset remains a historical evaluation metric, not the acceptance
    rule. Dockerfile rewrites are rejected if they drop protected application structure.
    If the *original* Terraform file does not parse the gate is disabled and
