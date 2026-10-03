@@ -16,7 +16,8 @@ drop in findings as the result. That measures the wrong thing twice over:
 Zero new dependencies. HCL parsing uses `hcl2` (the `bc-python-hcl2` distribution), which
 is already installed as a Checkov dependency. Dockerfiles get bounded structural checks:
 known instructions with arguments, followed by a comparison of resolved base stages, per-stage
-copy sources and startup command presence. This is not a full Docker build validation.
+application copy signatures and startup command presence. Explicit dotenv copies and remote
+ADD sources are exempt so those hazards can be removed. This is not a full Docker build validation.
 """
 
 from __future__ import annotations
@@ -191,25 +192,51 @@ _DOCKER_INSTRUCTIONS = frozenset({
 })
 
 
-def _copy_sources(args: str) -> list[str]:
-    """Read COPY/ADD source operands from shell or JSON form, ignoring mutable flags."""
+def _copy_operands(args: str) -> tuple[list[str], str]:
+    """Read COPY/ADD operands and source stage from shell or JSON form."""
     remaining = args.strip()
+    from_stage = ""
     while remaining.startswith("--"):
         parts = remaining.split(None, 1)
+        if parts[0].startswith("--from="):
+            from_stage = parts[0].partition("=")[2]
         remaining = parts[1] if len(parts) > 1 else ""
     if remaining.startswith("["):
         try:
             operands = json.loads(remaining)
         except json.JSONDecodeError:
-            return []
+            return [], from_stage
         if not isinstance(operands, list) or not all(isinstance(x, str) for x in operands):
-            return []
+            return [], from_stage
     else:
         try:
             operands = shlex.split(remaining)
         except ValueError:
-            return []
-    return operands[:-1] if len(operands) >= 2 else []
+            return [], from_stage
+    return operands, from_stage
+
+
+def _protected_copies(op: str, args: str) -> list[str]:
+    """Identify the copies whose disappearance would remove likely application content.
+
+    A remote ADD fetch and a separately copied dotenv file are explicit security hazards,
+    not application copies. Exempting them lets the model remove those instructions. Other
+    sources remain protected; the gate intentionally prefers a false rejection to scoring a
+    deleted application as repaired.
+    """
+    operands, from_stage = _copy_operands(args)
+    if len(operands) < 2:
+        return []
+    destination = operands[-1]
+    protected = []
+    for source in operands[:-1]:
+        basename = source.rsplit("/", 1)[-1].lower()
+        if (op == "ADD" and source.startswith(("https://", "http://"))) or (
+            basename == ".env" or basename.endswith(".env")
+        ):
+            continue
+        protected.append(f"{from_stage}:{source}->{destination}")
+    return protected
 
 
 def _check_dockerfile(text: str) -> ValidityResult:
@@ -222,7 +249,7 @@ def _check_dockerfile(text: str) -> ValidityResult:
         if instruction == "FROM" and not _base_family(args):
             return ValidityResult(False, "missing_image", "FROM has no base image")
         if instruction in {"COPY", "ADD"}:
-            if not _copy_sources(args):
+            if len(_copy_operands(args)[0]) < 2:
                 return ValidityResult(False, "missing_destination", f"{instruction} needs source and destination")
         # ARG is the only instruction Docker permits before FROM (it parameterises the base
         # image), so leading ARGs are skipped rather than rejected.
@@ -459,7 +486,7 @@ def _docker_stages(instructions: list[tuple[str, str]]) -> list[dict[str, object
         elif stages and op in {"COPY", "ADD"}:
             copies = stages[-1]["copies"]
             assert isinstance(copies, Counter)
-            copies.update(_copy_sources(args))
+            copies.update(_protected_copies(op, args))
         elif stages and op in {"CMD", "ENTRYPOINT"}:
             stages[-1]["startup"] = True
     return stages

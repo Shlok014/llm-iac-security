@@ -205,6 +205,17 @@ def test_deleting_one_application_copy_is_rejected_before_scanning(tmp_path: Pat
     assert "application copy sources removed" in result.iterations[0].rejected_because
 
 
+def test_removing_explicit_unsafe_copies_can_reach_scanner() -> None:
+    """The gate must not prevent the bundled secret/remote ADD remediation."""
+    original = (SAMPLES / "vulnerable.Dockerfile").read_text()
+    candidate = original.replace('COPY ./secrets.env /app/secrets.env\n', '').replace(
+        'ADD https://example.com/tools/toolkit.tar.gz /tmp/remote-tool/\n', ''
+    )
+    result = run("vulnerable.Dockerfile", DETECT, candidate, max_iters=1)
+    assert result.iterations[0].scan is not None
+    assert not result.iterations[0].rejected_because
+
+
 def test_deleting_an_unflagged_terraform_resource_is_also_rejected(tmp_path: Path) -> None:
     """An unflagged resource can still be essential infrastructure."""
     vulnerable = (SAMPLES / "s3_public.tf").read_text()

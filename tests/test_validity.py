@@ -157,6 +157,23 @@ def test_dockerfile_gate_tracks_each_copy_source_and_stage_startup() -> None:
     assert compute_drift(original, removed_final_cmd, IaCType.DOCKERFILE).drifted
 
 
+def test_dockerfile_gate_allows_removal_of_explicit_secret_copy_and_remote_add() -> None:
+    original = (SAMPLES / "vulnerable.Dockerfile").read_text()
+    candidate = original.replace('COPY ./secrets.env /app/secrets.env\n', '').replace(
+        'ADD https://example.com/tools/toolkit.tar.gz /tmp/remote-tool/\n', ''
+    )
+    assert check_validity(candidate, IaCType.DOCKERFILE).ok
+    assert not compute_drift(original, candidate, IaCType.DOCKERFILE).drifted
+
+
+def test_dockerfile_gate_protects_copy_origin_and_destination() -> None:
+    original = 'FROM python:3.12 AS build\nCOPY . /app\nFROM python:3.12\nCOPY --from=build /app /app\n'
+    assert compute_drift(
+        original, original.replace('--from=build', '--from=external'), IaCType.DOCKERFILE
+    ).drifted
+    assert compute_drift(original, original.replace('COPY . /app', 'COPY . /tmp'), IaCType.DOCKERFILE).drifted
+
+
 def test_dockerfile_gate_resolves_global_arg_in_base_image() -> None:
     original = 'ARG BASE=python:3.12\nFROM ${BASE}\nCOPY . /app\n'
     candidate = original.replace('BASE=python:3.12', 'BASE=scratch')
