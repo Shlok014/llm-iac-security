@@ -156,10 +156,10 @@ Every number regenerates offline from the committed response cache:
 | Checkov | 70 | 42.3 [42, 43] | **39.5%** [38.6, 40.0] | **0** |
 | Trivy | 57 | 30.3 [18, 37] | **46.8%** [35.1, 68.4] | **0** |
 
-Output validity: **36/36 parsed**. Zero findings introduced in any run — the model never wrote a
-new misconfiguration while fixing an old one.
+Output validity: **36/36 parsed**. The selected scanners reported zero newly introduced
+findings in these runs; this does not prove the rewrites introduced no misconfiguration.
 
-**Detection — where it loses to a free tool**
+**Detection — provisional score under the original matcher**
 
 | | Recall vs 52 planted labels |
 |---|---:|
@@ -168,9 +168,10 @@ new misconfiguration while fixing an old one.
 | Both scanners combined | 53.8% |
 | **The LLM** | **39.1%** [36.5, 40.4] |
 
-The LLM finds *fewer* real flaws than Checkov does for free, at 59.3% strict precision. The
-original project claimed contextual understanding as the LLM's advantage; measured, it is behind
-the free tool at detection. Its value is remediation — scanners cannot rewrite anything at all.
+Under the original alias-substring scorer, the LLM matches fewer labels than Checkov, at 59.3%
+strict precision. That scorer misses some correctly phrased findings, so the ranking against
+Checkov is unresolved. The measurable distinction here is the remediation loop: scanners do not
+propose or verify rewrites on their own.
 
 > ⚠️ **This comparison is under question. The gap may be an artifact of how findings are matched
 > to labels, not a property of the model.**
