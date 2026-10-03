@@ -350,6 +350,22 @@ def _feedback_from_drift(lost: list[str]) -> list[dict]:
     ]
 
 
+def _feedback_from_control_changes(changes: list[str]) -> list[dict]:
+    """Tell the model which Terraform identity control it must restore."""
+    return [
+        {
+            "rule_id": _FEEDBACK_DRIFT,
+            "name": (
+                "The rewrite changed a Terraform instance control or module source. "
+                "Restore the original count, for_each, or source value and secure the "
+                "resource without changing its deployment identity."
+            ),
+            "resource": change,
+        }
+        for change in changes
+    ]
+
+
 # --------------------------------------------------------------------------------------
 # stop conditions
 # --------------------------------------------------------------------------------------
@@ -671,9 +687,11 @@ def run_loop(
                             {r.address for r in record.drift.deleted}
                             | {before.address for before, _ in record.drift.renamed}
                         )
-                        if lost:
-                            record.rejected_because = "drift: removed " + ", ".join(lost)
+                        changes = record.drift.terraform_changes
+                        if lost or changes:
+                            record.rejected_because = "drift: " + record.drift.summary()
                             feedback = _feedback_from_drift(lost)
+                            feedback.extend(_feedback_from_control_changes(changes))
 
             if record.rejected_because:
                 # Never scanned and never written. A file we know is malformed, or one we

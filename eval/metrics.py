@@ -637,7 +637,9 @@ def drift_metrics(records: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
     parses, precision and recall are unchanged, and the user's database is gone. Every
     other metric in this module is blind to that; the delta actively rewards it.
 
-    `drifted` is `bool(deleted or renamed or type_count_drops)` — additions never set it,
+    Current runtime drift includes deletion, rename, count drops, and protected Terraform
+    `count`/`for_each`/module-source changes. Historical stored runs predate the latter gate.
+    Additions alone never set `drifted`,
     because fixing a public bucket correctly *requires* adding a public-access-block
     resource, and a metric that punished the correct fix would reward the lazy one.
     Renames do set it: Terraform keys state on the address, so renaming a resource

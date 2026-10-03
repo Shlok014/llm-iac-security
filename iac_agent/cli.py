@@ -588,6 +588,7 @@ def _drift_document(view: _LoopView, source: Path, iac_type: IaCType) -> dict[st
         "added": [r.address for r in report.added],
         "renamed": [[b.address, a.address] for b, a in report.renamed],
         "type_count_drops": {k: list(v) for k, v in report.type_count_drops.items()},
+        "terraform_changes": list(report.terraform_changes),
         "docker_drops": list(report.docker_drops),
         "touched_flawed": drift_touches_flaw(report, flagged) if flagged else [],
     }

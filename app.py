@@ -872,8 +872,9 @@ def _render_drift_verdict(payload: dict) -> None:
     if rejections:
         st.error(
             f"**The drift gate rejected {len(rejections)} proposed fix(es).** "
-            "A Terraform resource was removed or renamed, or protected Dockerfile "
-            "application structure changed. Each candidate was rejected before rescanning."
+            "A Terraform resource or module was removed or renamed, its count, for_each, "
+            "or module source changed, or protected Dockerfile application structure changed. "
+            "Each candidate was rejected before rescanning."
         )
         for record in rejections:
             summary = f" · structural diff: {record['drift_summary']}" if record["drift_summary"] else ""
@@ -892,14 +893,15 @@ def _render_drift_verdict(payload: dict) -> None:
         if payload["iac_type"] == IaCType.DOCKERFILE.value:
             st.success(
                 f"**Dockerfile structural gate ran on {checked} candidate(s).** "
-                "No protected stage, per-stage copy source or startup command was removed. "
+                "Changes to protected stages, per-stage copy sources or startup commands "
+                "are rejected before scanning. "
                 "This does not prove the image builds or preserves its behavior."
             )
         else:
             st.success(
                 f"**Resource drift gate ran on {checked} candidate(s).** "
-                "No Terraform resource was removed or renamed. Review the remaining "
-                "configuration changes before applying them."
+                "Protected resource and module identity changes are rejected before scanning. "
+                "Review the accepted configuration before applying it."
             )
     else:
         st.info(

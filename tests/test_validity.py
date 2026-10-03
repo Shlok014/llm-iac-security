@@ -216,6 +216,16 @@ def test_dockerfile_gate_keeps_temporary_archive_used_by_startup() -> None:
     assert compute_drift(original, candidate, IaCType.DOCKERFILE).drifted
 
 
+@pytest.mark.parametrize("destination", ["/tmp/", "/var/tmp/"])
+def test_dockerfile_gate_allows_removing_remote_add_to_temp_root(destination: str) -> None:
+    original = (
+        'FROM alpine:3.20\nCOPY . /app\n'
+        f'ADD https://example.com/unsafe.sh {destination}\nCMD ["/app/server"]\n'
+    )
+    candidate = original.replace(f'ADD https://example.com/unsafe.sh {destination}\n', '')
+    assert not compute_drift(original, candidate, IaCType.DOCKERFILE).drifted
+
+
 def test_dockerfile_gate_protects_copy_origin_and_destination() -> None:
     original = 'FROM python:3.12 AS build\nCOPY . /app\nFROM python:3.12\nCOPY --from=build /app /app\n'
     assert compute_drift(
@@ -275,6 +285,44 @@ def test_removing_module_invocation_is_destructive_drift() -> None:
     drift = compute_drift(original, candidate, IaCType.TERRAFORM)
     assert drift.drifted
     assert "module.database" in [r.address for r in drift.deleted]
+
+
+@pytest.mark.parametrize(
+    ("original", "candidate", "expected"),
+    [
+        (
+            'resource "aws_instance" "web" { count = 1 ami = "ami-example" }\n',
+            'resource "aws_instance" "web" { count = 0 ami = "ami-example" }\n',
+            "aws_instance.web count",
+        ),
+        (
+            'resource "aws_instance" "web" { for_each = { primary = true } ami = "ami-example" }\n',
+            'resource "aws_instance" "web" { for_each = {} ami = "ami-example" }\n',
+            "aws_instance.web for_each",
+        ),
+        (
+            'module "database" { source = "./modules/database" }\n',
+            'module "database" { source = "./modules/empty" }\n',
+            "module.database source",
+        ),
+        (
+            'module "database" { source = "./modules/database" count = 1 }\n',
+            'module "database" { source = "./modules/database" count = 0 }\n',
+            "module.database count",
+        ),
+    ],
+)
+def test_terraform_instance_controls_and_module_source_are_protected(
+    original: str, candidate: str, expected: str
+) -> None:
+    assert check_validity(original, IaCType.TERRAFORM).ok
+    assert check_validity(candidate, IaCType.TERRAFORM).ok
+    drift = compute_drift(original, candidate, IaCType.TERRAFORM)
+    assert drift.drifted
+    assert any(expected in change for change in drift.terraform_changes)
+    from eval.serialise import drift_to_dict
+
+    assert drift_to_dict(drift)["terraform_changes"] == drift.terraform_changes
 
 
 def test_deletion_is_detected() -> None:

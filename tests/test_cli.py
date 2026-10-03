@@ -56,6 +56,22 @@ def test_cli_does_not_call_a_dockerfile_structure_check_resource_drift(tmp_path:
     assert doc["drifted"] is False
     assert "Dockerfile" in doc["summary"]
 
+
+def test_cli_reports_terraform_instance_control_drift(tmp_path: Path) -> None:
+    source = tmp_path / "service.tf"
+    source.write_text('resource "aws_instance" "web" { count = 1 ami = "ami-example" }\n')
+
+    class View:
+        best_code = 'resource "aws_instance" "web" { count = 0 ami = "ami-example" }\n'
+        baseline_scan = None
+
+        def drift(self):
+            return None
+
+    doc = _drift_document(View(), source, IaCType.TERRAFORM)
+    assert doc["drifted"] is True
+    assert "aws_instance.web count changed" in doc["terraform_changes"]
+
 CLEAN_TF = 'variable "region" {\n  type = string\n}\n'
 
 

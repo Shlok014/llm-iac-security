@@ -243,7 +243,7 @@ def _exempt_copy(op: str, source: str, destination: str) -> bool:
     """Recognise narrow removal candidates; the stage-level gate still checks their role."""
     if op == "ADD" and source.startswith(("https://", "http://")):
         normalized = posixpath.normpath(destination)
-        return normalized.startswith(("/tmp/", "/var/tmp/"))
+        return normalized in {"/tmp", "/var/tmp"} or normalized.startswith(("/tmp/", "/var/tmp/"))
     source_name = source.rsplit("/", 1)[-1].lower()
     destination_name = destination.rsplit("/", 1)[-1].lower()
     return (
@@ -375,6 +375,37 @@ def extract_resources(
     return out
 
 
+def _terraform_instance_controls(text: str) -> dict[str, dict[str, tuple[bool, object]]]:
+    """Read HCL fields that can change infrastructure without an address edit."""
+    try:
+        doc = _load_hcl(text)
+    except Exception as exc:
+        raise ValidityError(f"could not parse HCL: {type(exc).__name__}: {exc}") from exc
+    controls: dict[str, dict[str, tuple[bool, object]]] = {}
+    for block in doc.get("resource", []) or []:
+        if not isinstance(block, dict):
+            continue
+        for rtype, named in block.items():
+            if rtype.startswith("__") or not isinstance(named, dict):
+                continue
+            for name, body in named.items():
+                if name.startswith("__") or not isinstance(body, dict):
+                    continue
+                controls[f"{rtype}.{name}"] = {
+                    key: (key in body, body.get(key)) for key in ("count", "for_each")
+                }
+    for block in doc.get("module", []) or []:
+        if not isinstance(block, dict):
+            continue
+        for name, body in block.items():
+            if name.startswith("__") or not isinstance(body, dict):
+                continue
+            controls[f"module.{name}"] = {
+                key: (key in body, body.get(key)) for key in ("source", "count", "for_each")
+            }
+    return controls
+
+
 @dataclass
 class DriftReport:
     """What changed about Terraform resources or critical Dockerfile structure.
@@ -388,12 +419,16 @@ class DriftReport:
     added: list[ResourceAddr] = field(default_factory=list)
     renamed: list[tuple[ResourceAddr, ResourceAddr]] = field(default_factory=list)
     type_count_drops: dict[str, tuple[int, int]] = field(default_factory=dict)
+    terraform_changes: list[str] = field(default_factory=list)
     docker_drops: list[str] = field(default_factory=list)
 
     @property
     def drifted(self) -> bool:
         """Derived, not stored: a stored flag can disagree with the lists it summarises."""
-        return bool(self.deleted or self.type_count_drops or self.renamed or self.docker_drops)
+        return bool(
+            self.deleted or self.type_count_drops or self.renamed
+            or self.terraform_changes or self.docker_drops
+        )
 
     def summary(self) -> str:
         renamed_from = {before.address for before, _ in self.renamed}
@@ -418,6 +453,7 @@ class DriftReport:
                     f"{t} {b}->{a}" for t, (b, a) in sorted(self.type_count_drops.items())
                 )
             )
+        parts.extend(self.terraform_changes)
         parts.extend(self.docker_drops)
         if not parts:
             return "no resource drift"
@@ -446,6 +482,12 @@ def compute_drift(
         deleted=[r for r in before if r.address not in after_addrs],
         added=[r for r in after if r.address not in before_addrs],
     )
+    before_controls = _terraform_instance_controls(_read_source(original))
+    after_controls = _terraform_instance_controls(_read_source(remediated))
+    for addr in sorted(before_controls.keys() & after_controls.keys()):
+        for key, prior in before_controls[addr].items():
+            if prior != after_controls[addr][key]:
+                report.terraform_changes.append(f"{addr} {key} changed")
 
     before_by_type = _by_type(before)
     after_by_type = _by_type(after)

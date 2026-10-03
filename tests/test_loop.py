@@ -235,6 +235,14 @@ def test_deleting_an_unflagged_terraform_resource_is_also_rejected(tmp_path: Pat
     assert "null_resource.important_job" in result.iterations[0].rejected_because
 
 
+def test_terraform_count_zero_is_rejected_before_scanning() -> None:
+    original = (SAMPLES / "s3_public.tf").read_text()
+    candidate = original.replace('  bucket =', '  count = 0\n  bucket =')
+    result = run("s3_public.tf", DETECT, candidate, max_iters=1)
+    assert result.iterations[0].scan is None
+    assert "aws_s3_bucket.example count" in result.iterations[0].rejected_because
+
+
 # --------------------------------------------------------------------------------------
 # invariants
 # --------------------------------------------------------------------------------------
