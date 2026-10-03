@@ -17,13 +17,15 @@ Zero new dependencies. HCL parsing uses `hcl2` (the `bc-python-hcl2` distributio
 is already installed as a Checkov dependency. Dockerfiles get bounded structural checks:
 known instructions with arguments, followed by a comparison of resolved base stages, per-stage
 application copy signatures and startup command presence. Narrow exceptions allow removal of
-separately copied dotenv files and remote ADDs into temporary directories when another copy
-remains in the stage. This is not a full Docker build validation.
+separately copied dotenv files and remote ADDs into temporary directories when the same stage
+retains a whole-context copy and the startup command does not name the exempt destination.
+This is not a full Docker build validation.
 """
 
 from __future__ import annotations
 
 import json
+import posixpath
 import re
 import shlex
 from collections import Counter
@@ -222,7 +224,7 @@ def _protected_copies(op: str, args: str) -> list[str]:
 
     A remote ADD into a temporary directory and a separately copied dotenv file are
     explicit security hazards. Their removal can be considered only when the stage also
-    retains another application copy. Other sources remain protected; the gate prefers a
+    retains a whole-context copy. Other sources remain protected; the gate prefers a
     false rejection to scoring a deleted application as repaired.
     """
     operands, from_stage = _copy_operands(args)
@@ -238,9 +240,10 @@ def _protected_copies(op: str, args: str) -> list[str]:
 
 
 def _exempt_copy(op: str, source: str, destination: str) -> bool:
-    """Recognise narrow removal candidates; stage-level checks still require another copy."""
+    """Recognise narrow removal candidates; the stage-level gate still checks their role."""
     if op == "ADD" and source.startswith(("https://", "http://")):
-        return destination.startswith(("/tmp/", "/var/tmp/"))
+        normalized = posixpath.normpath(destination)
+        return normalized.startswith(("/tmp/", "/var/tmp/"))
     source_name = source.rsplit("/", 1)[-1].lower()
     destination_name = destination.rsplit("/", 1)[-1].lower()
     return (
@@ -495,27 +498,40 @@ def _docker_stages(instructions: list[tuple[str, str]]) -> list[dict[str, object
             stages.append({
                 "base": _base_family(args, global_args),
                 "copies": Counter(),
-                "exempt_copies": Counter(),
+                "exempt_copies": [],
+                "whole_context_copy": False,
+                "startup_args": [],
                 "startup": False,
             })
         elif stages and op in {"COPY", "ADD"}:
             copies = stages[-1]["copies"]
             exempt_copies = stages[-1]["exempt_copies"]
-            assert isinstance(copies, Counter) and isinstance(exempt_copies, Counter)
+            assert isinstance(copies, Counter) and isinstance(exempt_copies, list)
             copies.update(_protected_copies(op, args))
             operands, from_stage = _copy_operands(args)
             if len(operands) >= 2:
+                if op == "COPY" and any(source in {".", "./"} for source in operands[:-1]):
+                    stages[-1]["whole_context_copy"] = True
                 for source in operands[:-1]:
                     if _exempt_copy(op, source, operands[-1]):
-                        exempt_copies.update([f"{from_stage}:{source}->{operands[-1]}"])
+                        exempt_copies.append(
+                            (f"{from_stage}:{source}->{operands[-1]}", posixpath.normpath(operands[-1]))
+                        )
         elif stages and op in {"CMD", "ENTRYPOINT"}:
             stages[-1]["startup"] = True
+            startup_args = stages[-1]["startup_args"]
+            assert isinstance(startup_args, list)
+            startup_args.append(args)
     for stage in stages:
         copies = stage["copies"]
         exempt_copies = stage["exempt_copies"]
-        assert isinstance(copies, Counter) and isinstance(exempt_copies, Counter)
-        if not copies:
-            copies.update(exempt_copies)
+        startup_args = stage["startup_args"]
+        assert isinstance(copies, Counter) and isinstance(exempt_copies, list)
+        assert isinstance(startup_args, list)
+        startup_text = " ".join(startup_args)
+        for signature, destination in exempt_copies:
+            if not stage["whole_context_copy"] or destination in startup_text:
+                copies.update([signature])
     return stages
 
 

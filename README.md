@@ -1,54 +1,65 @@
 <div align="center">
 
-# llm-iac-security
+# LLM IaC Security
 
-**Static scanners find the misconfiguration. A model rewrites the file. The scanners check whether the rewrite actually fixed anything.**
+**Verified LLM-assisted remediation for Terraform and Dockerfile
+misconfigurations.** Checkov and Trivy establish the baseline; every model
+candidate passes parse validation, resource-drift protection, and a verified
+rescan before it can be returned.
 
 [![ci](https://github.com/Shlok014/llm-iac-security/actions/workflows/ci.yml/badge.svg)](https://github.com/Shlok014/llm-iac-security/actions/workflows/ci.yml)
 [![python](https://img.shields.io/badge/python-3.11--3.13-blue)](pyproject.toml)
-[![licence](https://img.shields.io/badge/licence-MIT-green)](LICENSE)
+[![license](https://img.shields.io/github/license/Shlok014/llm-iac-security)](LICENSE)
 [![results](https://img.shields.io/badge/results-reproducible%20offline-brightgreen)](eval/results/RESULTS.md)
 
 </div>
 
 <div align="center">
   <img src="docs/assets/scan-light.png" alt="The analyse tab: Checkov reporting 8 failed checks on a bundled Terraform fixture, the findings table below it, and the selected finding's line shown in context underneath" width="900">
-  <p><em>The free path — Checkov on a bundled fixture. No API key, no model call, no cost. Selecting a finding shows the line it is about.</em></p>
+  <p><em>Scan Terraform and Dockerfiles with the full interface. The free path uses Checkov on bundled fixtures; selecting a finding shows the relevant line in context.</em></p>
 </div>
 
 ---
 
-Making findings go down is easy. Making infrastructure safer is not the same thing, and almost
-nothing measures the difference.
+Finding-count reduction alone does not measure semantic preservation. A change
+can remove a scanner finding while deleting the resource it was meant to secure.
 
-The cheapest way to clear a finding is to **delete the resource it was about**. That scores a
-perfect delta, passes a syntax check, and silently strips the resource off your infrastructure at
-the next `terraform apply`. This project exists because that failure mode is invisible to every
-metric a remediation tool normally reports.
+LLM IaC Security evaluates each candidate against that failure mode with a
+resource-level drift gate, then rescans the surviving file to measure the
+verified outcome.
 
 ## What it does
 
 | | |
 |---|---|
-| **Detects** | Checkov and Trivy scan Terraform and Dockerfiles for the baseline. An LLM detection pass runs alongside — and is measured against them, not trusted over them. |
-| **Remediates** | The model rewrites the file. Every candidate must survive a **parse gate** and a **drift gate** before it is allowed near a scanner. Deletions and renames of directly declared Terraform resources or module calls are rejected even when the scanner did not flag them; Dockerfile rewrites must keep each stage's base image family, application copy signatures, and startup presence. Separately copied dotenv files and remote `ADD`s into a temporary directory may be removed when another copy remains in that stage. This is a bounded structural check, not a build or plan. |
-| **Verifies** | Only a surviving candidate is written to disk and rescanned. The loop returns the **best candidate it saw**, never the last one — and the original file if nothing beat it. |
-| **Refuses to guess** | A scanner that crashes, times out or emits an empty report raises an error. An absent analysis is never rendered as a clean pass. |
+| **Detects** | Checkov and Trivy establish the Terraform and Dockerfile baseline. An LLM detection pass runs alongside and is evaluated against them. |
+| **Remediates** | The model proposes rewrites. Every candidate must survive a **parse gate** and a **drift gate** before scanner verification. |
+| **Verifies** | Only a gate-passing candidate is written to disk and rescanned. The loop returns the lowest-scoring verified candidate, or the original file if none improve it. |
+| **Fails closed** | Scanner crashes, timeouts, and empty reports surface as errors. Only a completed scan may report a file as clean. |
+
+The runtime drift gate rejects deletion or renaming of directly declared Terraform resources
+and module calls, even if a scanner did not flag them. For Dockerfiles it compares base image
+families, per-stage application copies, and startup presence. These checks are bounded
+structural evidence, not a Terraform plan or Docker build.
+It permits removal of a separate dotenv copy or remote temporary `ADD` only when a
+whole-context copy remains in the same stage and startup does not name the removed destination.
 
 ---
 
-## The headline result
+## Key evaluation finding
 
-Asked to secure `samples/vulnerable_main.tf`, the model made a public-bucket-policy finding
-disappear by **deleting `aws_s3_bucket_policy.public_policy` outright** — in **5 of 6 runs**,
-across both corpus variants and all three seeds. Always the same resource.
+The evaluation surfaced a critical remediation failure mode: on
+`samples/vulnerable_main.tf`, the model removed a public-bucket-policy finding
+by **deleting `aws_s3_bucket_policy.public_policy` outright** in **5 of 6
+runs**, across both corpus variants and all three seeds.
 
 That scores a perfect finding delta. It passes the syntax gate. Precision and recall are
 untouched. And the next `terraform apply` silently strips the bucket policy off live
 infrastructure. Nothing was secured.
 
-This is not a fluke of one sample — it is a reproducible behaviour, and the drift metric is the
-only signal in the pipeline that can tell it apart from a real fix.
+This reproducible result is why the resource-level drift gate is part of the
+pipeline: it distinguishes a validated configuration change from a finding that
+disappears because the underlying resource was removed.
 
 <div align="center">
   <img src="docs/assets/fix-light.png" alt="A remediation run: 18 failed checks after, down 19 from baseline, with the gate rail showing three candidates that cleared every gate and the second one returned" width="900">

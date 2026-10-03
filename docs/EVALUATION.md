@@ -621,7 +621,8 @@ question, because the finding delta is also scanner-relative and this is the met
 direct Terraform resource or module-call deletion or rename, including objects without scanner
 findings. It also rejects Dockerfile rewrites that remove a stage's copy source or startup command,
 change the resolved base image family, or drop a stage. A separately copied dotenv file or remote
-URL `ADD` into a temporary directory may be removed when another copy remains in the stage;
+URL `ADD` into a temporary directory may be removed when a whole-context copy remains in the
+stage and the startup command does not name the exempt destination;
 other application copy sources, origins, and destinations are
 protected. A legitimate change to an application copy can still be rejected, so the user should
 review and apply that edit directly. The historical

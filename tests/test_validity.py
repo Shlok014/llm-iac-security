@@ -189,6 +189,33 @@ def test_dockerfile_gate_does_not_exempt_remote_application_archive() -> None:
     assert compute_drift(original, candidate, IaCType.DOCKERFILE).drifted
 
 
+def test_dockerfile_gate_does_not_treat_a_readme_copy_as_application_evidence() -> None:
+    original = (
+        'FROM alpine:3.20\nCOPY README.md /docs/README.md\n'
+        'ADD https://example.com/app /tmp/app\nCMD ["/tmp/app"]\n'
+    )
+    candidate = original.replace('ADD https://example.com/app /tmp/app\n', '')
+    assert compute_drift(original, candidate, IaCType.DOCKERFILE).drifted
+
+
+def test_dockerfile_gate_normalizes_temporary_destination() -> None:
+    original = (
+        'FROM alpine:3.20\nCOPY . /app\n'
+        'ADD https://example.com/app /tmp/../app/server\nCMD ["/app/server"]\n'
+    )
+    candidate = original.replace('ADD https://example.com/app /tmp/../app/server\n', '')
+    assert compute_drift(original, candidate, IaCType.DOCKERFILE).drifted
+
+
+def test_dockerfile_gate_keeps_temporary_archive_used_by_startup() -> None:
+    original = (
+        'FROM alpine:3.20\nCOPY . /app\n'
+        'ADD https://example.com/app /tmp/app\nCMD ["/tmp/app"]\n'
+    )
+    candidate = original.replace('ADD https://example.com/app /tmp/app\n', '')
+    assert compute_drift(original, candidate, IaCType.DOCKERFILE).drifted
+
+
 def test_dockerfile_gate_protects_copy_origin_and_destination() -> None:
     original = 'FROM python:3.12 AS build\nCOPY . /app\nFROM python:3.12\nCOPY --from=build /app /app\n'
     assert compute_drift(
