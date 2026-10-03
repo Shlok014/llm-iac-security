@@ -14,14 +14,21 @@ drop in findings as the result. That measures the wrong thing twice over:
    drop *because the resource stopped existing*".
 
 Zero new dependencies. HCL parsing uses `hcl2` (the `bc-python-hcl2` distribution), which
-is already installed as a Checkov dependency. Dockerfiles get a structural check instead —
-no HCL grammar applies to them, and pulling in a Dockerfile parser for a first-instruction
-check would not be worth the dependency.
+is already installed as a Checkov dependency. Dockerfiles get bounded structural checks:
+known instructions with arguments, followed by a comparison of resolved base stages, per-stage
+application copy signatures and startup command presence. Narrow exceptions allow removal of
+separately copied dotenv files and remote ADDs into temporary directories when the same stage
+retains a whole-context copy and the startup command does not name the exempt destination.
+This is not a full Docker build validation.
 """
 
 from __future__ import annotations
 
+import json
+import posixpath
 import re
+import shlex
+from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterator
@@ -130,8 +137,13 @@ def _instructions(text: str) -> Iterator[tuple[str, str]]:
     both legal and common.
     """
     buf = ""
+    heredoc_end: str | None = None
     for raw in text.splitlines():
         line = raw.strip()
+        if heredoc_end is not None:
+            if line == heredoc_end:
+                heredoc_end = None
+            continue
         if line.startswith("#"):
             continue
         if not line and not buf:
@@ -141,11 +153,17 @@ def _instructions(text: str) -> Iterator[tuple[str, str]]:
             continue
         buf += line
         if buf.strip():
-            head, _, rest = buf.strip().partition(" ")
+            parts = buf.strip().split(None, 1)
+            head, rest = parts[0], parts[1] if len(parts) > 1 else ""
             yield head.upper(), rest.strip()
+            if head.upper() in {"RUN", "COPY", "ADD"}:
+                marker = re.search(r"<<-?\s*(['\"]?)([A-Za-z_][A-Za-z0-9_]*)\1(?:\s|$)", rest)
+                if marker:
+                    heredoc_end = marker.group(2)
         buf = ""
     if buf.strip():
-        head, _, rest = buf.strip().partition(" ")
+        parts = buf.strip().split(None, 1)
+        head, rest = parts[0], parts[1] if len(parts) > 1 else ""
         yield head.upper(), rest.strip()
 
 
@@ -170,22 +188,93 @@ def _check_terraform(text: str) -> ValidityResult:
     return ValidityResult(ok=True, reason="parsed", detail=f"{len(doc)} top-level block types")
 
 
+_DOCKER_INSTRUCTIONS = frozenset({
+    "ADD", "ARG", "CMD", "COPY", "ENTRYPOINT", "ENV", "EXPOSE", "FROM",
+    "HEALTHCHECK", "LABEL", "MAINTAINER", "ONBUILD", "RUN", "SHELL",
+    "STOPSIGNAL", "USER", "VOLUME", "WORKDIR",
+})
+
+
+def _copy_operands(args: str) -> tuple[list[str], str]:
+    """Read COPY/ADD operands and source stage from shell or JSON form."""
+    remaining = args.strip()
+    from_stage = ""
+    while remaining.startswith("--"):
+        parts = remaining.split(None, 1)
+        if parts[0].startswith("--from="):
+            from_stage = parts[0].partition("=")[2]
+        remaining = parts[1] if len(parts) > 1 else ""
+    if remaining.startswith("["):
+        try:
+            operands = json.loads(remaining)
+        except json.JSONDecodeError:
+            return [], from_stage
+        if not isinstance(operands, list) or not all(isinstance(x, str) for x in operands):
+            return [], from_stage
+    else:
+        try:
+            operands = shlex.split(remaining)
+        except ValueError:
+            return [], from_stage
+    return operands, from_stage
+
+
+def _protected_copies(op: str, args: str) -> list[str]:
+    """Identify the copies whose disappearance would remove likely application content.
+
+    A remote ADD into a temporary directory and a separately copied dotenv file are
+    explicit security hazards. Their removal can be considered only when the stage also
+    retains a whole-context copy. Other sources remain protected; the gate prefers a
+    false rejection to scoring a deleted application as repaired.
+    """
+    operands, from_stage = _copy_operands(args)
+    if len(operands) < 2:
+        return []
+    destination = operands[-1]
+    protected = []
+    for source in operands[:-1]:
+        if _exempt_copy(op, source, destination):
+            continue
+        protected.append(f"{from_stage}:{source}->{destination}")
+    return protected
+
+
+def _exempt_copy(op: str, source: str, destination: str) -> bool:
+    """Recognise narrow removal candidates; the stage-level gate still checks their role."""
+    if op == "ADD" and source.startswith(("https://", "http://")):
+        normalized = posixpath.normpath(destination)
+        return normalized in {"/tmp", "/var/tmp"} or normalized.startswith(("/tmp/", "/var/tmp/"))
+    source_name = source.rsplit("/", 1)[-1].lower()
+    destination_name = destination.rsplit("/", 1)[-1].lower()
+    return (
+        (source_name == ".env" or source_name.endswith(".env"))
+        and (destination_name == ".env" or destination_name.endswith(".env"))
+    )
+
+
 def _check_dockerfile(text: str) -> ValidityResult:
-    for instruction, _args in _instructions(text):
+    stage_seen = False
+    for instruction, args in _instructions(text):
+        if instruction not in _DOCKER_INSTRUCTIONS:
+            return ValidityResult(False, "unknown_instruction", f"unknown Dockerfile instruction {instruction}")
+        if not args:
+            return ValidityResult(False, "missing_argument", f"{instruction} has no arguments")
+        if instruction == "FROM" and not _base_family(args):
+            return ValidityResult(False, "missing_image", "FROM has no base image")
+        if instruction in {"COPY", "ADD"}:
+            if len(_copy_operands(args)[0]) < 2:
+                return ValidityResult(False, "missing_destination", f"{instruction} needs source and destination")
         # ARG is the only instruction Docker permits before FROM (it parameterises the base
         # image), so leading ARGs are skipped rather than rejected.
-        if instruction == "ARG":
+        if instruction == "ARG" and not stage_seen:
             continue
         if instruction == "FROM":
-            return ValidityResult(ok=True, reason="parsed", detail="first instruction is FROM")
-        return ValidityResult(
-            ok=False,
-            reason="missing_from",
-            detail=f"first instruction is {instruction!r}, expected FROM",
-        )
-    return ValidityResult(
-        ok=False, reason="no_instructions", detail="no Dockerfile instructions found"
-    )
+            stage_seen = True
+        elif not stage_seen:
+            return ValidityResult(False, "missing_from", f"first instruction is {instruction!r}, expected FROM")
+    if not stage_seen:
+        return ValidityResult(False, "missing_from", "no FROM instruction found")
+    return ValidityResult(True, "parsed", "Dockerfile instructions have known names and arguments")
 
 
 def check_validity(
@@ -238,15 +327,16 @@ class ResourceAddr:
 def extract_resources(
     text_or_path: str | Path, iac_type: IaCType | None = None
 ) -> list[ResourceAddr]:
-    """List the resource addresses declared in a file, in document order.
+    """List directly declared resource addresses and module-call identities in a file.
 
     Dockerfiles have no addressable resources — an image is one artifact, not a set of
-    independently-named objects — so this returns `[]` for them by design rather than by
-    accident. Drift for Dockerfiles is therefore always empty; if that ever needs a
-    metric it will need a different unit of identity (instructions, layers), not this one.
+    independently-named objects — so this returns `[]` for them. Dockerfile structural
+    drift uses instruction families in `compute_drift` instead of resource addresses.
 
-    python-hcl2 shapes a document as `{"resource": [{type: {name: {body}}}, ...]}`, one
-    single-key dict per resource block.
+    Module calls follow resources in the result and are included as `module.NAME`:
+    deleting a call can remove all of its
+    nested infrastructure, even when this one file has no direct resource declarations.
+    python-hcl2 shapes resources as `{"resource": [{type: {name: {body}}}, ...]}`.
     """
     kind = iac_type if iac_type is not None else _resolve_type(text_or_path, None)
     if kind is not IaCType.TERRAFORM:
@@ -273,12 +363,107 @@ def extract_resources(
                 if addr.address not in seen:
                     seen.add(addr.address)
                     out.append(addr)
+    for block in doc.get("module", []) or []:
+        if not isinstance(block, dict):
+            continue
+        for name in block:
+            if not name.startswith("__"):
+                addr = ResourceAddr("module", str(name))
+                if addr.address not in seen:
+                    seen.add(addr.address)
+                    out.append(addr)
     return out
+
+
+def _terraform_instance_controls(text: str) -> dict[str, dict[str, tuple[bool, object]]]:
+    """Read HCL fields that can change infrastructure without an address edit."""
+    try:
+        doc = _load_hcl(text)
+    except Exception as exc:
+        raise ValidityError(f"could not parse HCL: {type(exc).__name__}: {exc}") from exc
+    controls: dict[str, dict[str, tuple[bool, object]]] = {}
+    for block in doc.get("resource", []) or []:
+        if not isinstance(block, dict):
+            continue
+        for rtype, named in block.items():
+            if rtype.startswith("__") or not isinstance(named, dict):
+                continue
+            for name, body in named.items():
+                if name.startswith("__") or not isinstance(body, dict):
+                    continue
+                controls[f"{rtype}.{name}"] = {
+                    key: (key in body, body.get(key)) for key in ("count", "for_each")
+                }
+    for block in doc.get("module", []) or []:
+        if not isinstance(block, dict):
+            continue
+        for name, body in block.items():
+            if name.startswith("__") or not isinstance(body, dict):
+                continue
+            controls[f"module.{name}"] = {
+                key: (key in body, body.get(key)) for key in ("source", "count", "for_each")
+            }
+    return controls
+
+
+_TERRAFORM_INPUT_REF = re.compile(r"(?<![\w.])(?:var|local)\.[A-Za-z_][A-Za-z0-9_]*")
+
+
+def _terraform_refs(value: object) -> set[str]:
+    """Find local input references in a parsed HCL expression or collection."""
+    if isinstance(value, str):
+        return set(_TERRAFORM_INPUT_REF.findall(value))
+    if isinstance(value, dict):
+        return set().union(*(_terraform_refs(item) for item in value.values()))
+    if isinstance(value, (list, tuple)):
+        return set().union(*(_terraform_refs(item) for item in value))
+    return set()
+
+
+def _terraform_definitions(text: str) -> dict[str, object]:
+    """Read in-file values feeding resource and module instance controls."""
+    try:
+        doc = _load_hcl(text)
+    except Exception as exc:
+        raise ValidityError(f"could not parse HCL: {type(exc).__name__}: {exc}") from exc
+    definitions: dict[str, object] = {}
+    for block in doc.get("variable", []) or []:
+        if not isinstance(block, dict):
+            continue
+        for name, body in block.items():
+            if not name.startswith("__") and isinstance(body, dict):
+                definitions[f"var.{name}"] = ("default" in body, body.get("default"))
+    for block in doc.get("locals", []) or []:
+        if not isinstance(block, dict):
+            continue
+        for name, value in block.items():
+            if not name.startswith("__"):
+                definitions[f"local.{name}"] = value
+    return definitions
+
+
+def _changed_control_inputs(
+    expression: object, before: dict[str, object], after: dict[str, object]
+) -> list[str]:
+    """Follow in-file var/local references, including references through locals."""
+    pending = list(_terraform_refs(expression))
+    visited: set[str] = set()
+    changed: list[str] = []
+    while pending:
+        ref = pending.pop()
+        if ref in visited:
+            continue
+        visited.add(ref)
+        old_value = before.get(ref)
+        if (ref in before, old_value) != (ref in after, after.get(ref)):
+            changed.append(ref)
+        pending.extend(_terraform_refs(old_value) - visited)
+    return sorted(changed)
 
 
 @dataclass
 class DriftReport:
-    """What changed about the *set of resources* between the original and the remediation.
+    """What changed about Terraform resources or critical Dockerfile structure.
 
     A rename is, definitionally, a deletion plus an addition, so a renamed resource appears
     in all three lists. `summary()` un-double-counts for display; `drift_touches_flaw()`
@@ -289,11 +474,16 @@ class DriftReport:
     added: list[ResourceAddr] = field(default_factory=list)
     renamed: list[tuple[ResourceAddr, ResourceAddr]] = field(default_factory=list)
     type_count_drops: dict[str, tuple[int, int]] = field(default_factory=dict)
+    terraform_changes: list[str] = field(default_factory=list)
+    docker_drops: list[str] = field(default_factory=list)
 
     @property
     def drifted(self) -> bool:
         """Derived, not stored: a stored flag can disagree with the lists it summarises."""
-        return bool(self.deleted or self.type_count_drops or self.renamed)
+        return bool(
+            self.deleted or self.type_count_drops or self.renamed
+            or self.terraform_changes or self.docker_drops
+        )
 
     def summary(self) -> str:
         renamed_from = {before.address for before, _ in self.renamed}
@@ -318,6 +508,8 @@ class DriftReport:
                     f"{t} {b}->{a}" for t, (b, a) in sorted(self.type_count_drops.items())
                 )
             )
+        parts.extend(self.terraform_changes)
+        parts.extend(self.docker_drops)
         if not parts:
             return "no resource drift"
         return ("DRIFT: " if self.drifted else "no drift; ") + "; ".join(parts)
@@ -333,7 +525,9 @@ def _by_type(resources: list[ResourceAddr]) -> dict[str, list[str]]:
 def compute_drift(
     original: str | Path, remediated: str | Path, iac_type: IaCType
 ) -> DriftReport:
-    """Compare the resource sets of a file before and after remediation."""
+    """Compare Terraform resource/module identity or Dockerfile application structure."""
+    if iac_type is IaCType.DOCKERFILE:
+        return _dockerfile_drift(_read_source(original), _read_source(remediated))
     before = extract_resources(original, iac_type)
     after = extract_resources(remediated, iac_type)
 
@@ -343,6 +537,21 @@ def compute_drift(
         deleted=[r for r in before if r.address not in after_addrs],
         added=[r for r in after if r.address not in before_addrs],
     )
+    original_text = _read_source(original)
+    remediated_text = _read_source(remediated)
+    before_controls = _terraform_instance_controls(original_text)
+    after_controls = _terraform_instance_controls(remediated_text)
+    before_definitions = _terraform_definitions(original_text)
+    after_definitions = _terraform_definitions(remediated_text)
+    for addr in sorted(before_controls.keys() & after_controls.keys()):
+        for key, prior in before_controls[addr].items():
+            if prior != after_controls[addr][key]:
+                report.terraform_changes.append(f"{addr} {key} changed")
+            elif key in ("count", "for_each") and prior[0]:
+                for ref in _changed_control_inputs(
+                    prior[1], before_definitions, after_definitions
+                ):
+                    report.terraform_changes.append(f"{addr} {key} input {ref} changed")
 
     before_by_type = _by_type(before)
     after_by_type = _by_type(after)
@@ -362,6 +571,105 @@ def compute_drift(
             (ResourceAddr(rtype, b), ResourceAddr(rtype, a)) for b, a in zip(gone, new)
         )
 
+    return report
+
+
+def _base_family(args: str, global_args: dict[str, str] | None = None) -> str:
+    """Keep repository identity while allowing tag and digest updates."""
+    parts = args.split()
+    image = next((part for part in parts if not part.startswith("--")), "")
+    if image.upper() == "AS":
+        return ""
+    if global_args:
+        image = re.sub(
+            r"\$\{([A-Za-z_][A-Za-z0-9_]*)(?::?-[^}]*)?\}|\$([A-Za-z_][A-Za-z0-9_]*)",
+            lambda match: global_args.get(match.group(1) or match.group(2), match.group(0)),
+            image,
+        )
+    image = image.split("@", 1)[0]
+    slash = image.rfind("/")
+    colon = image.rfind(":")
+    return image[:colon] if colon > slash else image
+
+
+def _docker_stages(instructions: list[tuple[str, str]]) -> list[dict[str, object]]:
+    """The bounded per-stage structure retained by the drift gate."""
+    global_args: dict[str, str] = {}
+    stages: list[dict[str, object]] = []
+    for op, args in instructions:
+        if op == "ARG" and not stages:
+            name, _, default = args.partition("=")
+            global_args[name.strip()] = default
+        elif op == "FROM":
+            stages.append({
+                "base": _base_family(args, global_args),
+                "copies": Counter(),
+                "exempt_copies": [],
+                "whole_context_copy": False,
+                "startup_args": [],
+                "startup": False,
+            })
+        elif stages and op in {"COPY", "ADD"}:
+            copies = stages[-1]["copies"]
+            exempt_copies = stages[-1]["exempt_copies"]
+            assert isinstance(copies, Counter) and isinstance(exempt_copies, list)
+            copies.update(_protected_copies(op, args))
+            operands, from_stage = _copy_operands(args)
+            if len(operands) >= 2:
+                if op == "COPY" and any(source in {".", "./"} for source in operands[:-1]):
+                    stages[-1]["whole_context_copy"] = True
+                for source in operands[:-1]:
+                    if _exempt_copy(op, source, operands[-1]):
+                        exempt_copies.append(
+                            (f"{from_stage}:{source}->{operands[-1]}", posixpath.normpath(operands[-1]))
+                        )
+        elif stages and op in {"CMD", "ENTRYPOINT"}:
+            stages[-1]["startup"] = True
+            startup_args = stages[-1]["startup_args"]
+            assert isinstance(startup_args, list)
+            startup_args.append(args)
+    for stage in stages:
+        copies = stage["copies"]
+        exempt_copies = stage["exempt_copies"]
+        startup_args = stage["startup_args"]
+        assert isinstance(copies, Counter) and isinstance(exempt_copies, list)
+        assert isinstance(startup_args, list)
+        startup_text = " ".join(startup_args)
+        for signature, destination in exempt_copies:
+            if not stage["whole_context_copy"] or destination in startup_text:
+                copies.update([signature])
+    return stages
+
+
+def _dockerfile_drift(original: str, remediated: str) -> DriftReport:
+    """Detect destructive structural rewrites without equating instruction text.
+
+    This is a bounded gate: it cannot prove Dockerfile semantic equivalence. It
+    blocks wholesale deletion of stages, copied application sources, the start
+    command, and a switch to an unrelated base image. Security edits to RUN,
+    USER, exposed ports, tags and digests remain possible.
+    """
+    before = list(_instructions(original))
+    after = list(_instructions(remediated))
+    report = DriftReport()
+    before_stages = _docker_stages(before)
+    after_stages = _docker_stages(after)
+    before_bases = [stage["base"] for stage in before_stages]
+    after_bases = [stage["base"] for stage in after_stages]
+    if before_bases != after_bases:
+        report.docker_drops.append(f"base stages changed: {before_bases} -> {after_bases}")
+    for index, prior in enumerate(before_stages):
+        current = after_stages[index] if index < len(after_stages) else {}
+        prior_copies = prior["copies"]
+        current_copies = current.get("copies", Counter())
+        assert isinstance(prior_copies, Counter) and isinstance(current_copies, Counter)
+        removed_sources = prior_copies - current_copies
+        if removed_sources:
+            report.docker_drops.append(
+                f"stage {index + 1} application copy sources removed: {', '.join(sorted(removed_sources))}"
+            )
+        if prior["startup"] and not current.get("startup", False):
+            report.docker_drops.append(f"stage {index + 1} startup command removed")
     return report
 
 

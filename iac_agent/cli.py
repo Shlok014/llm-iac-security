@@ -561,18 +561,12 @@ def _no_drift(reason: str) -> dict[str, Any]:
 
 
 def _drift_document(view: _LoopView, source: Path, iac_type: IaCType) -> dict[str, Any]:
-    """Report resource drift, recomputing it from the returned code when necessary.
+    """Report Terraform resource or Dockerfile structural drift.
 
     Drift separates "secured the bucket" from "deleted the bucket", so the CLI would rather
     derive it from the code it is about to write than omit it because the loop spelled the
     attribute differently."""
     from .validity import DriftReport, compute_drift, drift_touches_flaw
-
-    if iac_type is not IaCType.TERRAFORM:
-        # Not a gap: an image is one artifact, not a set of independently addressable objects,
-        # so there is no resource set to compare. Said explicitly so it is not read as "drift
-        # was checked and found none".
-        return _no_drift("not applicable: Dockerfiles have no addressable resources")
 
     report = view.drift()
     if not isinstance(report, DriftReport) and view.best_code:
@@ -585,12 +579,17 @@ def _drift_document(view: _LoopView, source: Path, iac_type: IaCType) -> dict[st
 
     baseline = view.baseline_scan
     flagged = {f.resource for f in baseline.failed} if baseline else set()
+    summary = report.summary()
+    if iac_type is IaCType.DOCKERFILE and not report.drifted:
+        summary = "no protected Dockerfile structure removed"
     return {
-        "available": True, "drifted": report.drifted, "summary": report.summary(),
+        "available": True, "drifted": report.drifted, "summary": summary,
         "deleted": [r.address for r in report.deleted],
         "added": [r.address for r in report.added],
         "renamed": [[b.address, a.address] for b, a in report.renamed],
         "type_count_drops": {k: list(v) for k, v in report.type_count_drops.items()},
+        "terraform_changes": list(report.terraform_changes),
+        "docker_drops": list(report.docker_drops),
         "touched_flawed": drift_touches_flaw(report, flagged) if flagged else [],
     }
 

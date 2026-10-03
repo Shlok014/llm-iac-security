@@ -474,9 +474,11 @@ Scored against the labels, on the **comment-stripped** variants.
 
 **Matching.** An LLM finding `d` matches a label `L` when both hold:
 
-1. **Resource match.** For Terraform, `normalise(d.resource)` equals `normalise(L.resource)`, where
-   `normalise` lowercases, strips quotes, strips a leading `resource ` keyword, and accepts either
-   `type.name` or `type "name"` spelling. For Dockerfiles there is no address space, so the rule is
+1. **Resource match.** For Terraform, fully named addresses must agree after normalization; a
+   module prefix may be omitted on one side, and a bare type or name is accepted as a weaker
+   spelling. Normalization lowercases, strips quotes and accepts `type.name` or `type "name"`.
+   A managed resource cannot match a data source at the same trailing address. For Dockerfiles
+   there is no address space, so the rule is
    weaker: the leading instruction keyword must match (`RUN` to `RUN`, `ENV` to `ENV`), or the label
    must use a whole-image pseudo-resource, in which case the resource check is skipped and the
    semantic check alone decides. Dockerfile matching is therefore materially less precise than
@@ -617,6 +619,22 @@ subset of them whose address was deleted or renamed. Note that this is scanner-r
 label-relative: it asks "which resources that had findings stopped existing", which is the right
 question, because the finding delta is also scanner-relative and this is the metric that audits it.
 
+**Current runtime gate, added after the stored evaluation:** the remediation loop rejects *any*
+direct Terraform resource or module-call deletion or rename, including objects without scanner
+findings, plus `count`/`for_each` or module-source changes that can alter deployed instances
+without changing an address. In-file variable defaults and locals feeding those instance
+controls are followed transitively. External variable values and provider behavior still require
+a real Terraform plan. It also rejects Dockerfile rewrites that remove a stage's copy
+source or startup command,
+change the resolved base image family, or drop a stage. A separately copied dotenv file or remote
+URL `ADD` into a temporary directory may be removed when a whole-context copy remains in the
+stage and the startup command does not name the exempt destination;
+other application copy sources, origins, and destinations are
+protected. A legitimate change to an application copy can still be rejected, so the user should
+review and apply that edit directly. The historical
+tables measure only Terraform resource drift; they do not prove the new Dockerfile gate's effect
+or semantic equivalence of accepted Dockerfiles.
+
 It returns a list rather than a boolean so `RESULTS.md` can name the specific casualties instead of
 reporting a count nobody can act on. Resource matching tolerates Checkov's
 `module.db.aws_db_instance.main` prefixing by also trying the trailing two segments.
@@ -629,9 +647,9 @@ and it means the corresponding contribution to the finding delta is fraudulent.
 > drift event individually rather than only counting them — a rate hides which resource was lost,
 > and that is the part a reader needs in order to judge whether the fix was real.
 >
-> The drift rate is quoted over **Terraform** outputs only. A Dockerfile has no addressable
-> resources and so can never drift; including Dockerfiles in the denominator would dilute the
-> rate with outputs structurally incapable of moving it.
+> The stored drift rate is quoted over **Terraform** outputs only. Those runs predate the
+> Dockerfile structural gate, so they cannot establish its detection rate. Current runs record
+> base-stage, application-copy and startup-command drops separately.
 
 **Honest limits of address-level drift.** This is a weaker instrument than a real `terraform plan`
 diff, and the gap is not small:
@@ -920,14 +938,15 @@ are not commensurable and are not presented as such.
 
    | Matcher | Recall | Strict precision |
    |---|---:|---:|
-   | Substring (what the published numbers use) | 40.7% (37/91) | 48.5% (33/68) |
-   | Token-subset, order-independent | **65.9%** (60/91) | **85.3%** (58/68) |
+   | Substring (published scorer) | 39.1% (21, 21, 19 of 52 labels) | 59.3% (20/34, 22/35, 18/32 findings) |
+   | Token-subset, order-independent | **57.1%** (30, 30, 29 of 52 labels) | **86.1%** (30/34, 30/35, 27/32 findings) |
 
-   Both rows score the **same cached model responses** — no new API calls, no new generations —
-   over 12 fixtures and 91 labels at `run_index=0`, stripped variant. Reproduce with:
+   Both rows score the **same saved findings**, with the same resource matcher, over the published
+   six stripped fixtures, 52 labels and three repeats. Percentages are means of per-repeat rates,
+   exactly as in the headline table; no new API calls or generations are involved. Reproduce with:
 
    ```bash
-   .venv/bin/python scripts/rescore_matcher.py
+   .venv/bin/python -m scripts.rescore_matcher
    ```
 
    The clearest single case: on `ec2_open.tf` the model wrote *"SSH access is open to the world
@@ -936,24 +955,18 @@ are not commensurable and are not presented as such.
    was scored as both a miss and a hallucination. That fixture has 2 labels, the model reported
    exactly 2 correct findings, and it scored 0% recall with 2 false positives.
 
-   **What this does and does not license.** It does *not* license restating the published figures.
-   Three reasons, all of which have to be cleared first:
+   **What this does and does not license.** The denominators now match, so the difference is a
+   direct sensitivity measure. It still does *not* license replacing the published table:
 
-   - **The denominators differ.** The re-score is 12 fixtures / 91 labels at one seed. The
-     published detection table is 6 fixtures / 52 labels averaged over three seeds, and the scanner
-     baselines it compares against (checkov 46.2%, trivy 40.4%, union 53.8%) are computed on that
-     smaller subset. Reading 65.9% against 46.2% crosses denominators and is not a valid comparison.
-   - **The replacement matcher is unvalidated.** Token-subset is strictly more permissive than
-     substring, so some of the gain is mechanical. Precision rising rather than falling is
-     evidence against pure over-matching, but no adjudication pass has been run on it.
-   - **[§5.2](#52-metric-2--detection-precision-and-recall) forbids it.** A vocabulary or matcher
-     amended after seeing its own misses must trigger a full rerun, "so that no result is ever
-     produced by a vocabulary that was tuned against it". The same rule binds a matcher revised
-     after seeing the misses *it* caused.
+   - **The replacement matcher is unvalidated.** Token-subset is more permissive than substring,
+     so some gain is mechanical. No independent adjudication of its extra matches has been done.
+   - **The rule was selected after inspecting misses.** [§5.2](#52-metric-2--detection-precision-and-recall)
+     requires a matcher fixed before evaluating new outputs. The same saved findings are useful
+     for sensitivity analysis, but not for a new headline score or a claim of model superiority.
 
    Until that re-run happens under a matcher frozen in advance, the honest status of "the LLM
-   detects worse than Checkov" is **unresolved**. The published numbers stand as measured, with
-   this threat attached, rather than being silently replaced by more flattering ones.
+   detects worse than Checkov" is **unresolved**. The published numbers retain the
+   alias-substring limitation; they are not replaced by the more flattering token-subset figures.
 
 **T9 — Adjudication is performed by the system's author.** `precision_adjudicated` requires a human
 to decide whether an unmatched finding is a real unlabelled flaw or a hallucination, and that human

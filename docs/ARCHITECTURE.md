@@ -382,8 +382,7 @@ sequenceDiagram
         else ValidityResult.ok is True
             Loop->>Val: compute_drift(original, candidate, iac_type)
             Val-->>Loop: DriftReport
-            Loop->>Val: drift_touches_flaw(drift, flagged_resources)
-            Val-->>Loop: resources fixed by deletion, ideally empty
+            Loop->>Loop: reject Terraform deletions/renames or Dockerfile structure drops
             Loop->>Scan: scan(workdir / iac_type.output_name)
             Scan->>Tools: subprocess under the correct ruleset
             Tools-->>Scan: findings JSON
@@ -455,7 +454,7 @@ files failed to converge, not just how many did.
 | `iac_agent/types.py` | Shared vocabulary: file-type routing, the normalised finding shape, the error hierarchy. | `IaCType` (`.checkov_framework`, `.output_name`, `.fence_tags`), `detect_iac_type()`, `Finding` (`.key()`), `ScanResult` (`.failed_count`, `.parsed_cleanly`, `.keys()`), `IaCAgentError`, `ScannerError`, `LLMError`, `UnsupportedFileError` | Import anything else in the package; perform I/O; guess a type for an unrecognised filename instead of raising. | **[frozen]** |
 | `iac_agent/parsing.py` | Recover structure from model prose: fence stripping and multi-stage JSON extraction. | `strip_code_fences(text, tags)`, `extract_json(text)`, `normalise_findings(parsed)` | Return a sentinel on failure. `extract_json` raises `ValueError`, so a caller cannot mistake failure for an empty finding list. | **[frozen]** |
 | `iac_agent/scanners.py` | Run external scanners, normalise their JSON, and fail closed on everything else. | `Scanner` protocol, `CheckovScanner`, `TrivyScanner`, `get_scanner(name)`, `SCANNERS`, `scanner_path(name)` (is this binary installed? — asked before a run, never raises) | Return a `ScanResult` for a run that did not produce trustworthy output; invoke Checkov as `python -m checkov`; know that an LLM exists. | **[frozen]** |
-| `iac_agent/validity.py` | Two gates that run after the model rewrites a file, before anyone believes the score: does it still parse, and is it still the same infrastructure. | `ValidityError`, `ValidityResult(ok, reason, detail)`, `check_validity()` (hcl2 parse for Terraform, structural `FROM` check for Dockerfiles), `ResourceAddr(type, name)`, `extract_resources()`, `compute_drift(original, remediated, iac_type) -> DriftReport(deleted, added, renamed, type_count_drops)` with derived `.drifted` and `.summary()`, `drift_touches_flaw(drift, flagged_resources) -> list[str]` | Call a scanner or a model; return an empty resource list when the parse failed (it raises `ValidityError` instead, because "we could not tell" is not "the model deleted everything"); treat an empty or fenced file as valid. | **[frozen]** |
+| `iac_agent/validity.py` | Two gates that run after the model rewrites a file, before anyone believes the score: does it still parse, and is protected structure retained. | `ValidityError`, `ValidityResult(ok, reason, detail)`, `check_validity()` (hcl2 parse for Terraform, known instruction and argument checks for Dockerfiles), `ResourceAddr(type, name)`, `extract_resources()`, `compute_drift(original, remediated, iac_type) -> DriftReport(deleted, added, renamed, type_count_drops, docker_drops)` with derived `.drifted` and `.summary()`, `drift_touches_flaw(drift, flagged_resources) -> list[str]` | Call a scanner or a model; return an empty resource list when the Terraform parse failed (it raises `ValidityError` instead); treat an empty or fenced file as valid. | **[frozen]** |
 | `iac_agent/llm.py` | The only module that talks to a model. Prompts, structured output, token accounting, honest failure. | `PROMPT_VERSION`, `ModelConfig(...).fingerprint()`, `TokenUsage`, `LLMResponse`, `CompleteFn` protocol, `LLMClient(cfg, complete_fn)` with `.usage` / `.is_injected`, `detect_vulnerabilities()`, `generate_fix(..., scanner_failures=)`, `distill_failures()` (module-level), `DETECT_RESPONSE_FORMAT` | Hard-code a network call with no injection point; return an error string instead of raising `LLMError`; float the model alias; write a `finish_reason == "length"` response to disk; truncate an oversized input; construct an OpenAI client at import time. | **[frozen]** |
 | `iac_agent/loop.py` | Orchestration and every policy decision: gate order, convergence, budget, best-so-far. | `run_loop()` (incl. `on_step` progress reporting), `StopReason` (`CONVERGED`, `MAX_ITERS`, `NO_PROGRESS`, `TOKEN_BUDGET`), `finding_key(finding, iac_type)` (the identity `resolved`/`introduced` are sets of, exported so a caller can join against them rather than recompute the normalisation) | Catch `ScannerError` and continue with an empty finding list; let a rescan failure make a candidate eligible to become `best`; scan a candidate that failed the validity gate; return the last attempt instead of the best. | **[implemented]** |
 | `iac_agent/cli.py` | Argument parsing, file routing, exit codes, human-readable output. | `iac-agent scan`, `iac-agent fix` | Collapse a `ScannerError` into the same exit code as "findings found"; require an API key for `scan`. | **[spec]** |
@@ -566,10 +565,11 @@ tried as well).
 
 Two more properties of the design:
 
-**Dockerfiles return `[]` by design, not by accident.** An image is one artifact, not a set of
-independently-named objects, so there is no address to track and Dockerfile drift is always
-empty. If that ever needs a metric it will need a different unit of identity — instructions or
-layers — and this one should not be quietly stretched to cover it.
+**Dockerfiles return `[]` from resource extraction by design.** An image is one artifact, not a set of
+independently-named objects, so there is no resource address to track. The current runtime
+uses a separate structural gate for base image families, per-stage copy sources and startup
+command presence. The stored evaluation predates that gate; it measures Terraform resource
+drift only. Neither gate proves semantic equivalence.
 
 **Prevention and measurement are separate, and both are required.** Anti-drift is *prevented*
 in the fix prompt (`_PRESERVATION_RULES` in `llm.py`: never delete, never rename, additions are
@@ -716,7 +716,7 @@ and the output filename. Adding, say, Kubernetes YAML touches:
 | --- | --- |
 | `types.py` | New `IaCType` member; extend `checkov_framework`, `output_name`, and `fence_tags`; teach `detect_iac_type()` the filename pattern (and accept that YAML routing is genuinely ambiguous — `.yaml` alone is not enough). |
 | `scanners.py` | Usually nothing: Checkov takes `--framework` from the enum, and Trivy infers from filename. Verify the new framework name against `checkov --list`. |
-| `validity.py` | A `_check_*` branch in `check_validity()` for the new syntax, plus a unit of identity for `extract_resources()` so `compute_drift()` keeps working. Both currently branch on `IaCType.TERRAFORM` and fall through to the Dockerfile path, so a new member silently inherits the `FROM` check and an empty resource list — the validity gate degrades to "accept anything" and drift to "never drifts". This is the trap in the whole exercise. |
+| `validity.py` | A `_check_*` branch in `check_validity()` for the new syntax, plus an identity or structural unit for `compute_drift()`. The current code handles Terraform and Dockerfile explicitly; a new member would otherwise fall into the Dockerfile branch and require tests to expose that routing error. |
 | `llm.py` | A `_DIALECT` entry (the dict is keyed by `IaCType`, so a missing member is a `KeyError` at prompt-build time — a loud failure, deliberately), any dialect-specific preservation rules, and a `PROMPT_VERSION` bump so old and new metrics are not silently compared. |
 | `eval/labels/` | Ground-truth label files for the new fixtures; a type with no labels cannot be evaluated, only demoed. |
 

@@ -64,11 +64,7 @@ def test_extracts_every_resource_from_the_richest_fixture() -> None:
 
 
 def test_dockerfiles_have_no_addressable_resources() -> None:
-    """Not an oversight: a Dockerfile has no addresses, so it can never drift.
-
-    Returning [] rather than raising is what lets drift_rate be quoted over Terraform
-    outputs only, instead of being diluted by files structurally incapable of drifting.
-    """
+    """Dockerfiles have no resource addresses; their structural gate is separate."""
     assert extract_resources(SAMPLES / "vulnerable.Dockerfile") == []
 
 
@@ -117,6 +113,157 @@ def test_dockerfile_with_leading_arg_is_accepted() -> None:
     assert check_validity("ARG TAG=3.12\nFROM python:${TAG}\nUSER app\n", IaCType.DOCKERFILE).ok
 
 
+def test_dockerfile_unknown_instruction_is_not_a_valid_remediation() -> None:
+    result = check_validity("FROM python:3.12\nNOT_A_DOCKER_INSTRUCTION remove-app\n", IaCType.DOCKERFILE)
+    assert not result.ok
+    assert result.reason == "unknown_instruction"
+
+
+def test_dockerfile_required_instruction_argument_cannot_be_empty() -> None:
+    result = check_validity("FROM python:3.12\nCOPY\n", IaCType.DOCKERFILE)
+    assert not result.ok
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "FROM --platform=linux/amd64\n",
+        "FROM --platform=linux/amd64 AS final\n",
+        "FROM python:3.12\nCOPY source\n",
+    ],
+)
+def test_dockerfile_requires_image_and_copy_destination(text: str) -> None:
+    assert not check_validity(text, IaCType.DOCKERFILE).ok
+
+
+def test_dockerfile_allows_tabs_between_instruction_and_arguments() -> None:
+    assert check_validity("FROM\tpython:3.12\nCOPY\t. /app\n", IaCType.DOCKERFILE).ok
+
+
+def test_dockerfile_accepts_json_copy_and_run_heredoc() -> None:
+    source = 'FROM python:3.12\nCOPY ["app.py","/app/app.py"]\nRUN <<EOF\necho hello\nEOF\nCMD ["python", "app.py"]\n'
+    assert check_validity(source, IaCType.DOCKERFILE).ok
+
+
+def test_dockerfile_gate_tracks_each_copy_source_and_stage_startup() -> None:
+    original = (
+        'FROM python:3.12 AS build\nCOPY requirements.txt /app/\n'
+        'COPY . /app\nCMD ["echo", "build"]\n'
+        'FROM python:3.12\nCOPY --from=build /app /app\nCMD ["python", "app.py"]\n'
+    )
+    removed_copy = original.replace('COPY . /app\n', '')
+    removed_final_cmd = original.rsplit('CMD ["python", "app.py"]\n', 1)[0]
+    assert compute_drift(original, removed_copy, IaCType.DOCKERFILE).drifted
+    assert compute_drift(original, removed_final_cmd, IaCType.DOCKERFILE).drifted
+
+
+def test_dockerfile_gate_allows_removal_of_explicit_secret_copy_and_remote_add() -> None:
+    original = (SAMPLES / "vulnerable.Dockerfile").read_text()
+    candidate = original.replace('COPY ./secrets.env /app/secrets.env\n', '').replace(
+        'ADD https://example.com/tools/toolkit.tar.gz /tmp/remote-tool/\n', ''
+    )
+    assert check_validity(candidate, IaCType.DOCKERFILE).ok
+    assert not compute_drift(original, candidate, IaCType.DOCKERFILE).drifted
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        'ADD https://example.com/app.tar.gz /app/\n',
+        'COPY app.env /app/server\n',
+        'ADD https://example.com/toolkit.tar.gz /tmp/toolkit/\n',
+    ],
+)
+def test_dockerfile_gate_keeps_the_only_payload_even_if_it_looks_unsafe(source: str) -> None:
+    original = 'FROM alpine:3.20\n' + source + 'CMD ["/app/server"]\n'
+    candidate = 'FROM alpine:3.20\nCMD ["/app/server"]\n'
+    assert compute_drift(original, candidate, IaCType.DOCKERFILE).drifted
+
+
+def test_dockerfile_gate_does_not_exempt_remote_application_archive() -> None:
+    original = (
+        'FROM alpine:3.20\nCOPY requirements.txt /app/\n'
+        'ADD https://example.com/app.tar.gz /app/\nCMD ["/app/server"]\n'
+    )
+    candidate = original.replace('ADD https://example.com/app.tar.gz /app/\n', '')
+    assert compute_drift(original, candidate, IaCType.DOCKERFILE).drifted
+
+
+def test_dockerfile_gate_does_not_treat_a_readme_copy_as_application_evidence() -> None:
+    original = (
+        'FROM alpine:3.20\nCOPY README.md /docs/README.md\n'
+        'ADD https://example.com/app /tmp/app\nCMD ["/tmp/app"]\n'
+    )
+    candidate = original.replace('ADD https://example.com/app /tmp/app\n', '')
+    assert compute_drift(original, candidate, IaCType.DOCKERFILE).drifted
+
+
+def test_dockerfile_gate_normalizes_temporary_destination() -> None:
+    original = (
+        'FROM alpine:3.20\nCOPY . /app\n'
+        'ADD https://example.com/app /tmp/../app/server\nCMD ["/app/server"]\n'
+    )
+    candidate = original.replace('ADD https://example.com/app /tmp/../app/server\n', '')
+    assert compute_drift(original, candidate, IaCType.DOCKERFILE).drifted
+
+
+def test_dockerfile_gate_keeps_temporary_archive_used_by_startup() -> None:
+    original = (
+        'FROM alpine:3.20\nCOPY . /app\n'
+        'ADD https://example.com/app /tmp/app\nCMD ["/tmp/app"]\n'
+    )
+    candidate = original.replace('ADD https://example.com/app /tmp/app\n', '')
+    assert compute_drift(original, candidate, IaCType.DOCKERFILE).drifted
+
+
+@pytest.mark.parametrize("destination", ["/tmp/", "/var/tmp/"])
+def test_dockerfile_gate_allows_removing_remote_add_to_temp_root(destination: str) -> None:
+    original = (
+        'FROM alpine:3.20\nCOPY . /app\n'
+        f'ADD https://example.com/unsafe.sh {destination}\nCMD ["/app/server"]\n'
+    )
+    candidate = original.replace(f'ADD https://example.com/unsafe.sh {destination}\n', '')
+    assert not compute_drift(original, candidate, IaCType.DOCKERFILE).drifted
+
+
+def test_dockerfile_gate_protects_copy_origin_and_destination() -> None:
+    original = 'FROM python:3.12 AS build\nCOPY . /app\nFROM python:3.12\nCOPY --from=build /app /app\n'
+    assert compute_drift(
+        original, original.replace('--from=build', '--from=external'), IaCType.DOCKERFILE
+    ).drifted
+    assert compute_drift(original, original.replace('COPY . /app', 'COPY . /tmp'), IaCType.DOCKERFILE).drifted
+
+
+def test_dockerfile_gate_resolves_global_arg_in_base_image() -> None:
+    original = 'ARG BASE=python:3.12\nFROM ${BASE}\nCOPY . /app\n'
+    candidate = original.replace('BASE=python:3.12', 'BASE=scratch')
+    assert compute_drift(original, candidate, IaCType.DOCKERFILE).drifted
+
+
+@pytest.mark.parametrize(
+    "candidate",
+    [
+        "FROM scratch\nCOPY . /app\nCMD [\"python\", \"app.py\"]\n",
+        "FROM python:3.13\nCMD [\"python\", \"app.py\"]\n",
+        "FROM python:3.13\nCOPY . /app\n",
+    ],
+)
+def test_dockerfile_structure_drops_are_detected(candidate: str) -> None:
+    from eval.serialise import drift_to_dict
+
+    original = "FROM python:3.12\nCOPY . /app\nCMD [\"python\", \"app.py\"]\n"
+    drift = compute_drift(original, candidate, IaCType.DOCKERFILE)
+    assert drift.drifted
+    assert drift.docker_drops
+    assert drift_to_dict(drift)["docker_drops"] == drift.docker_drops
+
+
+def test_dockerfile_security_changes_can_keep_its_application_structure() -> None:
+    original = "FROM python:3.12\nCOPY . /app\nUSER root\nCMD [\"python\", \"app.py\"]\n"
+    fixed = "FROM python:3.13\nCOPY --chown=app . /app\nUSER app\nCMD [\"python\", \"app.py\"]\n"
+    assert not compute_drift(original, fixed, IaCType.DOCKERFILE).drifted
+
+
 # --------------------------------------------------------------------------------------
 # drift — the positive cases matter most
 # --------------------------------------------------------------------------------------
@@ -125,6 +272,103 @@ def test_dockerfile_with_leading_arg_is_accepted() -> None:
 def test_identical_input_does_not_drift() -> None:
     original = (SAMPLES / "vulnerable_main.tf").read_text()
     assert not compute_drift(original, original, IaCType.TERRAFORM).drifted
+
+
+def test_removing_module_invocation_is_destructive_drift() -> None:
+    original = (
+        'module "database" { source = "./modules/database" }\n'
+        'resource "aws_s3_bucket" "site" { bucket = "site" }\n'
+    )
+    candidate = 'resource "aws_s3_bucket" "site" { bucket = "site" }\n'
+    assert check_validity(original, IaCType.TERRAFORM).ok
+    assert check_validity(candidate, IaCType.TERRAFORM).ok
+    drift = compute_drift(original, candidate, IaCType.TERRAFORM)
+    assert drift.drifted
+    assert "module.database" in [r.address for r in drift.deleted]
+
+
+@pytest.mark.parametrize(
+    ("original", "candidate", "expected"),
+    [
+        (
+            'resource "aws_instance" "web" { count = 1 ami = "ami-example" }\n',
+            'resource "aws_instance" "web" { count = 0 ami = "ami-example" }\n',
+            "aws_instance.web count",
+        ),
+        (
+            'resource "aws_instance" "web" { for_each = { primary = true } ami = "ami-example" }\n',
+            'resource "aws_instance" "web" { for_each = {} ami = "ami-example" }\n',
+            "aws_instance.web for_each",
+        ),
+        (
+            'module "database" { source = "./modules/database" }\n',
+            'module "database" { source = "./modules/empty" }\n',
+            "module.database source",
+        ),
+        (
+            'module "database" { source = "./modules/database" count = 1 }\n',
+            'module "database" { source = "./modules/database" count = 0 }\n',
+            "module.database count",
+        ),
+    ],
+)
+def test_terraform_instance_controls_and_module_source_are_protected(
+    original: str, candidate: str, expected: str
+) -> None:
+    assert check_validity(original, IaCType.TERRAFORM).ok
+    assert check_validity(candidate, IaCType.TERRAFORM).ok
+    drift = compute_drift(original, candidate, IaCType.TERRAFORM)
+    assert drift.drifted
+    assert any(expected in change for change in drift.terraform_changes)
+    from eval.serialise import drift_to_dict
+
+    assert drift_to_dict(drift)["terraform_changes"] == drift.terraform_changes
+
+
+@pytest.mark.parametrize(
+    ("definition", "changed", "control", "expected"),
+    [
+        (
+            'variable "replicas" { default = 1 }\n',
+            'variable "replicas" { default = 0 }\n',
+            'count = var.replicas',
+            'var.replicas',
+        ),
+        (
+            'variable "replicas" { default = 1 }\nlocals { desired = var.replicas }\n',
+            'variable "replicas" { default = 0 }\nlocals { desired = var.replicas }\n',
+            'count = local.desired',
+            'var.replicas',
+        ),
+        (
+            'locals { chosen = { primary = true } }\n',
+            'locals { chosen = {} }\n',
+            'for_each = local.chosen',
+            'local.chosen',
+        ),
+    ],
+)
+def test_terraform_instance_control_dependencies_cannot_change_unnoticed(
+    definition: str, changed: str, control: str, expected: str
+) -> None:
+    resource = f'resource "aws_instance" "web" {{ {control} ami = "ami-example" }}\n'
+    original = definition + resource
+    candidate = changed + resource
+    assert check_validity(original, IaCType.TERRAFORM).ok
+    assert check_validity(candidate, IaCType.TERRAFORM).ok
+    drift = compute_drift(original, candidate, IaCType.TERRAFORM)
+    assert drift.drifted
+    assert any(expected in change for change in drift.terraform_changes)
+
+
+def test_unrelated_terraform_variable_can_change_without_identity_drift() -> None:
+    original = (
+        'variable "replicas" { default = 1 }\n'
+        'variable "description" { default = "old" }\n'
+        'resource "aws_instance" "web" { count = var.replicas ami = "ami-example" }\n'
+    )
+    candidate = original.replace('default = "old"', 'default = "new"')
+    assert not compute_drift(original, candidate, IaCType.TERRAFORM).drifted
 
 
 def test_deletion_is_detected() -> None:

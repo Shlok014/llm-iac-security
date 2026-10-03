@@ -68,6 +68,11 @@ def render_results_md(report: Mapping[str, Any]) -> str:
         "claim that one configuration beats another; the range answers only *how much "
         "does this number move when nothing changes?*\n"
     )
+    md.append(
+        "The run timestamp below dates the saved model outputs. Detection scores are "
+        "recomputed by the current matcher when this report is generated; a scorer "
+        "correction can change them without a new model call.\n"
+    )
 
     md.append("## Run configuration\n")
     md.append(_md_table(["parameter", "value"], [
@@ -336,12 +341,11 @@ def render_results_md(report: Mapping[str, Any]) -> str:
             ],
         ))
         md.append(
-            "\nThe drift rate is quoted over **Terraform** outputs: a Dockerfile has no "
-            "addressable resources, so it can never drift, and including Dockerfiles in "
-            "the denominator would dilute the rate with outputs structurally incapable of "
-            "moving it. Renames count as drift — Terraform keys state on the address, so a "
-            "rename destroys and recreates on the next apply. Additions never do, because "
-            "fixing a public bucket correctly *requires* adding resources.\n"
+            "\nThe quoted rate uses **Terraform** outputs. These stored runs predate the "
+            "Dockerfile structural gate and contain no Dockerfile drift measurements; new "
+            "runs record removed application structure separately. Terraform renames count "
+            "as drift because state keys on the address. Additions alone do not: fixing "
+            "a public bucket correctly can require adding resources.\n"
         )
         for variant, d in drift:
             events = d.get("events") or []
