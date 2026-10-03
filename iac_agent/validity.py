@@ -406,6 +406,61 @@ def _terraform_instance_controls(text: str) -> dict[str, dict[str, tuple[bool, o
     return controls
 
 
+_TERRAFORM_INPUT_REF = re.compile(r"(?<![\w.])(?:var|local)\.[A-Za-z_][A-Za-z0-9_]*")
+
+
+def _terraform_refs(value: object) -> set[str]:
+    """Find local input references in a parsed HCL expression or collection."""
+    if isinstance(value, str):
+        return set(_TERRAFORM_INPUT_REF.findall(value))
+    if isinstance(value, dict):
+        return set().union(*(_terraform_refs(item) for item in value.values()))
+    if isinstance(value, (list, tuple)):
+        return set().union(*(_terraform_refs(item) for item in value))
+    return set()
+
+
+def _terraform_definitions(text: str) -> dict[str, object]:
+    """Read in-file values feeding resource and module instance controls."""
+    try:
+        doc = _load_hcl(text)
+    except Exception as exc:
+        raise ValidityError(f"could not parse HCL: {type(exc).__name__}: {exc}") from exc
+    definitions: dict[str, object] = {}
+    for block in doc.get("variable", []) or []:
+        if not isinstance(block, dict):
+            continue
+        for name, body in block.items():
+            if not name.startswith("__") and isinstance(body, dict):
+                definitions[f"var.{name}"] = ("default" in body, body.get("default"))
+    for block in doc.get("locals", []) or []:
+        if not isinstance(block, dict):
+            continue
+        for name, value in block.items():
+            if not name.startswith("__"):
+                definitions[f"local.{name}"] = value
+    return definitions
+
+
+def _changed_control_inputs(
+    expression: object, before: dict[str, object], after: dict[str, object]
+) -> list[str]:
+    """Follow in-file var/local references, including references through locals."""
+    pending = list(_terraform_refs(expression))
+    visited: set[str] = set()
+    changed: list[str] = []
+    while pending:
+        ref = pending.pop()
+        if ref in visited:
+            continue
+        visited.add(ref)
+        old_value = before.get(ref)
+        if (ref in before, old_value) != (ref in after, after.get(ref)):
+            changed.append(ref)
+        pending.extend(_terraform_refs(old_value) - visited)
+    return sorted(changed)
+
+
 @dataclass
 class DriftReport:
     """What changed about Terraform resources or critical Dockerfile structure.
@@ -482,12 +537,21 @@ def compute_drift(
         deleted=[r for r in before if r.address not in after_addrs],
         added=[r for r in after if r.address not in before_addrs],
     )
-    before_controls = _terraform_instance_controls(_read_source(original))
-    after_controls = _terraform_instance_controls(_read_source(remediated))
+    original_text = _read_source(original)
+    remediated_text = _read_source(remediated)
+    before_controls = _terraform_instance_controls(original_text)
+    after_controls = _terraform_instance_controls(remediated_text)
+    before_definitions = _terraform_definitions(original_text)
+    after_definitions = _terraform_definitions(remediated_text)
     for addr in sorted(before_controls.keys() & after_controls.keys()):
         for key, prior in before_controls[addr].items():
             if prior != after_controls[addr][key]:
                 report.terraform_changes.append(f"{addr} {key} changed")
+            elif key in ("count", "for_each") and prior[0]:
+                for ref in _changed_control_inputs(
+                    prior[1], before_definitions, after_definitions
+                ):
+                    report.terraform_changes.append(f"{addr} {key} input {ref} changed")
 
     before_by_type = _by_type(before)
     after_by_type = _by_type(after)

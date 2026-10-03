@@ -325,6 +325,52 @@ def test_terraform_instance_controls_and_module_source_are_protected(
     assert drift_to_dict(drift)["terraform_changes"] == drift.terraform_changes
 
 
+@pytest.mark.parametrize(
+    ("definition", "changed", "control", "expected"),
+    [
+        (
+            'variable "replicas" { default = 1 }\n',
+            'variable "replicas" { default = 0 }\n',
+            'count = var.replicas',
+            'var.replicas',
+        ),
+        (
+            'variable "replicas" { default = 1 }\nlocals { desired = var.replicas }\n',
+            'variable "replicas" { default = 0 }\nlocals { desired = var.replicas }\n',
+            'count = local.desired',
+            'var.replicas',
+        ),
+        (
+            'locals { chosen = { primary = true } }\n',
+            'locals { chosen = {} }\n',
+            'for_each = local.chosen',
+            'local.chosen',
+        ),
+    ],
+)
+def test_terraform_instance_control_dependencies_cannot_change_unnoticed(
+    definition: str, changed: str, control: str, expected: str
+) -> None:
+    resource = f'resource "aws_instance" "web" {{ {control} ami = "ami-example" }}\n'
+    original = definition + resource
+    candidate = changed + resource
+    assert check_validity(original, IaCType.TERRAFORM).ok
+    assert check_validity(candidate, IaCType.TERRAFORM).ok
+    drift = compute_drift(original, candidate, IaCType.TERRAFORM)
+    assert drift.drifted
+    assert any(expected in change for change in drift.terraform_changes)
+
+
+def test_unrelated_terraform_variable_can_change_without_identity_drift() -> None:
+    original = (
+        'variable "replicas" { default = 1 }\n'
+        'variable "description" { default = "old" }\n'
+        'resource "aws_instance" "web" { count = var.replicas ami = "ami-example" }\n'
+    )
+    candidate = original.replace('default = "old"', 'default = "new"')
+    assert not compute_drift(original, candidate, IaCType.TERRAFORM).drifted
+
+
 def test_deletion_is_detected() -> None:
     drift = compute_drift(TWO_BUCKETS, ONE_BUCKET, IaCType.TERRAFORM)
     assert drift.drifted

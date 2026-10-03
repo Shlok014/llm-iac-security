@@ -243,6 +243,24 @@ def test_terraform_count_zero_is_rejected_before_scanning() -> None:
     assert "aws_s3_bucket.example count" in result.iterations[0].rejected_because
 
 
+def test_terraform_count_input_change_is_rejected_before_scanning(tmp_path: Path) -> None:
+    original = 'variable "replicas" { default = 1 }\n' + (SAMPLES / "s3_public.tf").read_text()
+    original = original.replace('  bucket =', '  count = var.replicas\n  bucket =')
+    target = tmp_path / "service.tf"
+    target.write_text(original)
+    candidate = original.replace('default = 1', 'default = 0')
+    result = run_loop(
+        target,
+        scanner="checkov",
+        client=LLMClient(complete_fn=scripted(DETECT, candidate)),
+        cfg=ModelConfig(),
+        max_iters=1,
+        token_budget=None,
+    )
+    assert result.iterations[0].scan is None
+    assert "var.replicas" in result.iterations[0].rejected_because
+
+
 # --------------------------------------------------------------------------------------
 # invariants
 # --------------------------------------------------------------------------------------

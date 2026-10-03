@@ -664,7 +664,8 @@ What the diagram does not show:
    saving: there is no way to damage a good file if we never rewrite it.
 4. **The drift gate is an up-front rejection, not a tiebreak.** The current loop rejects
    deletion or rename of every directly declared Terraform resource or module call,
-   including unflagged objects, and changes to `count`, `for_each`, or module `source`. The
+   including unflagged objects, and changes to `count`, `for_each`, module `source`, or
+   in-file variable defaults and locals used by instance controls. The
    `drift_touches_flaw` subset remains a historical evaluation metric, not the acceptance
    rule. Dockerfile rewrites are rejected if they drop protected application structure.
    If the *original* Terraform file does not parse the gate is disabled and

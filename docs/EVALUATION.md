@@ -620,7 +620,9 @@ question, because the finding delta is also scanner-relative and this is the met
 **Current runtime gate, added after the stored evaluation:** the remediation loop rejects *any*
 direct Terraform resource or module-call deletion or rename, including objects without scanner
 findings, plus `count`/`for_each` or module-source changes that can alter deployed instances
-without changing an address. It also rejects Dockerfile rewrites that remove a stage's copy
+without changing an address. In-file variable defaults and locals feeding those instance
+controls are followed transitively. External variable values and provider behavior still require
+a real Terraform plan. It also rejects Dockerfile rewrites that remove a stage's copy
 source or startup command,
 change the resolved base image family, or drop a stage. A separately copied dotenv file or remote
 URL `ADD` into a temporary directory may be removed when a whole-context copy remains in the

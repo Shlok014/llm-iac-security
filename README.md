@@ -38,7 +38,8 @@ verified outcome.
 | **Fails closed** | Scanner crashes, timeouts, and empty reports surface as errors. Only a completed scan may report a file as clean. |
 
 The runtime drift gate rejects deletion or renaming of directly declared Terraform resources
-and module calls, and changes to resource or module `count`/`for_each` or a module's `source`,
+and module calls, changes to resource or module `count`/`for_each` or a module's `source`,
+and changes to in-file variable defaults or locals referenced by instance controls,
 even if a scanner did not flag them. For Dockerfiles it compares base image
 families, per-stage application copies, and startup presence. These checks are bounded
 structural evidence, not a Terraform plan or Docker build.
