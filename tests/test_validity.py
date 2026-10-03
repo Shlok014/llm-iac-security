@@ -166,6 +166,29 @@ def test_dockerfile_gate_allows_removal_of_explicit_secret_copy_and_remote_add()
     assert not compute_drift(original, candidate, IaCType.DOCKERFILE).drifted
 
 
+@pytest.mark.parametrize(
+    "source",
+    [
+        'ADD https://example.com/app.tar.gz /app/\n',
+        'COPY app.env /app/server\n',
+        'ADD https://example.com/toolkit.tar.gz /tmp/toolkit/\n',
+    ],
+)
+def test_dockerfile_gate_keeps_the_only_payload_even_if_it_looks_unsafe(source: str) -> None:
+    original = 'FROM alpine:3.20\n' + source + 'CMD ["/app/server"]\n'
+    candidate = 'FROM alpine:3.20\nCMD ["/app/server"]\n'
+    assert compute_drift(original, candidate, IaCType.DOCKERFILE).drifted
+
+
+def test_dockerfile_gate_does_not_exempt_remote_application_archive() -> None:
+    original = (
+        'FROM alpine:3.20\nCOPY requirements.txt /app/\n'
+        'ADD https://example.com/app.tar.gz /app/\nCMD ["/app/server"]\n'
+    )
+    candidate = original.replace('ADD https://example.com/app.tar.gz /app/\n', '')
+    assert compute_drift(original, candidate, IaCType.DOCKERFILE).drifted
+
+
 def test_dockerfile_gate_protects_copy_origin_and_destination() -> None:
     original = 'FROM python:3.12 AS build\nCOPY . /app\nFROM python:3.12\nCOPY --from=build /app /app\n'
     assert compute_drift(

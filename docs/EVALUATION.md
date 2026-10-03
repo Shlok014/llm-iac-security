@@ -620,8 +620,9 @@ question, because the finding delta is also scanner-relative and this is the met
 **Current runtime gate, added after the stored evaluation:** the remediation loop rejects *any*
 direct Terraform resource or module-call deletion or rename, including objects without scanner
 findings. It also rejects Dockerfile rewrites that remove a stage's copy source or startup command,
-change the resolved base image family, or drop a stage. An explicit dotenv-file `COPY` or remote
-URL `ADD` may be removed; other application copy sources, origins, and destinations are
+change the resolved base image family, or drop a stage. A separately copied dotenv file or remote
+URL `ADD` into a temporary directory may be removed when another copy remains in the stage;
+other application copy sources, origins, and destinations are
 protected. A legitimate change to an application copy can still be rejected, so the user should
 review and apply that edit directly. The historical
 tables measure only Terraform resource drift; they do not prove the new Dockerfile gate's effect

@@ -31,7 +31,7 @@ metric a remediation tool normally reports.
 | | |
 |---|---|
 | **Detects** | Checkov and Trivy scan Terraform and Dockerfiles for the baseline. An LLM detection pass runs alongside — and is measured against them, not trusted over them. |
-| **Remediates** | The model rewrites the file. Every candidate must survive a **parse gate** and a **drift gate** before it is allowed near a scanner. Deletions and renames of directly declared Terraform resources or module calls are rejected even when the scanner did not flag them; Dockerfile rewrites must keep each stage's base image family, application copy signatures, and startup presence. Explicit dotenv copies and remote `ADD` sources may be removed. This is a bounded structural check, not a build or plan. |
+| **Remediates** | The model rewrites the file. Every candidate must survive a **parse gate** and a **drift gate** before it is allowed near a scanner. Deletions and renames of directly declared Terraform resources or module calls are rejected even when the scanner did not flag them; Dockerfile rewrites must keep each stage's base image family, application copy signatures, and startup presence. Separately copied dotenv files and remote `ADD`s into a temporary directory may be removed when another copy remains in that stage. This is a bounded structural check, not a build or plan. |
 | **Verifies** | Only a surviving candidate is written to disk and rescanned. The loop returns the **best candidate it saw**, never the last one — and the original file if nothing beat it. |
 | **Refuses to guess** | A scanner that crashes, times out or emits an empty report raises an error. An absent analysis is never rendered as a clean pass. |
 

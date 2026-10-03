@@ -16,8 +16,9 @@ drop in findings as the result. That measures the wrong thing twice over:
 Zero new dependencies. HCL parsing uses `hcl2` (the `bc-python-hcl2` distribution), which
 is already installed as a Checkov dependency. Dockerfiles get bounded structural checks:
 known instructions with arguments, followed by a comparison of resolved base stages, per-stage
-application copy signatures and startup command presence. Explicit dotenv copies and remote
-ADD sources are exempt so those hazards can be removed. This is not a full Docker build validation.
+application copy signatures and startup command presence. Narrow exceptions allow removal of
+separately copied dotenv files and remote ADDs into temporary directories when another copy
+remains in the stage. This is not a full Docker build validation.
 """
 
 from __future__ import annotations
@@ -219,10 +220,10 @@ def _copy_operands(args: str) -> tuple[list[str], str]:
 def _protected_copies(op: str, args: str) -> list[str]:
     """Identify the copies whose disappearance would remove likely application content.
 
-    A remote ADD fetch and a separately copied dotenv file are explicit security hazards,
-    not application copies. Exempting them lets the model remove those instructions. Other
-    sources remain protected; the gate intentionally prefers a false rejection to scoring a
-    deleted application as repaired.
+    A remote ADD into a temporary directory and a separately copied dotenv file are
+    explicit security hazards. Their removal can be considered only when the stage also
+    retains another application copy. Other sources remain protected; the gate prefers a
+    false rejection to scoring a deleted application as repaired.
     """
     operands, from_stage = _copy_operands(args)
     if len(operands) < 2:
@@ -230,13 +231,22 @@ def _protected_copies(op: str, args: str) -> list[str]:
     destination = operands[-1]
     protected = []
     for source in operands[:-1]:
-        basename = source.rsplit("/", 1)[-1].lower()
-        if (op == "ADD" and source.startswith(("https://", "http://"))) or (
-            basename == ".env" or basename.endswith(".env")
-        ):
+        if _exempt_copy(op, source, destination):
             continue
         protected.append(f"{from_stage}:{source}->{destination}")
     return protected
+
+
+def _exempt_copy(op: str, source: str, destination: str) -> bool:
+    """Recognise narrow removal candidates; stage-level checks still require another copy."""
+    if op == "ADD" and source.startswith(("https://", "http://")):
+        return destination.startswith(("/tmp/", "/var/tmp/"))
+    source_name = source.rsplit("/", 1)[-1].lower()
+    destination_name = destination.rsplit("/", 1)[-1].lower()
+    return (
+        (source_name == ".env" or source_name.endswith(".env"))
+        and (destination_name == ".env" or destination_name.endswith(".env"))
+    )
 
 
 def _check_dockerfile(text: str) -> ValidityResult:
@@ -482,13 +492,30 @@ def _docker_stages(instructions: list[tuple[str, str]]) -> list[dict[str, object
             name, _, default = args.partition("=")
             global_args[name.strip()] = default
         elif op == "FROM":
-            stages.append({"base": _base_family(args, global_args), "copies": Counter(), "startup": False})
+            stages.append({
+                "base": _base_family(args, global_args),
+                "copies": Counter(),
+                "exempt_copies": Counter(),
+                "startup": False,
+            })
         elif stages and op in {"COPY", "ADD"}:
             copies = stages[-1]["copies"]
-            assert isinstance(copies, Counter)
+            exempt_copies = stages[-1]["exempt_copies"]
+            assert isinstance(copies, Counter) and isinstance(exempt_copies, Counter)
             copies.update(_protected_copies(op, args))
+            operands, from_stage = _copy_operands(args)
+            if len(operands) >= 2:
+                for source in operands[:-1]:
+                    if _exempt_copy(op, source, operands[-1]):
+                        exempt_copies.update([f"{from_stage}:{source}->{operands[-1]}"])
         elif stages and op in {"CMD", "ENTRYPOINT"}:
             stages[-1]["startup"] = True
+    for stage in stages:
+        copies = stage["copies"]
+        exempt_copies = stage["exempt_copies"]
+        assert isinstance(copies, Counter) and isinstance(exempt_copies, Counter)
+        if not copies:
+            copies.update(exempt_copies)
     return stages
 
 
