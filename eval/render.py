@@ -68,6 +68,11 @@ def render_results_md(report: Mapping[str, Any]) -> str:
         "claim that one configuration beats another; the range answers only *how much "
         "does this number move when nothing changes?*\n"
     )
+    md.append(
+        "The run timestamp below dates the saved model outputs. Detection scores are "
+        "recomputed by the current matcher when this report is generated; a scorer "
+        "correction can change them without a new model call.\n"
+    )
 
     md.append("## Run configuration\n")
     md.append(_md_table(["parameter", "value"], [

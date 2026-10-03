@@ -474,9 +474,11 @@ Scored against the labels, on the **comment-stripped** variants.
 
 **Matching.** An LLM finding `d` matches a label `L` when both hold:
 
-1. **Resource match.** For Terraform, `normalise(d.resource)` equals `normalise(L.resource)`, where
-   `normalise` lowercases, strips quotes, strips a leading `resource ` keyword, and accepts either
-   `type.name` or `type "name"` spelling. For Dockerfiles there is no address space, so the rule is
+1. **Resource match.** For Terraform, fully named addresses must agree after normalization; a
+   module prefix may be omitted on one side, and a bare type or name is accepted as a weaker
+   spelling. Normalization lowercases, strips quotes and accepts `type.name` or `type "name"`.
+   A managed resource cannot match a data source at the same trailing address. For Dockerfiles
+   there is no address space, so the rule is
    weaker: the leading instruction keyword must match (`RUN` to `RUN`, `ENV` to `ENV`), or the label
    must use a whole-image pseudo-resource, in which case the resource check is skipped and the
    semantic check alone decides. Dockerfile matching is therefore materially less precise than
@@ -963,8 +965,8 @@ are not commensurable and are not presented as such.
      for sensitivity analysis, but not for a new headline score or a claim of model superiority.
 
    Until that re-run happens under a matcher frozen in advance, the honest status of "the LLM
-   detects worse than Checkov" is **unresolved**. The published numbers stand as measured, with
-   this threat attached, rather than being silently replaced by more flattering ones.
+   detects worse than Checkov" is **unresolved**. The published numbers retain the
+   alias-substring limitation; they are not replaced by the more flattering token-subset figures.
 
 **T9 — Adjudication is performed by the system's author.** `precision_adjudicated` requires a human
 to decide whether an unmatched finding is a real unlabelled flaw or a hallucination, and that human

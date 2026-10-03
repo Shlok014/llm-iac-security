@@ -15,6 +15,7 @@
 -->
 # Evaluation results
 All figures are descriptive statistics over repeat runs — `mean [min, max]`. **n is far too small for confidence intervals**, significance tests, or any claim that one configuration beats another; the range answers only *how much does this number move when nothing changes?*
+The run timestamp below dates the saved model outputs. Detection scores are recomputed by the current matcher when this report is generated; a scorer correction can change them without a new model call.
 ## Run configuration
 | parameter | value |
 | --- | --- |
