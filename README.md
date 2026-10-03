@@ -134,7 +134,7 @@ GitHub Action runs.
 | **Model** | `gpt-4o-mini-2024-07-18`, `temperature=0`, fixed seed, pinned prompt version |
 | **Evaluation** | 72 model calls — 6 fixtures × 2 corpus variants × 3 seeds |
 | **Reproducibility** | Every published figure regenerates offline from a committed response cache |
-| **Tests** | 384 default tests, passing with `OPENAI_API_KEY` unset; 21 scanner integration tests are opt-in |
+| **Tests** | 400+ default tests, passing with `OPENAI_API_KEY` unset; 21 scanner integration tests are opt-in |
 | **Licence** | MIT |
 
 ---
@@ -182,18 +182,19 @@ propose or verify rewrites on their own.
 > `ec2_open.tf` the model wrote *"SSH access is open to the world (0.0.0.0/0)"* against the alias
 > *"ssh open to the world"*, with the resource address matching exactly, and scored zero.
 >
-> Re-scoring the **same cached responses** with order-independent token matching moves recall from
-> 40.7% to **65.9%** and strict precision from 48.5% to **85.3%**:
+> Re-scoring the **same saved findings** with the same resource matcher and order-independent
+> token matching moves mean recall from 39.1% to **57.1%** and mean strict precision from
+> 59.3% to **86.1%** on the published six fixtures and three repeats:
 >
 > ```bash
-> .venv/bin/python scripts/rescore_matcher.py   # reads the committed cache, no API calls, no cost
+> .venv/bin/python -m scripts.rescore_matcher   # saved results, no API calls or cost
 > ```
 >
-> **This does not overturn the table above, and the two sets of figures are not directly
-> comparable.** The re-score covers 12 fixtures and 91 labels at a single seed; the published rows
-> are 6 fixtures and 52 labels averaged over three. The token matcher is also more permissive by
-> construction and has not been through the adjudication pass. Settling it requires a full re-run
-> under a matcher fixed *before* its results are seen — this repo's own rule, in
+> **This does not overturn the table above.** The denominators now match exactly, which isolates
+> scorer sensitivity, but the token matcher is more permissive by construction, was chosen after
+> seeing misses, and has not been independently validated or adjudicated. Settling the model
+> comparison requires a new evaluation under a matcher fixed *before* its results are seen —
+> this repo's own rule, in
 > [EVALUATION §5.2](docs/EVALUATION.md) — and that re-run has not been done.
 >
 > Until it is, read *"the LLM detects worse than Checkov"* as **unresolved**, not as a result. The
@@ -339,7 +340,7 @@ Method, formulas and threats to validity: [`docs/EVALUATION.md`](docs/EVALUATION
   quietly implied to have happened. `make report` reproduces exactly what is published, no more.
 - **The detection comparison is unresolved.** The substring matcher that produces the LLM's recall
   and precision figures may be measuring itself rather than the model — re-scoring the committed
-  cache with token matching roughly doubles both. Nothing above has been restated on the strength
+  saved findings with token matching changes both substantially. Nothing above has been restated on the strength
   of that, because the fix needs a full re-run under a matcher frozen in advance. Detail, numbers
   and the reproduce command are [above](#measured-results); the mechanism is
   [EVALUATION §5.2](docs/EVALUATION.md) and threat T8.

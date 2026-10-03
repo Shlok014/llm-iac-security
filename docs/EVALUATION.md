@@ -936,14 +936,15 @@ are not commensurable and are not presented as such.
 
    | Matcher | Recall | Strict precision |
    |---|---:|---:|
-   | Substring (what the published numbers use) | 40.7% (37/91) | 48.5% (33/68) |
-   | Token-subset, order-independent | **65.9%** (60/91) | **85.3%** (58/68) |
+   | Substring (published scorer) | 39.1% (21, 21, 19 of 52 labels) | 59.3% (20/34, 22/35, 18/32 findings) |
+   | Token-subset, order-independent | **57.1%** (30, 30, 29 of 52 labels) | **86.1%** (30/34, 30/35, 27/32 findings) |
 
-   Both rows score the **same cached model responses** — no new API calls, no new generations —
-   over 12 fixtures and 91 labels at `run_index=0`, stripped variant. Reproduce with:
+   Both rows score the **same saved findings**, with the same resource matcher, over the published
+   six stripped fixtures, 52 labels and three repeats. Percentages are means of per-repeat rates,
+   exactly as in the headline table; no new API calls or generations are involved. Reproduce with:
 
    ```bash
-   .venv/bin/python scripts/rescore_matcher.py
+   .venv/bin/python -m scripts.rescore_matcher
    ```
 
    The clearest single case: on `ec2_open.tf` the model wrote *"SSH access is open to the world
@@ -952,20 +953,14 @@ are not commensurable and are not presented as such.
    was scored as both a miss and a hallucination. That fixture has 2 labels, the model reported
    exactly 2 correct findings, and it scored 0% recall with 2 false positives.
 
-   **What this does and does not license.** It does *not* license restating the published figures.
-   Three reasons, all of which have to be cleared first:
+   **What this does and does not license.** The denominators now match, so the difference is a
+   direct sensitivity measure. It still does *not* license replacing the published table:
 
-   - **The denominators differ.** The re-score is 12 fixtures / 91 labels at one seed. The
-     published detection table is 6 fixtures / 52 labels averaged over three seeds, and the scanner
-     baselines it compares against (checkov 46.2%, trivy 40.4%, union 53.8%) are computed on that
-     smaller subset. Reading 65.9% against 46.2% crosses denominators and is not a valid comparison.
-   - **The replacement matcher is unvalidated.** Token-subset is strictly more permissive than
-     substring, so some of the gain is mechanical. Precision rising rather than falling is
-     evidence against pure over-matching, but no adjudication pass has been run on it.
-   - **[§5.2](#52-metric-2--detection-precision-and-recall) forbids it.** A vocabulary or matcher
-     amended after seeing its own misses must trigger a full rerun, "so that no result is ever
-     produced by a vocabulary that was tuned against it". The same rule binds a matcher revised
-     after seeing the misses *it* caused.
+   - **The replacement matcher is unvalidated.** Token-subset is more permissive than substring,
+     so some gain is mechanical. No independent adjudication of its extra matches has been done.
+   - **The rule was selected after inspecting misses.** [§5.2](#52-metric-2--detection-precision-and-recall)
+     requires a matcher fixed before evaluating new outputs. The same saved findings are useful
+     for sensitivity analysis, but not for a new headline score or a claim of model superiority.
 
    Until that re-run happens under a matcher frozen in advance, the honest status of "the LLM
    detects worse than Checkov" is **unresolved**. The published numbers stand as measured, with
