@@ -551,10 +551,10 @@ test any change here has to keep passing.
 
 ### 6.9 Sharp edges
 
-- **Dockerfiles have no drift detection.** `extract_resources` returns `[]`, so a model that
-  "fixes" a Dockerfile by deleting the `EXPOSE` line, the `ADD`, and half the `RUN` steps
-  produces a genuinely cleaner scan and nothing here objects. **This is a known coverage gap** —
-  do not report a Dockerfile "resolution rate" alongside Terraform's without the caveat.
+- **Dockerfile drift detection is structural and bounded.** `extract_resources` still returns
+  `[]`, but the current runtime compares base image families and whether per-stage copy sources and
+  startup instructions survive. It can still miss harmful changes within `RUN`, `COPY`, or
+  `CMD`; do not report a Dockerfile resolution rate as proof of equivalent image behavior.
 - **Drift is name-level, not semantics-level.** A model can keep `aws_db_instance.bad_rds` at
   the same address while changing `instance_class` or `allocated_storage`. Relatedly, **`hcl2`
   parses HCL syntax, not Terraform semantics** — a file referencing an undefined variable parses
@@ -590,7 +590,7 @@ NOT_SCANNED = -1     # IterationRecord.failed_count when the gates rejected the 
 class IterationRecord:                   # one attempt, kept whether it succeeded or not
     index, code, validity: ValidityResult
     scan: ScanResult | None = None       # None when a gate rejected the candidate
-    drift: DriftReport | None = None     # None for Dockerfiles and for rejected candidates
+    drift: DriftReport | None = None     # None if parse failed or drift was unmeasurable
     keys: frozenset[tuple[str, str]] = frozenset()   # path-normalised; §7.8
     accepted: bool = False; rejected_because: str = ""
     prompt_tokens / completion_tokens / total_tokens: int = 0   # this iteration's delta
@@ -662,12 +662,14 @@ What the diagram does not show:
 3. **A clean baseline never reaches the model** — `failed_count == 0` returns immediately with
    `CONVERGED`, zero iterations and zero tokens. That is a correctness property before it is a
    saving: there is no way to damage a good file if we never rewrite it.
-4. **The drift gate is an up-front rejection, not a tiebreak.** A candidate whose
-   `drift_touches_flaw` is non-empty is rejected before it is written or scanned, however good
-   its finding count would have been. Rejecting on `lost` rather than on `drift.drifted` is
-   deliberate: a model that adds a resource, or deletes an unflagged one, has not gamed the
-   metric. If the *original* file does not parse the gate is disabled and `drift_gate_note` says
-   so, so "no drift detected" is never confused with "drift was not checked".
+4. **The drift gate is an up-front rejection, not a tiebreak.** The current loop rejects
+   deletion or rename of every directly declared Terraform resource or module call,
+   including unflagged objects, and changes to `count`, `for_each`, module `source`, or
+   in-file variable defaults and locals used by instance controls. The
+   `drift_touches_flaw` subset remains a historical evaluation metric, not the acceptance
+   rule. Dockerfile rewrites are rejected if they drop protected application structure.
+   If the *original* Terraform file does not parse the gate is disabled and
+   `drift_gate_note` says so, so "no drift detected" is never confused with "not checked".
 5. **Candidates are written into a private `TemporaryDirectory`** under `iac_type.output_name`
    and rescanned there; only the best candidate reaches `output_dir`, once, at the end. Writing
    every attempt there would leave the *last* one on disk while `best` named an earlier one, so

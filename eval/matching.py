@@ -43,18 +43,18 @@ _QUOTED_SEGMENTS_RE = re.compile(r'"([^"]+)"')
 _PREFIX_ALIASES = {"variable": "var", "local": "local", "data": "data"}
 
 
-def resource_candidates(raw: str) -> set[str]:
-    """Every canonical spelling a resource string might mean.
+def _canonical_resource(raw: str) -> str:
+    """Normalise a Terraform address without discarding its identifying segments.
 
-    Returns a *set* rather than one string because the same address is written four ways
-    in this project's inputs: `aws_s3_bucket.example` (both scanners),
+    The same address is written four ways in this project's inputs:
+    `aws_s3_bucket.example` (both scanners),
     `resource "aws_s3_bucket" "example"` (an LLM quoting the file),
     `module.db.aws_db_instance.main` (Checkov, for module-nested resources), and
     `variable "api_key"` for a label spelled `var.api_key`.
     """
     text = " ".join(str(raw or "").split()).strip().strip("`").lower()
     if not text:
-        return set()
+        return ""
 
     prefix = ""
     m = _RESOURCE_KEYWORD_RE.match(text)
@@ -70,31 +70,33 @@ def resource_candidates(raw: str) -> set[str]:
     text = text.replace('"', "").replace("'", "").strip()
     text = re.sub(r"\s*\.\s*", ".", text)
     text = re.sub(r"\s+", ".", text)
+    if text.startswith("variable."):
+        text = "var." + text[len("variable."):]
     if prefix and not text.startswith(prefix + "."):
         text = f"{prefix}.{text}"
 
-    out = {text}
-    parts = [p for p in text.split(".") if p]
-    if len(parts) > 2:
-        # Checkov prefixes module-nested resources; the trailing two segments are the
-        # address a label and a model both write.
-        out.add(".".join(parts[-2:]))
-    if len(parts) == 2:
-        out.update(parts)  # allow a bare type or a bare name to match — see below
-    return {p for p in out if p}
+    return text
 
 
 def terraform_resource_matches(finding_resource: str, label_resource: str) -> bool:
     """Do two Terraform resource strings name the same object?
 
-    Deliberately generous: a finding whose `resource` is just `bad_rds` matches the label
-    `aws_db_instance.bad_rds`. The generosity is safe *only because* it is ANDed with the
-    alias test in `semantic_matches` — resource matching alone never promotes a finding to
-    a true positive. Loosening this without that conjunct would inflate recall and
-    precision simultaneously.
+    A bare name or type may match a fully named address, but two fully named addresses
+    must agree. Matching only their common type would credit a finding about one bucket
+    to a different bucket. A module prefix may be omitted on one side only.
     """
-    a, b = resource_candidates(finding_resource), resource_candidates(label_resource)
-    return bool(a and b and (a & b))
+    a, b = _canonical_resource(finding_resource), _canonical_resource(label_resource)
+    if not a or not b:
+        return False
+    if a == b:
+        return True
+    if a.startswith("module.") and not b.startswith("module.") and a.endswith("." + b):
+        return True
+    if b.startswith("module.") and not a.startswith("module.") and b.endswith("." + a):
+        return True
+    if "." in a and "." in b:
+        return False
+    return a in b.split(".") or b in a.split(".")
 
 
 def _docker_instruction(raw: str) -> str | None:

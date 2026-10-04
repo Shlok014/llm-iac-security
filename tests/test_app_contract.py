@@ -106,6 +106,38 @@ def test_the_drift_gate_is_drawn_before_the_rescan(app):
     assert names.index("parse") < names.index("drift")
 
 
+def test_dockerfile_drift_verdict_reports_the_structural_gate(app, monkeypatch):
+    messages = []
+    monkeypatch.setattr(app.st, "success", messages.append)
+    app._render_drift_verdict({
+        "iterations": [{"reason": "", "drift_checked": True}],
+        "drift_note": "",
+        "iac_type": "dockerfile",
+    })
+    assert len(messages) == 1
+    assert "structural gate ran" in messages[0]
+    assert "does not prove" in messages[0]
+
+
+def test_drift_verdict_does_not_claim_all_candidates_preserved_resources(app, monkeypatch):
+    messages = []
+    monkeypatch.setattr(app.st, "error", messages.append)
+    monkeypatch.setattr(app.st, "caption", lambda _text: None)
+    app._render_drift_verdict({
+        "iterations": [{
+            "index": 1,
+            "reason": "drift: aws_s3_bucket.example count changed",
+            "drift_summary": "aws_s3_bucket.example count changed",
+            "drift_checked": True,
+        }],
+        "drift_note": "",
+        "iac_type": "terraform",
+    })
+    assert len(messages) == 1
+    assert "count" in messages[0]
+    assert "rejected" in messages[0]
+
+
 # --------------------------------------------------------------------------------------
 # "not verified" is never dressed up as a result
 # --------------------------------------------------------------------------------------

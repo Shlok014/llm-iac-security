@@ -37,6 +37,15 @@ verified outcome.
 | **Verifies** | Only a gate-passing candidate is written to disk and rescanned. The loop returns the lowest-scoring verified candidate, or the original file if none improve it. |
 | **Fails closed** | Scanner crashes, timeouts, and empty reports surface as errors. Only a completed scan may report a file as clean. |
 
+The runtime drift gate rejects deletion or renaming of directly declared Terraform resources
+and module calls, changes to resource or module `count`/`for_each` or a module's `source`,
+and changes to in-file variable defaults or locals referenced by instance controls,
+even if a scanner did not flag them. For Dockerfiles it compares base image
+families, per-stage application copies, and startup presence. These checks are bounded
+structural evidence, not a Terraform plan or Docker build.
+It permits removal of a separate dotenv copy or remote temporary `ADD` only when a
+whole-context copy remains in the same stage and startup does not name the removed destination.
+
 ---
 
 ## Key evaluation finding
@@ -125,7 +134,7 @@ GitHub Action runs.
 | **Model** | `gpt-4o-mini-2024-07-18`, `temperature=0`, fixed seed, pinned prompt version |
 | **Evaluation** | 72 model calls — 6 fixtures × 2 corpus variants × 3 seeds |
 | **Reproducibility** | Every published figure regenerates offline from a committed response cache |
-| **Tests** | 362, passing with `OPENAI_API_KEY` unset |
+| **Tests** | 400+ default tests, passing with `OPENAI_API_KEY` unset; 21 scanner integration tests are opt-in |
 | **Licence** | MIT |
 
 ---
@@ -147,10 +156,10 @@ Every number regenerates offline from the committed response cache:
 | Checkov | 70 | 42.3 [42, 43] | **39.5%** [38.6, 40.0] | **0** |
 | Trivy | 57 | 30.3 [18, 37] | **46.8%** [35.1, 68.4] | **0** |
 
-Output validity: **36/36 parsed**. Zero findings introduced in any run — the model never wrote a
-new misconfiguration while fixing an old one.
+Output validity: **36/36 parsed**. The selected scanners reported zero newly introduced
+findings in these runs; this does not prove the rewrites introduced no misconfiguration.
 
-**Detection — where it loses to a free tool**
+**Detection — provisional score under the original matcher**
 
 | | Recall vs 52 planted labels |
 |---|---:|
@@ -159,9 +168,10 @@ new misconfiguration while fixing an old one.
 | Both scanners combined | 53.8% |
 | **The LLM** | **39.1%** [36.5, 40.4] |
 
-The LLM finds *fewer* real flaws than Checkov does for free, at 59.3% strict precision. The
-original project claimed contextual understanding as the LLM's advantage; measured, it is behind
-the free tool at detection. Its value is remediation — scanners cannot rewrite anything at all.
+Under the original alias-substring scorer, the LLM matches fewer labels than Checkov, at 59.3%
+strict precision. That scorer misses some correctly phrased findings, so the ranking against
+Checkov is unresolved. The measurable distinction here is the remediation loop: scanners do not
+propose or verify rewrites on their own.
 
 > ⚠️ **This comparison is under question. The gap may be an artifact of how findings are matched
 > to labels, not a property of the model.**
@@ -172,18 +182,19 @@ the free tool at detection. Its value is remediation — scanners cannot rewrite
 > `ec2_open.tf` the model wrote *"SSH access is open to the world (0.0.0.0/0)"* against the alias
 > *"ssh open to the world"*, with the resource address matching exactly, and scored zero.
 >
-> Re-scoring the **same cached responses** with order-independent token matching moves recall from
-> 40.7% to **65.9%** and strict precision from 48.5% to **85.3%**:
+> Re-scoring the **same saved findings** with the same resource matcher and order-independent
+> token matching moves mean recall from 39.1% to **57.1%** and mean strict precision from
+> 59.3% to **86.1%** on the published six fixtures and three repeats:
 >
 > ```bash
-> .venv/bin/python scripts/rescore_matcher.py   # reads the committed cache, no API calls, no cost
+> .venv/bin/python -m scripts.rescore_matcher   # saved results, no API calls or cost
 > ```
 >
-> **This does not overturn the table above, and the two sets of figures are not directly
-> comparable.** The re-score covers 12 fixtures and 91 labels at a single seed; the published rows
-> are 6 fixtures and 52 labels averaged over three. The token matcher is also more permissive by
-> construction and has not been through the adjudication pass. Settling it requires a full re-run
-> under a matcher fixed *before* its results are seen — this repo's own rule, in
+> **This does not overturn the table above.** The denominators now match exactly, which isolates
+> scorer sensitivity, but the token matcher is more permissive by construction, was chosen after
+> seeing misses, and has not been independently validated or adjudicated. Settling the model
+> comparison requires a new evaluation under a matcher fixed *before* its results are seen —
+> this repo's own rule, in
 > [EVALUATION §5.2](docs/EVALUATION.md) — and that re-run has not been done.
 >
 > Until it is, read *"the LLM detects worse than Checkov"* as **unresolved**, not as a result. The
@@ -214,6 +225,11 @@ overstating its result — including, necessarily, the original version of this 
 
 Every one of those five events is the same thing: `aws_s3_bucket_policy.public_policy` deleted
 rather than restricted.
+
+These figures come from the stored evaluation run before the current Dockerfile structural
+gate. The new gate blocks wholesale image or application removal, but it cannot prove a
+Dockerfile still builds or behaves identically. Re-run the model evaluation before attributing
+an improvement in these historical scores to that gate.
 
 > ⚠️ Descriptive statistics over 3 seeds on **6 synthetic fixtures**. n is far too small for
 > confidence intervals or significance claims. They show the pipeline works and is measurable;
@@ -324,7 +340,7 @@ Method, formulas and threats to validity: [`docs/EVALUATION.md`](docs/EVALUATION
   quietly implied to have happened. `make report` reproduces exactly what is published, no more.
 - **The detection comparison is unresolved.** The substring matcher that produces the LLM's recall
   and precision figures may be measuring itself rather than the model — re-scoring the committed
-  cache with token matching roughly doubles both. Nothing above has been restated on the strength
+  saved findings with token matching changes both substantially. Nothing above has been restated on the strength
   of that, because the fix needs a full re-run under a matcher frozen in advance. Detail, numbers
   and the reproduce command are [above](#measured-results); the mechanism is
   [EVALUATION §5.2](docs/EVALUATION.md) and threat T8.

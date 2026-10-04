@@ -1,94 +1,103 @@
-"""Reproduce the matcher finding: substring vs token-subset recall/precision.
+"""Re-score the *published* six-fixture, three-repeat detection runs offline.
 
-Reads only the committed cache — no API calls, no cost. Run from the repo root:
+This is a post-hoc matcher sensitivity check, not a revised model evaluation. It uses
+the exact saved findings and resource matcher from the published results, and refuses
+missing fixtures or repeats rather than silently changing the denominator.
 
-    .venv/bin/python scripts/rescore_matcher.py
-
-It exists so the finding can be re-derived rather than taken on trust.
+Run from the repository root: python -m scripts.rescore_matcher
 """
 
 from __future__ import annotations
 
-import glob
 import json
 import re
+from pathlib import Path
+from typing import Any, Mapping, Sequence
 
-import yaml
+from eval import RESULTS_JSON
+from eval.labels_io import load_labels
+from eval.matching import normalise_text, resource_matches, semantic_matches
 
-STOP = {"the", "a", "an", "is", "are", "to", "of", "in", "on", "and", "or",
-        "for", "with", "be", "not", "all", "from", "that", "this"}
-
-
-def norm(text) -> str:
-    return re.sub(r"[^a-z0-9 ]", " ", str(text).lower())
-
-
-def toks(text) -> set[str]:
-    return {w for w in norm(text).split() if len(w) > 2 and w not in STOP}
+_STOPWORDS = frozenset(
+    "the a an is are to of in on and or for with be not all from that this".split()
+)
 
 
-def load():
-    labels = {}
-    for path in glob.glob("eval/labels/*.labels.yaml"):
-        doc = yaml.safe_load(open(path))
-        labels[doc["fixture"]] = doc.get("labels") or []
-
-    runs = {}
-    for path in glob.glob("eval/cache/*.json"):
-        rec = json.load(open(path))
-        if rec.get("call_kind") != "detect" or rec.get("variant") != "stripped":
-            continue
-        if rec.get("run_index") != 0 or not labels.get(rec.get("fixture")):
-            continue
-        try:
-            parsed = json.loads(rec["response"])
-        except Exception:
-            continue
-        runs[rec["fixture"]] = (
-            parsed.get("findings") if isinstance(parsed, dict) else parsed
-        ) or []
-    return labels, runs
+def _tokens(value: str) -> set[str]:
+    return {
+        word for word in re.findall(r"[a-z0-9]+", normalise_text(value))
+        if len(word) > 2 and word not in _STOPWORDS
+    }
 
 
-def substring(finding, label) -> bool:
-    """What the repo does today."""
-    hay = norm(f"{finding.get('issue','')} {finding.get('recommendation','')} "
-               f"{finding.get('resource','')}")
-    return any(norm(a) in hay for a in (label.get("aliases") or []))
+def token_subset(finding: Mapping[str, Any], aliases: Sequence[str]) -> bool:
+    """Permissive alternative used only to measure scorer sensitivity."""
+    haystack = _tokens(
+        " ".join(str(finding.get(key, "")) for key in ("issue", "recommendation", "resource"))
+    )
+    return any((needle := _tokens(alias)) and needle <= haystack for alias in aliases)
 
 
-def token_subset(finding, label) -> bool:
-    """Order-independent: every significant alias token appears somewhere."""
-    hay = toks(f"{finding.get('issue','')} {finding.get('recommendation','')} "
-               f"{finding.get('resource','')}")
-    for alias in label.get("aliases") or []:
-        at = toks(alias)
-        if at and at <= hay:
-            return True
-    return False
+def load_published_runs(path: Path = RESULTS_JSON) -> dict[int, list[dict[str, Any]]]:
+    document = json.loads(path.read_text(encoding="utf-8"))
+    metadata = document["metadata"]
+    fixtures = set(metadata["fixtures"])
+    repeats = metadata["repeats"]
+    if len(fixtures) != 6 or repeats != 3:
+        raise ValueError("expected the published six-fixture, three-repeat evaluation")
+    rows: dict[int, list[dict[str, Any]]] = {index: [] for index in range(repeats)}
+    for row in document["runs"]:
+        if row["variant"] == "stripped":
+            rows[row["run_index"]].append(row)
+    for index, subset in rows.items():
+        names = [row["fixture"] for row in subset]
+        if len(names) != len(fixtures) or set(names) != fixtures:
+            raise ValueError(f"repeat {index} has missing or duplicate fixtures")
+        if any(not isinstance(row.get("llm_findings"), list) or row.get("error") for row in subset):
+            raise ValueError(f"repeat {index} has incomplete model findings")
+    return rows
+
+
+def score_run(rows: Sequence[Mapping[str, Any]], matcher: str) -> dict[str, int]:
+    if matcher not in {"substring", "token_subset"}:
+        raise ValueError(f"unknown matcher: {matcher}")
+    totals = {"labels": 0, "labels_hit": 0, "findings": 0, "findings_hit": 0}
+    for row in rows:
+        labels = load_labels(row["fixture"]).labels
+        findings = row["llm_findings"]
+        totals["labels"] += len(labels)
+        totals["findings"] += len(findings)
+        pairs = {
+            (index, label.id)
+            for index, finding in enumerate(findings)
+            for label in labels
+            if resource_matches(str(finding.get("resource", "")), label)
+            and (
+                semantic_matches(finding, label) is not None
+                if matcher == "substring"
+                else token_subset(finding, label.aliases)
+            )
+        }
+        totals["labels_hit"] += len({label_id for _, label_id in pairs})
+        totals["findings_hit"] += len({index for index, _ in pairs})
+    return totals
 
 
 def main() -> None:
-    labels, runs = load()
-    print(f"scored over {len(runs)} fixtures from cache — no API calls\n")
-    for name, match in (("substring (current)", substring), ("token-subset", token_subset)):
-        hit = total = tp = fp = 0
-        for fixture, labs in labels.items():
-            if fixture not in runs:
-                continue
-            findings = runs[fixture]
-            total += len(labs)
-            hit += sum(1 for lab in labs if any(match(f, lab) for f in findings))
-            for f in findings:
-                if any(match(f, lab) for lab in labs):
-                    tp += 1
-                else:
-                    fp += 1
-        recall = 100 * hit / total if total else 0
-        precision = 100 * tp / (tp + fp) if (tp + fp) else 0
-        print(f"  {name:<22} recall {recall:5.1f}% ({hit}/{total})   "
-              f"precision {precision:5.1f}% ({tp}/{tp+fp})")
-    print("\n  scanner baselines on the published subset: checkov 46.2%  trivy 40.4%  union 53.8%")
+    runs = load_published_runs()
+    print("Post-hoc sensitivity on the published stripped corpus; no API calls")
+    print("6 fixtures, 52 labels, 3 repeats; resource matching is identical in both rows")
+    for matcher in ("substring", "token_subset"):
+        scored = [score_run(runs[index], matcher) for index in sorted(runs)]
+        recall = sum(row["labels_hit"] / row["labels"] for row in scored) / len(scored)
+        precision = sum(row["findings_hit"] / row["findings"] for row in scored) / len(scored)
+        hits = ", ".join(str(row["labels_hit"]) for row in scored)
+        finding_hits = ", ".join(str(row["findings_hit"]) for row in scored)
+        print(
+            f"{matcher:12} recall {recall:.1%} (label hits: {hits}); "
+            f"strict precision {precision:.1%} (finding hits: {finding_hits})"
+        )
+    print("Token-subset is unvalidated and was chosen after inspecting misses; it is not a headline score.")
 
 
 if __name__ == "__main__":
