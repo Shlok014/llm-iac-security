@@ -188,6 +188,8 @@ def cmd_scan(args: argparse.Namespace) -> int:
 
     documents: list[dict[str, Any]] = []
     errors: list[dict[str, str]] = []
+    unparsed: list[dict[str, Any]] = []
+    unevaluated: list[dict[str, str]] = []
     all_findings: list[Finding] = []
 
     for target in targets:
@@ -205,6 +207,17 @@ def cmd_scan(args: argparse.Namespace) -> int:
                 print(f"  {name}: SCANNER ERROR: {_clip(str(exc), 300)}", file=out)
                 continue
             all_findings.extend(result.failed)
+            if not result.parsed_cleanly:
+                # A file the scanner could not fully parse was not fully examined, so its
+                # finding count is a floor rather than a total — and "0 findings" on it is an
+                # absence of analysis, not a clean result. This is the same rule the scanner
+                # layer already applies to a binary that will not run; it just had nowhere to
+                # be applied on this path, because `parse_errors` was reported to the reader
+                # and then dropped before the exit code was computed.
+                unparsed.append({
+                    "file": str(target), "scanner": name,
+                    "parse_errors": result.parse_errors,
+                })
             scans.append({
                 "scanner": result.scanner, "failed": result.failed_count,
                 "passed": result.passed_count, "parse_errors": result.parse_errors,
@@ -212,11 +225,22 @@ def cmd_scan(args: argparse.Namespace) -> int:
             })
             if not args.json:
                 _render_table(result, out)
+            # "0 failed, 0 passed" is not the same claim as "0 failed, 77 passed", and on real
+            # repositories the first is common: files that hold only variables or outputs, and
+            # resources this scanner's community build has no policy for. Both then roll up
+            # into the same "0 finding(s)" line, which reads as a verdict. Say it on the line
+            # where the counts already are. Deliberately *not* an error — a `variables.tf` with
+            # nothing to check is a legitimate zero, and exiting 2 on it would make the tool
+            # unusable against a real module.
+            evaluated = result.failed_count + result.passed_count
             print(
                 f"  {name}: {result.failed_count} failed, {result.passed_count} passed"
-                + ("" if result.parsed_cleanly else f", {result.parse_errors} parse errors"),
+                + ("" if result.parsed_cleanly else f", {result.parse_errors} parse errors")
+                + ("" if evaluated else "  — no policy was evaluated on this file"),
                 file=out,
             )
+            if not evaluated:
+                unevaluated.append({"file": str(target), "scanner": name})
         documents.append({"file": str(target), "iac_type": kind.value, "scans": scans})
 
     failed_total = len(all_findings)
@@ -225,16 +249,25 @@ def cmd_scan(args: argparse.Namespace) -> int:
     distinct = len({f.key() for f in all_findings})
     by_severity = _severity_histogram(all_findings)
     gate_hits = _gate_hits(all_findings, args.fail_on)
-    code = EXIT_TOOLING if errors else (EXIT_FINDINGS if gate_hits else EXIT_OK)
+    # Parse errors join scanner errors in forcing exit 2, and take the same precedence: part of
+    # the input was not examined, so the count is a floor and not a verdict. A file HCL2 cannot
+    # read is precisely the case `validity.py` calls out — "a file Terraform cannot parse and a
+    # file with zero misconfigurations produce the same number" — and until now the scan path
+    # printed `1 parse errors` and then exited 0 anyway, because `parse_errors` reached the
+    # reader and the JSON but never the exit code.
+    code = EXIT_TOOLING if (errors or unparsed) else (EXIT_FINDINGS if gate_hits else EXIT_OK)
 
     if args.json:
         _emit_json({
             "command": "scan", "version": __version__, "requested": list(args.path),
-            "targets": documents, "errors": errors,
+            "targets": documents, "errors": errors, "unparsed": unparsed,
+            "unevaluated": unevaluated,
             "summary": {
                 "files_scanned": len(targets), "scanners": scanner_names,
                 "failed_total": failed_total, "distinct_findings": distinct,
                 "by_severity": by_severity, "scanner_errors": len(errors),
+                "partially_parsed": len(unparsed),
+                "no_checks_evaluated": len(unevaluated),
                 "fail_on": args.fail_on, "gate_hits": len(gate_hits),
             },
             "exit_code": code,
@@ -248,7 +281,12 @@ def cmd_scan(args: argparse.Namespace) -> int:
     if errors:
         print(f"\n{len(errors)} scanner error(s): exiting {EXIT_TOOLING} "
               "(a scanner that could not run is not a clean result)", file=out)
-    elif code == EXIT_OK and failed_total:
+    if unparsed:
+        where = ", ".join(sorted({u["file"] for u in unparsed}))
+        print(f"\n{len(unparsed)} file/scanner pair(s) did not parse cleanly: exiting "
+              f"{EXIT_TOOLING} (part of the input was never examined, so this count is a "
+              f"floor, not a verdict)\n  {where}", file=out)
+    if not errors and not unparsed and code == EXIT_OK and failed_total:
         print(f"  no finding met the --fail-on {args.fail_on} threshold; exiting 0", file=out)
     return code
 
