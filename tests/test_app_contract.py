@@ -78,12 +78,15 @@ def test_a_gate_rejection_never_reaches_the_scanner_on_the_rail(app):
 
 
 def test_scan_failure_is_the_only_kind_that_reaches_rescan_and_it_is_unverified(app):
-    """`scan_failed` genuinely got as far as the scanner — the scanner is what failed. It is the
-    one rejection allowed at `rescan`, and it must be dashed, because the candidate's real state
-    is unknown rather than bad."""
+    """`scan_failed` and `scan_unparsed` genuinely got as far as the scanner — the scanner is
+    what failed, or could not read the candidate. They are the only rejections allowed at
+    `rescan`, and they must be dashed, because the candidate's real state is unknown rather
+    than bad."""
     at_rescan = [k for k in app.REJECTION_KINDS if k[1] >= app.ST_RESCAN]
-    assert [k[0] for k in at_rescan] == ["scan_failed:"]
-    assert at_rescan[0][4] is True, "an unverified candidate must take the dashed treatment"
+    assert [k[0] for k in at_rescan] == ["scan_failed:", "scan_unparsed:"]
+    assert all(k[4] is True for k in at_rescan), (
+        "an unverified candidate must take the dashed treatment"
+    )
 
 
 def test_an_unrecognised_rejection_fails_closed(app):

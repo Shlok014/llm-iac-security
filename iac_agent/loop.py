@@ -526,6 +526,13 @@ def run_loop(
     # A clean file is not sent to the model at all. That is a correctness property before
     # it is a saving: there is no way to damage a good file if we never rewrite it.
     if baseline.failed_count == 0:
+        if not baseline.parsed_cleanly:
+            # Zero findings from a partly parsed file is a floor, not a clean result — the
+            # same reason `scan` exits 2 on it. There is no denominator to improve against.
+            raise ScannerError(
+                f"{scan_with.name} reported {baseline.parse_errors} parse error(s) and no "
+                f"failed checks on {target}; part of the file was never examined"
+            )
         baseline_record.stop_reason = StopReason.CONVERGED
         return _finish(
             best=baseline_record,
@@ -708,19 +715,30 @@ def run_loop(
                     record.rejected_because = f"scan_failed: {exc}"
                     stall_count += 1
                 else:
-                    record.scan = scan
-                    record.keys = _keys_of(scan, iac_type)
-                    record.accepted = True
-                    if scan.failed_count < best_count:
-                        best, best_count = record, scan.failed_count
-                        stall_count = 0
-                    else:
-                        # A tie is not evidence of improvement, and preferring the earlier
-                        # of two equal results keeps the returned diff smaller.
+                    if not scan.parsed_cleanly:
+                        # Part of the candidate was never examined, so its count is a floor,
+                        # not a verdict — the same reason `scan` exits 2. Accepting it would
+                        # let text the scanner could not read converge at zero findings.
+                        detail = f"{scan_with.name} reported {scan.parse_errors} parse error(s)"
+                        record.rejected_because = f"scan_unparsed: {detail}"
+                        feedback = _feedback_from_invalid(
+                            ValidityResult(False, "scan_unparsed", detail)
+                        )
                         stall_count += 1
-                    # Next round targets checks a scanner just proved still fail, not the
-                    # model's opinion of what it already fixed.
-                    feedback = distill_failures(scan)
+                    else:
+                        record.scan = scan
+                        record.keys = _keys_of(scan, iac_type)
+                        record.accepted = True
+                        if scan.failed_count < best_count:
+                            best, best_count = record, scan.failed_count
+                            stall_count = 0
+                        else:
+                            # A tie is not evidence of improvement, and preferring the earlier
+                            # of two equal results keeps the returned diff smaller.
+                            stall_count += 1
+                        # Next round targets checks a scanner just proved still fail, not the
+                        # model's opinion of what it already fixed.
+                        feedback = distill_failures(scan)
 
             # Reported here, once, after every gate has had its say — so a caller never sees a
             # candidate described before the loop has finished deciding about it.
