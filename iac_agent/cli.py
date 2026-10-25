@@ -460,6 +460,13 @@ def cmd_fix(args: argparse.Namespace) -> int:
             "arithmetic is per-file. Use `scan` for directories."
         )
     iac_type = detect_iac_type(path)  # fail before any spend
+    if args.out and (Path(args.out) / iac_type.output_name).resolve() == path.resolve():
+        # The remediated file is always written as `output_name`, so `--out` pointed at the
+        # input's own folder would replace the input this command promises never to edit.
+        raise IaCAgentError(
+            f"--out {args.out} would overwrite the input {path} with the remediated file. "
+            "Choose a different --out directory."
+        )
 
     # Imported here, not at module import: `scan` must never pull in the model layer, and a
     # missing/partial loop module must not break `iac-agent scan` or `--help`.

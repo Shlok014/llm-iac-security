@@ -471,6 +471,10 @@ def run_loop(
             pass
 
     iac_type = detect_iac_type(target)          # once; threaded through every scanner call
+    if out_dir is not None and (out_dir / iac_type.output_name).resolve() == target.resolve():
+        raise ValueError(
+            f"output_dir {out_dir} would overwrite the input {target}; choose another directory"
+        )
     source = target.read_text(encoding="utf-8", errors="replace")
 
     # Baseline. A ScannerError here is fatal by design (see module docstring).
