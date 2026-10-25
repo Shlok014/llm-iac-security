@@ -268,3 +268,66 @@ def test_the_secure_fixtures_prove_we_looked_not_just_that_we_found_nothing(
     assert payload["exit_code"] == EXIT_OK
     assert evaluated > 0, "a clean verdict from zero evaluated checks is not a clean verdict"
     assert payload["summary"]["no_checks_evaluated"] == 0
+
+
+def test_fix_out_into_the_inputs_own_folder_never_overwrites_the_input(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`--out` names a directory and the file inside it is always `IaCType.output_name`, so
+    `fix Dockerfile --out .` would replace the input the help text says is never edited."""
+    import iac_agent.llm as llm
+
+    real = llm.LLMClient
+    secure = (
+        "FROM python:3.12-slim@sha256:"
+        "aaaaaaaabbbbbbbbccccccccddddddddeeeeeeeeffffffff00000000111111112\n"
+        "COPY . /app\nUSER app\nCMD [\"python\", \"-m\", \"app\"]\n"
+    )
+    replies = iter(['{"findings": []}'] + [secure] * 5)
+    monkeypatch.setattr(
+        llm, "LLMClient", lambda **kw: real(complete_fn=lambda *a, **k: next(replies), **kw)
+    )
+    source = tmp_path / "Dockerfile"
+    original = 'FROM python:3.10-slim\nCOPY . /app\nCMD ["python", "-m", "app"]\n'
+    source.write_text(original)
+
+    code = main(["fix", str(source), "--out", str(tmp_path), "--max-iters", "1"])
+    assert code == EXIT_TOOLING
+    assert source.read_text() == original
+
+
+def test_fix_dry_run_with_out_writes_nothing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`--dry-run` promises nothing is written, so a `--out` given alongside it must be left
+    exactly as it was: no new file, no modified file, and no directory created."""
+    import iac_agent.llm as llm
+
+    real = llm.LLMClient
+    secure = (
+        "FROM python:3.12-slim@sha256:"
+        "aaaaaaaabbbbbbbbccccccccddddddddeeeeeeeeffffffff00000000111111112\n"
+        "COPY . /app\nUSER app\nCMD [\"python\", \"-m\", \"app\"]\n"
+    )
+    replies = iter(['{"findings": []}'] + [secure] * 5)
+    monkeypatch.setattr(
+        llm, "LLMClient", lambda **kw: real(complete_fn=lambda *a, **k: next(replies), **kw)
+    )
+    source_dir = tmp_path / "src"
+    source_dir.mkdir()
+    source = source_dir / "Dockerfile"
+    source.write_text('FROM python:3.10-slim\nCOPY . /app\nCMD ["python", "-m", "app"]\n')
+    existing = tmp_path / "existing_out"
+    existing.mkdir()
+    (existing / "keep.txt").write_text("untouched")
+    missing = tmp_path / "missing_out"
+
+    def snapshot(root: Path) -> dict[str, str]:
+        return {str(p.relative_to(root)): p.read_text() for p in sorted(root.rglob("*"))
+                if p.is_file()}
+
+    before = snapshot(existing)
+    for out_dir in (existing, missing):
+        main(["fix", str(source), "--out", str(out_dir), "--max-iters", "1", "--dry-run"])
+    assert snapshot(existing) == before
+    assert not missing.exists()

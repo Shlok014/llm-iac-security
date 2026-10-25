@@ -102,6 +102,7 @@ REJECTION_KINDS: tuple[tuple[str, int, str, str, bool], ...] = (
     ("invalid:", ST_PARSE, "rejected — did not parse", BLOCKED, False),
     ("llm_error:", ST_MODEL, "the model call failed", MUTED, False),
     ("scan_failed:", ST_RESCAN, "scanner failed — unverified", SIGNAL, True),
+    ("scan_unparsed:", ST_RESCAN, "scanner could not parse it — unverified", SIGNAL, True),
 )
 
 TOKEN_BUDGET_DEFAULT = inspect.signature(run_loop).parameters["token_budget"].default
