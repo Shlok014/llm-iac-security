@@ -268,3 +268,29 @@ def test_the_secure_fixtures_prove_we_looked_not_just_that_we_found_nothing(
     assert payload["exit_code"] == EXIT_OK
     assert evaluated > 0, "a clean verdict from zero evaluated checks is not a clean verdict"
     assert payload["summary"]["no_checks_evaluated"] == 0
+
+
+def test_fix_out_into_the_inputs_own_folder_never_overwrites_the_input(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`--out` names a directory and the file inside it is always `IaCType.output_name`, so
+    `fix Dockerfile --out .` would replace the input the help text says is never edited."""
+    import iac_agent.llm as llm
+
+    real = llm.LLMClient
+    secure = (
+        "FROM python:3.12-slim@sha256:"
+        "aaaaaaaabbbbbbbbccccccccddddddddeeeeeeeeffffffff00000000111111112\n"
+        "COPY . /app\nUSER app\nCMD [\"python\", \"-m\", \"app\"]\n"
+    )
+    replies = iter(['{"findings": []}'] + [secure] * 5)
+    monkeypatch.setattr(
+        llm, "LLMClient", lambda **kw: real(complete_fn=lambda *a, **k: next(replies), **kw)
+    )
+    source = tmp_path / "Dockerfile"
+    original = 'FROM python:3.10-slim\nCOPY . /app\nCMD ["python", "-m", "app"]\n'
+    source.write_text(original)
+
+    code = main(["fix", str(source), "--out", str(tmp_path), "--max-iters", "1"])
+    assert code == EXIT_TOOLING
+    assert source.read_text() == original

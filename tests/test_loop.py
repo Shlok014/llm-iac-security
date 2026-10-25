@@ -15,8 +15,11 @@ import json
 import tempfile
 from pathlib import Path
 
+import pytest
+
 from iac_agent.llm import LLMClient, LLMResponse, ModelConfig, TokenUsage
 from iac_agent.loop import StopReason, run_loop
+from iac_agent.types import Finding, IaCType, ScannerError, ScanResult
 
 SAMPLES = Path(__file__).resolve().parent.parent / "samples"
 
@@ -361,3 +364,65 @@ def test_a_callback_that_raises_cannot_abort_a_paid_run() -> None:
 def test_on_step_is_optional() -> None:
     """The default path must not change: every other test in this file passes None."""
     assert run("s3_public.tf", DETECT, "").baseline.failed_count == 8
+
+
+# --------------------------------------------------------------------------------------
+# the gates judge the reply, and a scan that did not parse is not a verdict
+# --------------------------------------------------------------------------------------
+
+
+def test_a_reply_that_is_only_an_existing_filename_is_rejected() -> None:
+    """An injected comment can ask the model to reply with a path. The gates must judge the
+    reply's text, not the file it names, or the literal path is scanned, parses to nothing,
+    and the run reports CONVERGED."""
+    result = run("s3_public.tf", DETECT, str(SAMPLES / "s3_public.tf"), max_iters=1)
+    assert result.iterations and all(not r.accepted for r in result.iterations)
+    assert result.stop_reason is not StopReason.CONVERGED
+    assert _best_count(result) == result.baseline.failed_count
+
+
+class _UnparsedRescans:
+    """Baseline has one finding; every later scan reports a parse error and zero failures."""
+
+    name = "fake"
+
+    def __init__(self, baseline_failed: int = 1) -> None:
+        self.calls = 0
+        self.baseline_failed = baseline_failed
+
+    def scan(self, path: Path, iac_type: IaCType | None = None) -> ScanResult:
+        self.calls += 1
+        if self.calls == 1 and self.baseline_failed:
+            finding = Finding("CKV_FAKE_1", "", "aws_s3_bucket.x", "m", self.name)
+            return ScanResult(self.name, path, iac_type, failed=[finding] * self.baseline_failed)
+        return ScanResult(self.name, path, iac_type, parse_errors=1)
+
+
+def test_a_candidate_the_scanner_could_not_parse_is_never_accepted() -> None:
+    source = (SAMPLES / "s3_public.tf").read_text()
+    result = run("s3_public.tf", DETECT, source, max_iters=1, scanner=_UnparsedRescans())
+    assert result.iterations and all(not r.accepted for r in result.iterations)
+    assert result.iterations[0].rejected_because.startswith("scan_unparsed")
+    assert result.stop_reason is not StopReason.CONVERGED
+
+
+def test_a_baseline_the_scanner_could_not_parse_is_not_converged() -> None:
+    """Zero findings from a partly parsed original is a floor, not a clean result."""
+    with pytest.raises(ScannerError):
+        run("s3_public.tf", DETECT, "", scanner=_UnparsedRescans(baseline_failed=0))
+
+
+def test_output_dir_that_would_overwrite_the_input_is_refused(tmp_path: Path) -> None:
+    source = tmp_path / "Dockerfile"
+    original = 'FROM python:3.10-slim\nCOPY . /app\nCMD ["python", "-m", "app"]\n'
+    source.write_text(original)
+    with pytest.raises(ValueError):
+        run_loop(
+            source,
+            scanner="checkov",
+            client=LLMClient(complete_fn=scripted(DETECT, SECURE_DOCKERFILE)),
+            output_dir=tmp_path,
+            max_iters=1,
+            token_budget=None,
+        )
+    assert source.read_text() == original
