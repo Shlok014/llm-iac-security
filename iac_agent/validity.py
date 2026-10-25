@@ -43,12 +43,6 @@ from .types import IaCAgentError, IaCType, detect_iac_type
 # innocent reading inside an IaC file.
 _FENCE_RE = re.compile(r"^[ \t]*```|```[a-zA-Z]+", re.MULTILINE)
 
-# Longest string we will even consider testing as a filesystem path. Model output is
-# routinely megabytes; calling Path().is_file() on it is pointless and, on some platforms,
-# raises.
-_MAX_PATHLIKE = 1024
-
-
 class ValidityError(IaCAgentError):
     """Input could not be parsed well enough to reason about its resources.
 
@@ -65,34 +59,23 @@ class ValidityError(IaCAgentError):
 
 
 def _read_source(source: str | Path) -> str:
-    """Accept a Path, a path string, or raw file content, and return the content.
+    """Accept a Path or raw file content, and return the content.
 
-    Ambiguity is real: a `str` could be either. The rule is that a `Path` is always a path,
-    and a `str` is only treated as one if it is short, single-line, and actually names an
-    existing file. Everything else is content. In practice model output always contains a
-    newline, so it never collides.
+    A `Path` is a path and a `str` is always content. A `str` used to be read as a path when
+    it was one line and named an existing file, so a model reply of just `main.tf` had the
+    original file validated and drift-checked in its place, and then the literal text
+    `main.tf` was scanned as the fix. The reply is the thing under test; never swap it out.
     """
     if isinstance(source, Path):
         return source.read_text(encoding="utf-8", errors="replace")
-
-    text = str(source)
-    if "\n" not in text and 0 < len(text) <= _MAX_PATHLIKE:
-        try:
-            candidate = Path(text)
-            if candidate.is_file():
-                return candidate.read_text(encoding="utf-8", errors="replace")
-        except (OSError, ValueError):
-            pass  # embedded NUL, name too long, permission — treat it as content
-    return text
+    return str(source)
 
 
 def _resolve_type(source: str | Path, iac_type: IaCType | None) -> IaCType:
-    """Use the caller's type if given, else infer it from a path. Never guess from text."""
+    """Use the caller's type if given, else infer it from a Path. Never guess from text."""
     if iac_type is not None:
         return iac_type
-    if isinstance(source, Path) or (
-        isinstance(source, str) and "\n" not in source and Path(source).exists()
-    ):
+    if isinstance(source, Path):
         return detect_iac_type(source)
     raise ValidityError(
         "iac_type is required when the source is raw text — the content of a Terraform "

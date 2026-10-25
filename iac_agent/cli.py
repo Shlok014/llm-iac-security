@@ -460,6 +460,13 @@ def cmd_fix(args: argparse.Namespace) -> int:
             "arithmetic is per-file. Use `scan` for directories."
         )
     iac_type = detect_iac_type(path)  # fail before any spend
+    if args.out and (Path(args.out) / iac_type.output_name).resolve() == path.resolve():
+        # The remediated file is always written as `output_name`, so `--out` pointed at the
+        # input's own folder would replace the input this command promises never to edit.
+        raise IaCAgentError(
+            f"--out {args.out} would overwrite the input {path} with the remediated file. "
+            "Choose a different --out directory."
+        )
 
     # Imported here, not at module import: `scan` must never pull in the model layer, and a
     # missing/partial loop module must not break `iac-agent scan` or `--help`.
@@ -477,10 +484,12 @@ def cmd_fix(args: argparse.Namespace) -> int:
 
     # A dry run still needs somewhere to write candidates — the scanner reads files, and the
     # filename it reads is load-bearing (IaCType.output_name). The difference is that the
-    # directory is temporary and is discarded, so nothing the user can see is touched.
-    tmpdir = tempfile.TemporaryDirectory(prefix="iac-agent-") if not args.out else None
-    output_dir = Path(args.out) if args.out else Path(tmpdir.name)  # type: ignore[union-attr]
-    if args.out:
+    # directory is temporary and is discarded, so nothing the user can see is touched. That
+    # includes a `--out` given alongside `--dry-run`: it is ignored, not created or written.
+    keep = bool(args.out) and not args.dry_run
+    tmpdir = tempfile.TemporaryDirectory(prefix="iac-agent-") if not keep else None
+    output_dir = Path(args.out) if keep else Path(tmpdir.name)  # type: ignore[union-attr]
+    if keep:
         output_dir.mkdir(parents=True, exist_ok=True)
 
     def _tick(*a: Any, **kw: Any) -> None:
@@ -508,7 +517,7 @@ def cmd_fix(args: argparse.Namespace) -> int:
         view = _LoopView(result)
         # Without --out the candidates live in the temp directory only, so there is nothing to
         # keep — writing is skipped for the same reason --dry-run skips it.
-        written = _write_output(view, iac_type, output_dir, dry_run=args.dry_run or not args.out)
+        written = _write_output(view, iac_type, output_dir, dry_run=not keep)
         drift_doc = _drift_document(view, path, iac_type)
     finally:
         if tmpdir is not None:

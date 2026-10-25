@@ -17,6 +17,7 @@ import pytest
 
 from iac_agent.types import IaCType
 from iac_agent.validity import (
+    ValidityError,
     check_validity,
     compute_drift,
     drift_touches_flaw,
@@ -424,3 +425,17 @@ def test_drift_touches_flaw_ignores_unflagged_resources() -> None:
     drift = compute_drift(TWO_BUCKETS, ONE_BUCKET, IaCType.TERRAFORM)
     assert drift.drifted
     assert drift_touches_flaw(drift, {"aws_db_instance.something_else"}) == []
+
+
+# --------------------------------------------------------------------------------------
+# a model reply is content, never a path
+# --------------------------------------------------------------------------------------
+
+
+def test_a_one_line_reply_naming_an_existing_file_is_validated_as_text() -> None:
+    """A scanned file can ask the model to reply with just a filename. If the gate read that
+    file instead of the reply, the original would pass on the reply's behalf."""
+    reply = str(SAMPLES / "s3_public.tf")
+    assert not check_validity(reply, IaCType.TERRAFORM).ok
+    with pytest.raises(ValidityError):
+        compute_drift(SAMPLES / "s3_public.tf", reply, IaCType.TERRAFORM)

@@ -408,10 +408,9 @@ parse would read as *"the model deleted everything"*, a completely different con
 *"we could not tell"*. `drift_touches_flaw` returns the **list of lost flagged strings**, not a
 bool, so a caller can name them in a rejection message.
 
-Every function accepts a path or raw content, which is ambiguous for `str`. A `Path` is always a
-path; a `str` is treated as one only if it is non-empty, newline-free, at most 1024 characters
-and names an existing file. Model output always contains a newline, so it never collides in
-practice. `_resolve_type` never guesses a type from file *content* — a wrong guess would be
+Every function accepts a `Path` or raw content. A `Path` is always a path and a `str` is always
+content: a `str` that happens to name an existing file is still validated as text, because a
+model reply of just `main.tf` must not have the original file judged in its place. `_resolve_type` never guesses a type from file *content* — a wrong guess would be
 silent, and mistaking a Dockerfile for Terraform is precisely the bug class in §3.3.
 
 ### 6.3 `check_validity` — the parse gate
